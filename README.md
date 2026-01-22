@@ -88,8 +88,8 @@ Unlike standard chatbots, PrepMaster acts as a **"Double-Sided"** partner:
     ```bash
     streamlit run app.py
 
-    This will open the Web Interfave at:
-    http://localhost:8501
+This will open the Web Interfave at:
+http://localhost:8501
 
 
 ## System Architecture
