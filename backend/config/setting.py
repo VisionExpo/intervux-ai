@@ -7,3 +7,5 @@ def get_device():
     else:
         print("GPU not found. Falling back to CPU.")
         return "cpu"
+    
+DEVICE = get_device()
