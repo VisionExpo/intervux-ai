@@ -27,7 +27,7 @@ class ResumeParser:
         uploaded_file = genai.upload_file(file_path)
 
         # Initialize the model
-        model = genai.GenerativeModel("gemini-1.5-flash", generation_config={"response_mime_type": "application/json"})
+        model = genai.GenerativeModel("gemini-2.5-flash", generation_config={"response_mime_type": "application/json"})
 
         # promt to extract info from resume
         prompt = """You are an expert Resume Parser.
