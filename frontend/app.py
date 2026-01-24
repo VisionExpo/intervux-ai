@@ -8,6 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from backend.core.agent_ocr import ResumeParser
 from backend.core.llm_brain import InterviewerAI
+from code_editor import code_editor
 
 # --- 2. PAGE CONFIG & STYLES ---
 st.set_page_config(
@@ -38,7 +39,7 @@ if "interview_active" not in st.session_state:
     st.session_state.interview_active = False
 
 # --- 4. MAIN LAYOUT ---
-st.markdown('<div class"main-header">👨‍🎓 PrepMaster: 3D AI Interviewer</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">👨‍🎓 PrepMaster: 3D AI Interviewer</div>', unsafe_allow_html=True)
 
 col1, col2 = st.columns([1, 1.5], gap="medium")
 
@@ -61,7 +62,7 @@ with col1:
 
 # === RIGHT COLUMN: Interaction ===
 with col2:
-    tab1, tab2, tab3 =st.tabs(["💬 Chat Transcript", "💻 Coding Sandbox", "📄 Resume"])
+    tab1, tab2, tab3 = st.tabs(["💬 Chat Transcript", "💻 Coding Sandbox", "📄 Resume"])
 
     # --- TAB 1: CHAT INTERFACE ---
     with tab1:
@@ -101,7 +102,6 @@ with col2:
     with tab2:
         st.markdown("### Coding Sandbox")
         st.info("This section will host the coding environment during technical rounds.")
-        from streamlit_code_editor import code_editor
         code_editor("# Write your Python code here...", lang="python", height=200)
 
     # --- TAB 3: RESUME UPLOAD ---
