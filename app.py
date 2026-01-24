@@ -3,11 +3,6 @@ import os
 import sys
 import asyncio
 
-# --- 1. SETUP PATHS ---
-# Add project root to path se we can import from backend
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, project_root)
-
 from backend.core.audio_stack import AudioEngine
 from backend.core.agent_ocr import ResumeParser
 from backend.core.llm_brain import InterviewerAI
