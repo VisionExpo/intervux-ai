@@ -102,7 +102,7 @@ with col2:
     with tab2:
         st.markdown("### Coding Sandbox")
         st.info("This section will host the coding environment during technical rounds.")
-        code_editor("# Write your Python code here...", lang="python", height=200)
+        # code_editor("# Write your Python code here...", lang="python", height=200)
 
     # --- TAB 3: RESUME UPLOAD ---
     with tab3:
