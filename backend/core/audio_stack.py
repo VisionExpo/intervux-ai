@@ -1,9 +1,8 @@
-import os
 import asyncio
 import edge_tts
-import whisper
 import torch
-from pydub import AudioSegment
+import whisper
+import os
 
 # 1. GPU Optimization
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
