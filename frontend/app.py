@@ -157,39 +157,58 @@ with col2:
 
     
     # --- TAB 2: CODING SANDBOX (Placeholder) ---
+    # --- TAB 2: CODING SANDBOX ---
     with tab2:
-        st.markdown("### Technical Assessment")
-
+        st.markdown("### 💻 Technical Assessment")
+        
         # 1. Editor Configuration
-        # Define a defualt starter code
-        default_code = "# Write a function to reverse a string\ndef solve():\n   print('Hello World')\n\nsolve()"
+        default_code = """# Question: Write a Python function to reverse a string.
+def solve(text):
+    return text[::-1]
 
-        # 2. Render the Monaco Editor
-        # key= "code_editor" ensures the state is saved
-        response_dict = code_editor(default_code, lang="python", height=200, key="code_editor")
+print(solve("Hello World"))"""
 
-        # 3. Execution Logic
-        # The editor returns a dict. We check if the code changed or button clicked.
-        if response_dict['type'] == 'submit' or st.button("🚀 Run Code"):
+        # 2. Render Editor
+        response_dict = code_editor(default_code, lang="python", height=300, key="code_editor")
+        
+        # 3. Execution & AI Review Logic
+        if response_dict['type'] == "submit" or st.button("🚀 Run & Review"):
             code_to_run = response_dict['text']
-
-            with st.spinner("Compiling..."):
+            
+            # A. Execute Code
+            with st.spinner("⚡ Compiling..."):
                 output, error = CodeExecutor.run_code(code_to_run)
-                
-
-            # 4. Display Output / Errors
-            st.markdown("**Execution Result:**")
-
+            
+            # Show Execution Results
+            st.markdown("---")
             if error:
-                st.error("Compilation Failed!")
-                st.code(error, language='text')
+                st.error("❌ Compilation Failed")
+                st.code(error, language="text")
             else:
-                st.success("✅ Code Executed Successfully!")
-                st.markdown("**Output:**")
-                st.code(output, language='text')
-
+                st.success("✅ Execution Successful")
+                st.code(output, language="text")
+                
+                # B. AI Code Review (Only if compile success)
                 if st.session_state.interview_active:
-                    grade = st.session_state.interviewer.grade_code(code_to_run, output)
+                    with st.spinner("🧠 AI is reviewing your logic..."):
+                        # We assume the 'problem' is implied in the code for now
+                        # In Phase 3, we will make the problem dynamic
+                        feedback = st.session_state.interviewer.review_code(
+                            problem_desc="Reverse a string (General)", 
+                            code_snippet=code_to_run,
+                            execution_output=output
+                        )
+                    
+                    # C. Display Feedback
+                    with st.expander("🧐 AI Code Review", expanded=True):
+                        st.markdown(feedback)
+                        
+                    # D. Speak the feedback!
+                    audio_file = "frontend/assets/review_audio.mp3"
+                    asyncio.run(st.session_state.audio_engine.text_to_speech("Code review complete. Check the feedback panel.", audio_file))
+                    st.audio(audio_file, format="audio/mp3", autoplay=True)
+                else:
+                    st.info("ℹ️ Start the interview (Tab 3) to enable AI Grading.")
     
 
     # --- TAB 3: RESUME UPLOAD ---
