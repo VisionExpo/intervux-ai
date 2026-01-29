@@ -1,4 +1,4 @@
-# PrepMaster: AI-Driven 3D Mock Interviewer
+# Intervux AI: AI-Driven 3D Mock Interviewer
 
 <div align="center">
 
