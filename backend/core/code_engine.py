@@ -1,44 +1,70 @@
-import sys
 import io
 import contextlib
+import threading
+from typing import Tuple
+
+
+class CodeExecutionTimeout(Exception):
+    pass
+
 
 class CodeExecutor:
+    """
+    Executes user-submitted Python code in a restricted environment.
+    NOTE: This is NOT a full sandbox. Docker isolation is required for production.
+    """
+
+    # Allowed safe builtins
+    SAFE_BUILTINS = {
+        "print": print,
+        "range": range,
+        "len": len,
+        "int": int,
+        "float": float,
+        "str": str,
+        "list": list,
+        "dict": dict,
+        "set": set,
+        "tuple": tuple,
+        "enumerate": enumerate,
+        "sum": sum,
+        "min": min,
+        "max": max,
+        "abs": abs,
+    }
+
     @staticmethod
-    def run_code(code_snippet):
+    def run_code(
+        code_snippet: str,
+        timeout_sec: int = 2
+    ) -> Tuple[str, str]:
         """
-        Executes Python code string and captures standard output.
-        Returns: (output: str, error: str)
+        Executes Python code safely with timeout.
+        Returns: (stdout, error)
         """
-        # Create a buffer to capture 'print()' statements
+
         output_buffer = io.StringIO()
         error_message = None
 
-        try:
-            # Redirect stdout to the buffer
-            with contextlib.redirect_stdout(output_buffer):
-                # RESTRICTION: In a real production app, I will use Docker here.
-                exec_globals = {"__builtins__": __builtins__} # Allow built-in functions
-                exec(code_snippet, exec_globals)
+        def target():
+            nonlocal error_message
+            try:
+                exec_globals = {
+                    "__builtins__": CodeExecutor.SAFE_BUILTINS
+                }
 
-        except Exception as e:
-            # Capture runtime errors(Syntax, NameError, etc.)
-            error_message = f"❌ Runtime Error: {str(e)}"
+                with contextlib.redirect_stdout(output_buffer):
+                    exec(code_snippet, exec_globals)
 
+            except Exception as e:
+                error_message = f"❌ Runtime Error: {e}"
 
-        # Get the standard output (print statements)
-        execution_output = output_buffer.getvalue()
+        thread = threading.Thread(target=target)
+        thread.start()
+        thread.join(timeout=timeout_sec)
 
-        return execution_output, error_message
-    
-# --- UNIT TEST ---
-if __name__ == "__main__":
-    test_code = """
-def greet(name):
-    print(f"Hello, {name}!")
+        if thread.is_alive():
+            error_message = "⏱️ Execution timed out."
+            return "", error_message
 
-greet("Vishal")
-"""
-
-    out, err = CodeExecutor.run_code(test_code)
-    print(f"Output:\n{out}")
-    if err: print(f"Error:\n{err}")
+        return output_buffer.getvalue(), error_message
