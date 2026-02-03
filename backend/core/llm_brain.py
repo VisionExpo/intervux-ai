@@ -1,95 +1,122 @@
 import os
-import yaml
 import google.generativeai as genai
 from dotenv import load_dotenv
+from typing import Dict
+from backend.config.prompt_loader import PromptManager
 
 load_dotenv()
 
+
 class InterviewerAI:
-    def __init__(self):
+    """
+    Handles all LLM-driven interviewer logic.
+    Session-safe and prompts-configurable.
+    """
+
+    def __init__(self, model_name: str = "gemini-2.5-flash"):
         api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise RuntimeError("GOOGLE_API_KEY not set")
+        
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
-        self.chat_session = None
-        self.prompts = self._load_prompts()
+        self.model = genai.GenerativeModel(model_name)
 
-    def _load_prompts(self):
-        """Helper to load the YAML config"""
-        # Build path relative to this file
-        base_dir = os.path.dirname(os.path.abspath(__file__))  # backend/core
-        yaml_path = os.path.join(base_dir, "..", "config", "prompts.yaml")
+        self.prompt_manager = PromptManager()
 
-        try:
-            with open(yaml_path, "r") as f:
-                return yaml.safe_load(f)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"prompts.yaml not found at {yaml_path}")
-        
-    def start_session(self, resume_data, job_role="AI Engineer"):
-         # 1. Get the templete from YAML
-         raw_prompt = self.prompts["system_prompts"]["interviewer"]
+        # session_id -> chat_session
+        self.sessions: Dict[str, any] = {}
 
-         # 2. Fill in the placeholders (Dynamic Injection)
-         system_prompt = raw_prompt.format(
-              job_role=job_role,
-              name=resume_data.get('name','Candidate'),
-              skills = ', '.join(resume_data.get('skills', [])),
-              projects = str(resume_data.get('projects', []))
-         )
 
-         # 3. Start Chat
+    # -------------------
+    # Interview Flow
+    # -------------------
 
-         self.chat_session = self.model.start_chat(
-             history=[
-                 {"role": "user", "parts": [system_prompt]},
-                 {"role": "model", "parts": ["Understood. I am ready."]}
-             ]
-         )
+    def start_session(
+            self,
+            session_id: str,
+            resume_data: dict,
+            job_role: str = "AI Engineer",
+    ) -> str:
+        """
+        Starts a new interview session.
+        """
 
-         response = self.chat_session.send_message("Start the interview.")
-         return response.text
+        system_prompt = self.prompt_manager(
+            "interviewer",
+            job_role=job_role,
+            name=resume_data.get("name", "Candidate"),
+            skills=", ".join(resume_data.get("skills", [])),
+            projects=", ".join(
+                [p.get("title", "") for p in resume_data.get("projects", [])]
+            ),    
+        )
+
+        chat = self.model.start_chat(
+            history = [
+                {"role": "user", "parts": [system_prompt]},
+                {"role": "model", "parts": ["Understood. I am ready."]},
+            ]
+        )
+
+        self.sessions[session_id] = chat
+
+        response = chat.send_message("Start the interview.")
+        return response.text
     
-    def get_response(self, user_answer):
-        if not self.chat_session:
-            return "Error: Session not started."
-        response = self.chat_session.send_message(user_answer)
-        return response.text   
+    def get_respose(self, session_id: str, user_answer: str) -> str:
+        """
+        Comtinues an interview session.
+        """
 
-    def review_code(self, problem_desc, code_snippet, execution_output):
-        """
-        Analyzes code and returns feedback.
-        """
-        # 1. Get Template
-        raw_prompt = self.prompts["system_prompts"]["code_review"]
+        chat = self.sessions.get(session_id)
+        if not chat:
+            return "Error: Interview session not found."
         
-        # 2. Fill Template
-        formatted_prompt = raw_prompt.format(
+        response = chat.send_message(user_answer)
+        return response.text
+    
+    # -----------------
+    # Code Review
+    # -----------------
+
+    def review_code(
+            self,
+            problem_desc: str,
+            code_snippet: str,
+            execution_output: str,
+    ) -> str:
+        prompt = self.prompt_manager.get(
+            "code_review",
             problem_description=problem_desc,
             code_snippet=code_snippet,
-            execution_output=execution_output
+            execution_output=execution_output,
         )
 
-        # 3. Send to Gemini
-        response = self.model.generate_content(formatted_prompt)
+        response = self.model.generate_content(prompt)
         return response.text 
     
+    # -------------------
+    # Problem Generator
+    # -------------------
 
-    def generate_problem(self, skills, difficulty="Medium"):
-        """
-        Creates a custom coding problem based on candidate skills.
-        """
-        raw_prompt = self.prompts["system_prompts"]["problem_generator"]
-        
-        # 1. Fill Template
-        formatted_prompt = raw_prompt.format(
+    def generate_problem(
+        self,
+        skills: str,
+        difficulty: str = "Medium",
+        topic: str = "Data Structures & Algorithms",
+    ) -> str:
+        prompt = self.prompt_manager.get(
+            "problem_generator",
             skills=skills,
-            topic="Data Structures & Algorithms", # You can make this dynamic later
-            difficulty=difficulty
+            topic=topic,
+            difficulty=difficulty,
         )
 
-        # 2. Generate
-        response = self.model.generate_content(formatted_prompt)
-        
-        # 3. Clean up formatting (Gemini sometimes adds ```python blocks)
-        clean_code = response.text.replace("```python", "").replace("```", "").strip()
-        return clean_code
+        response = self.model.generate_content(prompt)
+
+        # Clean Gemini formatting
+        return (
+            response.text.replace("```python", "")
+            .replace("```", "")
+            .strip()
+        )
