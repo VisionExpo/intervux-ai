@@ -1,33 +1,58 @@
-import pyttsx3
-import numpy as np
+import os
 import tempfile
 import wave
-import os
+import threading
+from typing import Optional
 
-engine = pyttsx3.init()
+import numpy as np
+import pyttsx3
 
-def synthesize_speech(text: str) -> bytes:
+
+class TTSService:
     """
-    Convert text to speech and return Float32  PCM bytes
+    Local Text-to-Speech service using pyttsx3.
+    NOTE:
+    This is synchronous and CPU-bound.
+    Suitable for demos and low concurrency.
     """
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-        filename = tmp.name
+    _engine_lock = threading.Lock()
 
+    def __init__(self, voice: Optional[str] = None):
+        self.engine = pyttsx3.init()
+        if voice:
+            self.engine.setProperty("voice", voice)
 
-    engine.save_to_file(text, filename)
-    engine.runAndWait()
+    def synthesize(self, text: str) -> bytes:
+        """
+        Convert text to speech and return Float32 PCM bytes.
+        """
 
-    pcm_audio = wav_to_float32_pcm(filename)
-    os.remove(filename)
+        with tempfile.NamedTemporaryFile(
+            suffix=".wav", delete=False
+        ) as tmp:
+            wav_path = tmp.name
 
-    return pcm_audio
+        try:
+            # pyttsx3 is NOT thread-safe
+            with self._engine_lock:
+                self.engine.save_to_file(text, wav_path)
+                self.engine.runAndWait()
 
+            return self._wav_to_float32_pcm(wav_path)
 
-def wav_to_float32_pcm(wav_path: str) -> bytes:
-    with wave.open(wav_path, "rb") as wf:
-        frames = wf.readframes(wf.getnframes())
-        audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32)
-        audio /= 32768.0 # normalize to [-1, 1]
+        finally:
+            if os.path.exists(wav_path):
+                os.remove(wav_path)
 
-    return audio.tobytes
+    @staticmethod
+    def _wav_to_float32_pcm(wav_path: str) -> bytes:
+        """
+        Convert WAV file to Float32 PCM bytes (mono).
+        """
+        with wave.open(wav_path, "rb") as wf:
+            frames = wf.readframes(wf.getnframes())
+            audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32)
+            audio /= 32768.0  # normalize to [-1, 1]
+
+        return audio.tobytes()
