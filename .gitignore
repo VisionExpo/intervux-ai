@@ -70,3 +70,7 @@ htmlcov/
 
 # API keys and secrets
 .env
+
+# Audio temp files
+*.mp3
+*.wav
