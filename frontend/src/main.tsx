@@ -1,9 +1,9 @@
 import React from "react";
-import ReactDOM from "react-dom/cleint";
+import ReactDOM from "react-dom/client";
 import InterviewPage from "./pages/InterviewPage";
 
 ReactDOM.createRoot(
-    document.getElementById("root")!
+  document.getElementById("root")!
 ).render(
   <React.StrictMode>
     <InterviewPage />
