@@ -1,104 +1,229 @@
-# Intervux AI: AI-Driven 3D Mock Interviewer
+
+# 🎙️ Intervux AI
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0-blue?style=flat)
-![Status](https://img.shields.io/badge/status-active-success?style=flat)
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat&logo=python&logoColor=white)
-![Streamlit](https://img.shields.io/badge/Framework-Streamlit-red?style=flat&logo=streamlit&logoColor=white)
-![Gemini](https://img.shields.io/badge/AI-Gemini%201.5%20Pro-4285F4?style=glat&logo=google&logoColor=white)
-![Vision](https://img.shields.io/badge/Vision-OpenCV%20%2B%20FER-5C3EE8>style=flat&logo=opencv&logoColor=white)
-![Avatar](https://img.shields.io/badge/Avatar-Three.js%20%2F%20RPM-black?style=flat&logo=three.js&logoColor=white)
-![Editor](https://img.shields.io/badge/Code-Monaco%20Editor-1E1E1E?style=flat&logo=visiual-studio&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker&logoColor=white)
-![Rendor](https://img.shields.io/badge/Render-Deployment-46E3B7?style=flat&logo=render&logoColor=white)
-![License](https://img.shields.io/badge/license-MIT-green?style=flat)
+![Version](https://img.shields.io/badge/version-1.0.0-blue?style=flat-square)
+![Status](https://img.shields.io/badge/status-active-success?style=flat-square)
+![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
+<br />
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/Frontend-React-61DAFB?style=flat-square&logo=react&logoColor=black)
+![Three.js](https://img.shields.io/badge/3D-Three.js-black?style=flat-square&logo=three.js&logoColor=white)
+![Gemini](https://img.shields.io/badge/AI-Gemini%201.5%20Pro-4285F4?style=flat-square&logo=google&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)
 
 </div>
 
 <div align="center">
-    <strong>The world's first "Double-Sided" AI Interviewer that Reads Your Face, Hears Your Voice, Reviews Your Code and Reacts in 3D.</strong>
+  <h3>The World's First "Double-Sided" AI Interviewer</h3>
+  <p>
+    <strong>Intervux AI</strong> is a real-time platform that sees your face, hears your voice, evaluates your code, and reacts through a responsive 3D avatar.
+  </p>
 </div>
 
-## Overview
-**PrepMaster** is a next-generation mock interview platform designed to simulate the pressure and fluidity of a real technical interview. It goes beyond simple text chat by integrating **3D Avatars**, **Real-Time Emotion Detection** and **Agentic Document Parsing**.
+---
 
-Unlike standard chatbots, PrepMaster acts as a **"Double-Sided"** partner:
-1. It **Sees** what you see (via Agent OCR of your resume).
-2. It **Hears** when you interrupt (via Full-Duplex Audio).
-3. It **Feels** your anxiety (via Facial Micro-Expression Analysis).
+## 🧠 The Problem
+Hiring and interview preparation today is **fundamentally broken**:
+* **Static & unrealistic:** Mock interviews don’t simulate real pressure.
+* **Text-only:** Chatbots don’t observe non-verbal signals or interruptions.
+* **Incomplete Data:** Candidates are evaluated only on answers, not delivery, hesitation, or behavior.
 
-## Features
+**Real interviews are multimodal. Most tools are not.**
 
-- **3D Holographic Interviewer**: A realistic 3D Avatar (Three.js/Ready Player Me) that speaks, blinks and maintain eye contact with lip-sync animation.
-- **Live Coding Sandbox**: An embedded **Monaco Code Editor** where candidates solve DSA problems. The AI reviews code completely (Big 0) and syntax in real-time.
-- **Emotion & Confidence Analysis**: Uses Computer Vision (OpenCV) to detect facial micro-expressions (Nervousness, Confidence) to grade non-verbal skills.
-- **Agent OCR-RAG**: Intelligent resume parsing using Vision-Language Models (50% token reduction vs raw text).
-- **Double-Sided Audio**: Full-Duplex communication allowing users to interrupt the AI naturally using Voice Activity Detection (VAD).
-- **Low Latency**: Optimized WebRTC streaming for realistic conversational flow.
-- **Privacy Focused**: No data retention; sessions are stateless and video analysis happens locally.
+## 💡 The Solution: Intervux AI
+Intervux is a **real-time simulation platform** that replicates how **human interviewers actually evaluate candidates**. It goes beyond simple Q&A by acting as a **"Double-Sided" Partner**:
 
-## Core Modules
+1.  👁️ **It Sees:** Parses resumes visually using Vision-Language Models (Agent OCR-RAG).
+2.  🎧 **It Hears:** Supports full-duplex audio, allowing you to interrupt the AI naturally.
+3.  😰 **It Feels:** Detects micro-expressions (nervousness, confidence) via Computer Vision.
+4.  💻 **It Judges:** Reviews code logic, syntax, and time complexity in real-time.
 
-1. **Agent OCR:** "Looks" at the resume PDF as an image to extract structure without raw text bloat.
-2. **Coding Engine:** A secure sandbox (`streamlit-code-editor`) for executing and grading Python/SQL snippets.
-3. **Vision Engine:** Real-time facial expression recognition (FER) to assess candidate anxiety.
-4. **Duplex Bridge:** Handles audio interruptions so you can talk over the AI.
+---
 
-## Tech Stack
+## ✨ Core Features
+
+| Feature | Description |
+| :--- | :--- |
+| **🗣️ Real-Time Audio** | Streaming audio pipeline with **Voice Activity Detection (VAD)** for natural, interruptible conversation. |
+| **🎭 3D Avatar** | High-fidelity **Three.js / React Three Fiber** avatar with real-time lip-sync (viseme) animation. |
+| **😰 Emotion AI** | **OpenCV + FER** based facial analysis to detect stress and dynamically adjust interview difficulty. |
+| **💻 Live Sandbox** | Embedded **Monaco Editor** for coding interviews. The AI runs code safely and checks Big-O complexity. |
+| **📄 Agent OCR** | Intelligent resume parsing using Vision Models to extract structure without raw text bloat. |
+| **⚡ Low Latency** | Built on **WebSockets** and **FastAPI** for an event-driven architecture targeting <500ms response times. |
+
+---
+
+## 🧩 System Architecture
+
+### High-Level Flow
+```mermaid
+flowchart TD
+    User -->|Audio / Video / Code| Frontend
+    Frontend -->|WebSockets| Backend
+    Backend -->|LLM Reasoning| Gemini
+    Backend -->|Emotion Analysis| OpenCV
+    Backend -->|Code Execution| Sandbox
+    Backend -->|Audio + Visemes| Frontend
+
+```
+
+### Real-Time Interaction Loop
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant FE as React Frontend
+    participant BE as FastAPI Backend
+    participant AI as Gemini / STT / TTS
+    participant CV as Emotion AI
+
+    User->>FE: Speak / Code / Facial cues
+    FE->>BE: audio_stream (PCM)
+    BE->>AI: STT → Reasoning → TTS
+    AI-->>BE: Audio + Visemes
+    BE-->>FE: avatar_sync
+
+    FE->>BE: video_frame
+    BE->>CV: Emotion Detection
+    CV-->>BE: Stress Score
+    BE-->>FE: stress_update
+
+```
+
+---
+
+## 🛠️ Tech Stack
+
+### Frontend (Client)
+
+* **Framework:** React + TypeScript (Vite)
+* **3D Engine:** React Three Fiber (R3F) / Drei
+* **Editor:** Monaco Editor (VS Code core)
+* **Comms:** WebSockets (Socket.io-client), Web Audio API
+
+### Backend (Server)
+
+* **Framework:** FastAPI (Python 3.10+)
+* **Concurrency:** AsyncIO
+* **Comms:** Python-SocketIO
+* **Processing:** OpenCV (Vision), PyDub (Audio)
+
+### AI & Logic
+
+* **Brain:** Google Gemini 1.5 Pro
+* **Speech:** Google STT / TTS (or Deepgram for lower latency)
+* **Resume:** Vision-based OCR
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+* Python 3.10+
+* Node.js 18+
+* Docker (Optional)
+* Google Gemini API Key
+
+### 1. Clone the Repository
+
+```bash
+git clone [https://github.com/YourUsername/intervux-ai.git](https://github.com/YourUsername/intervux-ai.git)
+cd intervux-ai
+
+```
+
+### 2. Backend Setup
+
+```bash
+cd backend
+python -m venv venv
+# Windows: .\venv\Scripts\activate
+# Mac/Linux: source venv/bin/activate
+
+pip install -r requirements.txt
+
+# Create .env file
+echo "GOOGLE_API_KEY=your_key_here" > .env
+echo "GROQ_API_KEY=your_key_here" >> .env
+
+# Run Server
+uvicorn main:app --reload
+
+```
+
+### 3. Frontend Setup
+
+```bash
+cd frontend
+npm install
+npm run dev
+
+```
+
+### 4. Running via Docker (Recommended)
+
+```bash
+docker-compose up --build
+
+```
+
+Access the application at `http://localhost:5173`.
+
+---
+
+## 📁 Project Structure
+
+```text
+intervux-ai/
+├── backend/                # Python FastAPI Server
+│   ├── main.py             # Entry point
+│   ├── sockets/            # WebSocket event handlers
+│   ├── core/               # LLM & Logic Engine
+│   ├── services/           # Audio, Vision, Code Execution services
+│   └── config/             # Environment variables
+├── frontend/               # React Application
+│   ├── src/
+│   │   ├── components/     # 3D Avatar, Code Editor, Video Feed
+│   │   ├── hooks/          # useSocket, useAudio
+│   │   └── pages/          # Interview Room
+├── Dockerfile              # Container definition
+├── docker-compose.yaml     # Orchestration
+└── README.md
+
+```
+
+---
+
+## 🛣️ Roadmap
+
+* [x] **Core:** Real-time WebSocket architecture
+* [x] **Architecture:** Decoupled Frontend/Backend
+* [x] **Integration:** Audio, Vision, and Coding pipelines active
+* [ ] **Avatar:** Advanced facial micro-expressions
+* [ ] **Performance:** Latency tuning (<300ms)
+* [ ] **Features:** Post-interview feedback reports
+* [ ] **Scale:** Multi-language support
+
+---
+
+## 🧠 Vision
+
+**Intervux AI** aims to bridge the gap between human intuition and AI scalability.
+
+1. **For Candidates:** A stress-free training ground to fail safely and improve.
+2. **For Companies:** A preliminary screening tool that removes bias.
+3. **For Research:** A platform to study human-AI interaction dynamics.
+
+---
+
+## 📜 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
 
 <div align="center">
-
-|     Domain     |       Technology       |                  Purpose                |
-|:---------------|:-----------------------|:----------------------------------------|
-|**Frontend**    | `Streamlit` + `HTML5`  | Core Interface                          |
-|**Code Editor** | `streamlit-code-editor`| Embedded Monaco Editor for coding tasks |
-|**3D Engine**   | `Three.js` / `RPM`     | Rendering the Interviewer Avatar        |
-|**Vision AI**   | `OpenCV` + `FER`       | Emotion & Enxiety Detection             |
-|**Reasoning**   | `Gemini 1.5 Flash`     | Brain (Logic & Conversation)            |
-|**Audio**       |`Streamlit-WebRTC`      | Real-time Video/Audio Streaming         |
-|**Deploy**      | `Docker` -> `Render`   | Containerization                        |
-
-</div>
-
-## Quick Start
-
-1. **Clone the repository:**
-    ```bash
-    git clone https://github.com/VisionExpo/PrepMaster.git
-    cd PrepMaster
-
-2. **Create and activate virtual environment:**
-    ```bash
-    python -m venv venv
-    .\venv\Scripts\activate # Windows
-    source venv/bin/activate # Linux/Mac
-
-3. **Install Dependencies:**
-    ```bash
-    pip install -r requirements.txt
-
-4. **Set up environment variables:**
-    # Create a .env file:
-    ```env
-    GOOGLE_API_KEY=your_gemini_key
-    GROQ_API_KEY=your_groq_key
-
-5. **Start the application:**
-    ```bash
-    streamlit run app.py
-
-This will open the Web Interfave at:
-http://localhost:8501
-
-
-## System Architecture
-
-## Roadmap
-
-## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE)
-
-<div align="center">
-Made with love by <strong>Vishal</strong>
+<sub>Built with ❤️ by Vishal Gorule</sub>
 </div>
