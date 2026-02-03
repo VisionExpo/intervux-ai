@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import json
 import numpy as np
 
+from backend.services.tts_service import synthesize_speech
+
 app = FastAPI()
 
 app.add_middleware(
@@ -24,36 +26,23 @@ async def interview_socket(ws: WebSocket):
 
             # 🎧 Audio from Frontend
             if "bytes" in message:
-                pass
+                continue
             
-            # 🧠 Text / Events
-            if "text" in message:
-                data = json.loads(message["text"])
-                print("Received:",data)
+            # Temp interviewer response
+            interviewer_text = (
+                "Hello. I am your interviewer. "
+                "Please introduce yourself."
+            )
 
-                # Temp AI response (TEMP)
-                await ws.send_text(json.dumps({
-                    "type": "avatar_sync",
-                    "text": "Hello, I am your interviewer. Tell me about yourself.",
-                }))
+            # Send Text (TEMP)
+            await ws.send_text(json.dumps({
+                "type": "avatar_sync",
+                "text": interviewer_text
+            }))
 
-                # 🔊 Temp audio responce(Beep)
-                audio_bytes = generate_beep()
-                await ws.send_bytes(audio_bytes)
+            # 🔊 Send real TTS audio
+            audio_bytes = synthesize_speech(interviewer_text)
+            await ws.send_bytes(audio_bytes)
 
     except WebSocketDisconnect:
         print("❌Client disconnected")
-
-
-def generate_beep(
-        duration_sec: float = 0.4,
-        frequency: float = 440.0,
-        sample_rate: int = 44100
-) -> bytes:
-    """
-    Generate a short sine-wave beep as Float32 PCM
-    """
-    t =  np.linspace(0, duration_sec, int(sample_rate*duration_sec), False)
-    tone = 0.3 * np.sin(2 * np.pi * frequency * t)
-
-    return tone.astype(np.float32).tobytes()
