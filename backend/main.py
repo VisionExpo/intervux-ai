@@ -1,23 +1,27 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-import json
-import numpy as np
 
-from backend.services.tts_service import synthesize_speech
+from backend.sockets.interview import InterviewSocket
 
-app = FastAPI()
+app = FastAPI(title="Intervux AI Backend")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
+interview_socket = InterviewSocket()
+
+
 @app.websocket("/ws/interview")
-async def interview_socket(ws: WebSocket):
-    await ws.accept()
+async def interview_ws(ws: WebSocket):
+    """
+    Main WebSocket endpoint for real-time interviews.
+    """
+    await interview_socket.handle(ws)
     print("✅Client connected")
 
     try:
