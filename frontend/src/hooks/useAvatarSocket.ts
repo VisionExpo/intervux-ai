@@ -4,7 +4,8 @@ export function useAvatarSocket() {
   const socketRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  const [avatarText, setAvatarText] = useState<string>("");
+  const [avatarText, setAvatarText] = useState("");
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   useEffect(() => {
     // Setup AudioContext
@@ -22,7 +23,7 @@ export function useAvatarSocket() {
     ws.onmessage = (event) => {
       // Audio From Backed
       if (event.data instanceof ArrayBuffer) {
-        playAudio(event.data, audioCtx);
+        playAudio(event.data, audioCtx, setIsSpeaking);
         return;
       }
 
@@ -32,6 +33,11 @@ export function useAvatarSocket() {
       
         if (msg.type === "avatar_sync") {
           setAvatarText(msg.text);
+
+          if (msg.viseme?.type === "speech") {
+            setIsSpeaking(true);
+            setTimeout(() => setIsSpeaking(false), msg.viseme.duration_ms);
+          }
         }
       }
     };
@@ -46,25 +52,33 @@ export function useAvatarSocket() {
 
   return {
     avatarText,
+    isSpeaking,
   };
 }
 /**
  * Plays raw PCM audio sent from backend
  * (This will later be replaced with real TTS audio)
  */
-function playAudio(buffer: ArrayBuffer, audioCtx: AudioContext) {
-  const floatData = new Float32Array(buffer);
+function playAudio(
+  buffer: ArrayBuffer,
+  audioCtx: AudioContext,
+  setIsSpeaking: (v: boolean) => void
+) {
+  const data = new Float32Array(buffer);
 
   const audioBuffer = audioCtx.createBuffer(
     1,
-    floatData.length,
+    data.length,
     audioCtx.sampleRate
   );
 
-  audioBuffer.copyToChannel(floatData, 0);
+  audioBuffer.copyToChannel(data, 0);
 
   const source = audioCtx.createBufferSource();
   source.buffer = audioBuffer;
   source.connect(audioCtx.destination);
   source.start();
+
+  setIsSpeaking(true);
+  source.onended = () => setIsSpeaking(false);
 }

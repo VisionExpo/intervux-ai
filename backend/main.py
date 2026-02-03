@@ -37,7 +37,11 @@ async def interview_socket(ws: WebSocket):
             # Send Text (TEMP)
             await ws.send_text(json.dumps({
                 "type": "avatar_sync",
-                "text": interviewer_text
+                "text": interviewer_text,
+                "viseme": {
+                    "type": "speech",
+                    "duration_ms": 2000
+                }
             }))
 
             # 🔊 Send real TTS audio
