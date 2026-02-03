@@ -224,6 +224,8 @@ intervux-ai/
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
+> If you like this project, ⭐ star the repo and join the journey.
+
 <div align="center">
 <sub>Built with ❤️ by Vishal Gorule</sub>
 </div>
