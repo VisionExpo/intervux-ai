@@ -1,49 +1,64 @@
 import asyncio
-import edge_tts
-import torch
-import whisper
 import os
+import tempfile
+from typing import Optional
 
-# 1. GPU Optimization
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"🚀 Audio Stack is running on {DEVICE}")
+import edge_tts
+import whisper
+
+from backend.config.setting import DEVICE
+
 
 class AudioEngine:
-    def __init__(self):
-        # Load Whisper Model once (It's heavy! so we will cache it)
-        print("🎤 Loading Whisper Model...")
-        self.stt_model = whisper.load_model("base", device=DEVICE)
+    """
+    Handles Speech-to-Text (Whisper) and Text-to-Speech (Edge TTS).
+    """
 
-    async def text_to_speech(self, text, output_file="temp_output.mp3"):
+    def __init__(self, whisper_model: str = "base"):
+        print(f"[INFO] Initializing AudioEngine on {DEVICE}")
+
+        # Load Whisper once (heavy model)
+        self.stt_model = whisper.load_model(
+            whisper_model,
+            device=DEVICE
+        )
+
+    # ---------------------------
+    # Text → Speech
+    # ---------------------------
+
+    async def text_to_speech(self, text: str) -> bytes:
         """
-        Convert text to audio using EdgeTTS
-        Voice : en-US-AriaNeural (Female) or en-US-ChristopherNeural (Male)
+        Convert text to speech and return audio bytes (mp3).
         """
         voice = "en-US-AriaNeural"
-        communicate = edge_tts.Communicate(text, voice)
-        await communicate.save(output_file)
-        return output_file
-    
-    def speech_to_text(self, audio_file_path):
-        """
-        Transcribe audio file to text using Whisper on GPU
-        """ 
-        # Whisper handles ffmpeg processing internally
-        result = self.stt_model.transcribe(audio_file_path, fp16=(DEVICE=="cuda"))
-        return result["text"]
 
-# --- Testing Block ---
-if __name__ == "__main__":
-    # Test TTS
-    engine = AudioEngine()
-    
-    print("🗣️ Testing TTS...")
-    # Windows-safe asyncio handling
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-    loop.run_until_complete(engine.text_to_speech("Hello candidate, welcome to PrepMaster."))
-    print("✅ TTS Generated: temp_output.mp3")
+        with tempfile.NamedTemporaryFile(
+            suffix=".mp3", delete=False
+        ) as tmp:
+            output_path = tmp.name
+
+        try:
+            communicate = edge_tts.Communicate(text, voice)
+            await communicate.save(output_path)
+
+            with open(output_path, "rb") as f:
+                return f.read()
+
+        finally:
+            if os.path.exists(output_path):
+                os.remove(output_path)
+
+    # ---------------------------
+    # Speech → Text
+    # ---------------------------
+
+    def speech_to_text(self, audio_path: str) -> str:
+        """
+        Transcribe an audio file into text.
+        """
+        result = self.stt_model.transcribe(
+            audio_path,
+            fp16=(DEVICE == "cuda")
+        )
+        return result.get("text", "").strip()
