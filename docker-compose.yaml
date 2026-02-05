@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  intervux-backend:
+    build: .
+    container_name: intervux-ai-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    restart: unless-stopped
