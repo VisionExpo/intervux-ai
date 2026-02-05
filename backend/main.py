@@ -1,56 +1,154 @@
-from fastapi import FastAPI, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, UploadFile, File
+from pydantic import BaseModel
+from typing import List
 
-from backend.sockets.interview import InterviewSocket
-
-app = FastAPI(title="Intervux AI Backend")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+from backend.core.agent_ocr import parse_resume
+from backend.core.llm_brain import (
+    generate_questions,
+    evaluate_answer,
+    generate_final_report
 )
+from backend.services.stt_service import transcribe_audio
+from backend.services.tts_service import synthesize_speech
+from backend.models.interview import InterviewState
 
-interview_socket = InterviewSocket()
+app = FastAPI(title="Intervux-AI v1.0")
+
+# ----------------------------
+# Global (v1.0 = single session)
+# ----------------------------
+SESSION = InterviewState()
+
+# ----------------------------
+# Models
+# ----------------------------
+class StartResponse(BaseModel):
+    greeting_audio_url: str
+    message: str
 
 
-@app.websocket("/ws/interview")
-async def interview_ws(ws: WebSocket):
-    """
-    Main WebSocket endpoint for real-time interviews.
-    """
-    await interview_socket.handle(ws)
-    print("✅Client connected")
+class QuestionResponse(BaseModel):
+    question_text: str
+    question_audio_url: str
+    index: int
 
-    try:
-        while True:
-            message = await ws.receive()
 
-            # 🎧 Audio from Frontend
-            if "bytes" in message:
-                continue
-            
-            # Temp interviewer response
-            interviewer_text = (
-                "Hello. I am your interviewer. "
-                "Please introduce yourself."
-            )
+class AnswerResponse(BaseModel):
+    transcript: str
+    evaluation: dict
 
-            # Send Text (TEMP)
-            await ws.send_text(json.dumps({
-                "type": "avatar_sync",
-                "text": interviewer_text,
-                "viseme": {
-                    "type": "speech",
-                    "duration_ms": 2000
-                }
-            }))
 
-            # 🔊 Send real TTS audio
-            audio_bytes = synthesize_speech(interviewer_text)
-            await ws.send_bytes(audio_bytes)
+class FinalReportResponse(BaseModel):
+    report: dict
 
-    except WebSocketDisconnect:
-        print("❌Client disconnected")
+
+# ----------------------------
+# 1️⃣ Start Interview (Voice Greeting)
+# ----------------------------
+@app.post("/start", response_model=StartResponse)
+def start_interview():
+    greeting_text = (
+        "Hello, welcome to Intervux AI. "
+        "I will be your interviewer today. "
+        "This interview will include a short introduction, "
+        "technical questions, and feedback at the end. "
+        "Please upload your resume to begin."
+    )
+
+    audio_url = synthesize_speech(greeting_text)
+
+    SESSION.reset()
+
+    return StartResponse(
+        greeting_audio_url=audio_url,
+        message="Interview session initialized"
+    )
+
+
+# ----------------------------
+# 2️⃣ Resume Upload & Parsing
+# ----------------------------
+@app.post("/upload-resume")
+def upload_resume(file: UploadFile = File(...)):
+    resume_text, extracted_profile = parse_resume(file)
+
+    SESSION.resume_text = resume_text
+    SESSION.profile = extracted_profile
+
+    return {
+        "status": "resume_parsed",
+        "profile_summary": extracted_profile
+    }
+
+
+# ----------------------------
+# 3️⃣ Generate Questions (Frozen Count)
+# ----------------------------
+@app.post("/generate-questions")
+def generate_interview_questions():
+    questions = generate_questions(
+        profile=SESSION.profile,
+        num_questions=4  # 🔒 FROZEN FOR v1.0
+    )
+
+    SESSION.questions = questions
+    SESSION.current_index = 0
+
+    return {"total_questions": len(questions)}
+
+
+# ----------------------------
+# 4️⃣ Ask Current Question (Voice)
+# ----------------------------
+@app.get("/question", response_model=QuestionResponse)
+def get_current_question():
+    idx = SESSION.current_index
+    question_text = SESSION.questions[idx]
+
+    audio_url = synthesize_speech(question_text)
+
+    return QuestionResponse(
+        question_text=question_text,
+        question_audio_url=audio_url,
+        index=idx
+    )
+
+
+# ----------------------------
+# 5️⃣ Submit Answer (Voice → STT → Eval)
+# ----------------------------
+@app.post("/answer", response_model=AnswerResponse)
+def submit_answer(audio: UploadFile = File(...)):
+    transcript = transcribe_audio(audio)
+
+    evaluation = evaluate_answer(
+        question=SESSION.questions[SESSION.current_index],
+        answer=transcript,
+        profile=SESSION.profile
+    )
+
+    SESSION.answers.append({
+        "question": SESSION.questions[SESSION.current_index],
+        "answer": transcript,
+        "evaluation": evaluation
+    })
+
+    SESSION.current_index += 1
+
+    return AnswerResponse(
+        transcript=transcript,
+        evaluation=evaluation
+    )
+
+
+# ----------------------------
+# 6️⃣ Final Interview Report
+# ----------------------------
+@app.get("/final-report", response_model=FinalReportResponse)
+def final_report():
+    report = generate_final_report(
+        profile=SESSION.profile,
+        answers=SESSION.answers
+    )
+
+    return FinalReportResponse(report=report)
