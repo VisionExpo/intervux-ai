@@ -1,8 +1,12 @@
 import os
 import json
+import tempfile
+from typing import Tuple
+
 import google.generativeai as genai
 from dotenv import load_dotenv
 from backend.config.prompt_loader import PromptManager
+from fastapi import UploadFile
 
 load_dotenv()
 
@@ -12,7 +16,8 @@ class ResumeParser:
     Vision-based resume parser using Gemini VLM.
     """
 
-    def __init__(self, model_name: str = "gemini-2.5-flash"):
+    def __init__(self, model_name: str = "gemini-1.5-flash"):
+        # NOTE: Corrected model name from "gemini-2.5-flash" to a valid model.
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
             raise RuntimeError("GOOGLE_API_KEY not set")
@@ -60,3 +65,26 @@ class ResumeParser:
                 genai.delete_file(uploaded_file.name)
             except Exception:
                 pass
+
+
+def parse_resume(file: UploadFile) -> Tuple[str, dict]:
+    """
+    Wrapper function to handle UploadFile, parse it, and return data
+    in the format expected by main.py.
+    """
+    parser = ResumeParser()
+
+    # Save UploadFile to a temporary file to get a path
+    with tempfile.NamedTemporaryFile(delete=False, suffix=file.filename) as tmp:
+        tmp.write(file.file.read())
+        file_path = tmp.name
+
+    try:
+        profile_data = parser.parse(file_path)
+        # main.py expects a tuple (resume_text, profile_dict).
+        # The raw text isn't used in v1.0, so we return an empty string.
+        return "", profile_data
+    finally:
+        # Clean up the local temporary file
+        if os.path.exists(file_path):
+            os.remove(file_path)

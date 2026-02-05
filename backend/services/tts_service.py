@@ -2,10 +2,17 @@ import os
 import tempfile
 import wave
 import threading
+import uuid
 from typing import Optional
+from pathlib import Path
 
 import numpy as np
 import pyttsx3
+
+
+# Define and create the static directory for audio files
+STATIC_DIR = Path("/app/static/audio")
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class TTSService:
@@ -56,3 +63,23 @@ class TTSService:
             audio /= 32768.0  # normalize to [-1, 1]
 
         return audio.tobytes()
+
+
+# --- v1.0 Public Function ---
+
+_tts_service_instance = TTSService()
+
+
+def synthesize_speech(text: str) -> str:
+    """
+    Synthesizes speech, saves it as a static WAV file,
+    and returns the URL path for the client to fetch.
+    """
+    filename = f"{uuid.uuid4()}.wav"
+    filepath = str(STATIC_DIR / filename)
+
+    with _tts_service_instance._engine_lock:
+        _tts_service_instance.engine.save_to_file(text, filepath)
+        _tts_service_instance.engine.runAndWait()
+
+    return f"/static/audio/{filename}"

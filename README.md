@@ -43,6 +43,8 @@ Intervux is a **real-time simulation platform** that replicates how **human inte
 
 ---
 
+> **Note on v1.0:** The features described below represent the full vision of Intervux AI. The current `v1.0` release implements the core, resume-aware interview flow via a RESTful API. Real-time features like WebSockets, 3D avatar streaming, and emotion detection are part of the future roadmap.
+
 ## ✨ Core Features
 
 | Feature | Description |

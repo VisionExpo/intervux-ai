@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
 
 from backend.core.agent_ocr import parse_resume
 from backend.core.llm_brain import (
@@ -19,6 +20,9 @@ app = FastAPI(
     description="Voice-first AI interview system (v1.0)",
     version="1.0.0"
 )
+
+# Mount static directory to serve audio files
+app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
 # -------------------------------------------------
 # Global Session (v1.0 = single session only)
