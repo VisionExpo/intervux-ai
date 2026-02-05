@@ -1,6 +1,5 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
-from typing import List
 
 from backend.core.agent_ocr import parse_resume
 from backend.core.llm_brain import (
@@ -20,7 +19,7 @@ app = FastAPI(title="Intervux-AI v1.0")
 SESSION = InterviewState()
 
 # ----------------------------
-# Models
+# Response Models
 # ----------------------------
 class StartResponse(BaseModel):
     greeting_audio_url: str
@@ -56,7 +55,6 @@ def start_interview():
     )
 
     audio_url = synthesize_speech(greeting_text)
-
     SESSION.reset()
 
     return StartResponse(
@@ -86,6 +84,9 @@ def upload_resume(file: UploadFile = File(...)):
 # ----------------------------
 @app.post("/generate-questions")
 def generate_interview_questions():
+    if not SESSION.profile:
+        raise HTTPException(status_code=400, detail="Resume not uploaded")
+
     questions = generate_questions(
         profile=SESSION.profile,
         num_questions=4  # 🔒 FROZEN FOR v1.0
@@ -103,8 +104,11 @@ def generate_interview_questions():
 @app.get("/question", response_model=QuestionResponse)
 def get_current_question():
     idx = SESSION.current_index
-    question_text = SESSION.questions[idx]
 
+    if idx >= len(SESSION.questions):
+        raise HTTPException(status_code=400, detail="No more questions")
+
+    question_text = SESSION.questions[idx]
     audio_url = synthesize_speech(question_text)
 
     return QuestionResponse(
@@ -119,6 +123,12 @@ def get_current_question():
 # ----------------------------
 @app.post("/answer", response_model=AnswerResponse)
 def submit_answer(audio: UploadFile = File(...)):
+    if SESSION.current_index >= len(SESSION.questions):
+        raise HTTPException(status_code=400, detail="Interview already completed")
+
+    if not audio:
+        raise HTTPException(status_code=400, detail="Audio input required")
+
     transcript = transcribe_audio(audio)
 
     evaluation = evaluate_answer(
@@ -146,6 +156,9 @@ def submit_answer(audio: UploadFile = File(...)):
 # ----------------------------
 @app.get("/final-report", response_model=FinalReportResponse)
 def final_report():
+    if not SESSION.answers:
+        raise HTTPException(status_code=400, detail="No answers submitted")
+
     report = generate_final_report(
         profile=SESSION.profile,
         answers=SESSION.answers
