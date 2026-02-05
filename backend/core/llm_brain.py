@@ -16,8 +16,8 @@ API_KEY = os.getenv("GOOGLE_API_KEY")
 if not API_KEY:
     raise RuntimeError("GOOGLE_API_KEY not set")
 genai.configure(api_key=API_KEY)
-# NOTE: Corrected model name from "gemini-2.5-flash" to a valid model.
-MODEL = genai.GenerativeModel("gemini-1.5-flash")
+# NOTE: Using the Gemini 1.5 Pro model.
+MODEL = genai.GenerativeModel("gemini-1.5-pro-latest")
 
 
 def generate_questions(profile: dict, num_questions: int) -> List[str]:

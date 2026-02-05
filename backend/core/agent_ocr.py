@@ -16,8 +16,8 @@ class ResumeParser:
     Vision-based resume parser using Gemini VLM.
     """
 
-    def __init__(self, model_name: str = "gemini-1.5-flash"):
-        # NOTE: Corrected model name from "gemini-2.5-flash" to a valid model.
+    def __init__(self, model_name: str = "gemini-1.5-pro-latest"):
+        # NOTE: Using the Gemini 1.5 Pro model.
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
             raise RuntimeError("GOOGLE_API_KEY not set")
