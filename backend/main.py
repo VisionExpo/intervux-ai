@@ -11,16 +11,23 @@ from backend.services.stt_service import transcribe_audio
 from backend.services.tts_service import synthesize_speech
 from backend.models.interview import InterviewState
 
-app = FastAPI(title="Intervux-AI v1.0")
+# -------------------------------------------------
+# App Initialization
+# -------------------------------------------------
+app = FastAPI(
+    title="Intervux-AI v1.0",
+    description="Voice-first AI interview system (v1.0)",
+    version="1.0.0"
+)
 
-# ----------------------------
-# Global (v1.0 = single session)
-# ----------------------------
+# -------------------------------------------------
+# Global Session (v1.0 = single session only)
+# -------------------------------------------------
 SESSION = InterviewState()
 
-# ----------------------------
+# -------------------------------------------------
 # Response Models
-# ----------------------------
+# -------------------------------------------------
 class StartResponse(BaseModel):
     greeting_audio_url: str
     message: str
@@ -41,11 +48,15 @@ class FinalReportResponse(BaseModel):
     report: dict
 
 
-# ----------------------------
+# -------------------------------------------------
 # 1️⃣ Start Interview (Voice Greeting)
-# ----------------------------
+# -------------------------------------------------
 @app.post("/start", response_model=StartResponse)
 def start_interview():
+    """
+    Initializes a new interview session and returns
+    a voice-based greeting.
+    """
     greeting_text = (
         "Hello, welcome to Intervux AI. "
         "I will be your interviewer today. "
@@ -63,11 +74,14 @@ def start_interview():
     )
 
 
-# ----------------------------
+# -------------------------------------------------
 # 2️⃣ Resume Upload & Parsing
-# ----------------------------
+# -------------------------------------------------
 @app.post("/upload-resume")
 def upload_resume(file: UploadFile = File(...)):
+    """
+    Uploads and parses candidate resume.
+    """
     resume_text, extracted_profile = parse_resume(file)
 
     SESSION.resume_text = resume_text
@@ -79,13 +93,20 @@ def upload_resume(file: UploadFile = File(...)):
     }
 
 
-# ----------------------------
-# 3️⃣ Generate Questions (Frozen Count)
-# ----------------------------
+# -------------------------------------------------
+# 3️⃣ Generate Interview Questions (Frozen Count)
+# -------------------------------------------------
 @app.post("/generate-questions")
 def generate_interview_questions():
+    """
+    Generates a fixed number of interview questions
+    based on the parsed resume.
+    """
     if not SESSION.profile:
-        raise HTTPException(status_code=400, detail="Resume not uploaded")
+        raise HTTPException(
+            status_code=400,
+            detail="Resume not uploaded"
+        )
 
     questions = generate_questions(
         profile=SESSION.profile,
@@ -95,18 +116,27 @@ def generate_interview_questions():
     SESSION.questions = questions
     SESSION.current_index = 0
 
-    return {"total_questions": len(questions)}
+    return {
+        "total_questions": len(questions)
+    }
 
 
-# ----------------------------
-# 4️⃣ Ask Current Question (Voice)
-# ----------------------------
+# -------------------------------------------------
+# 4️⃣ Ask Current Question (Voice Output)
+# -------------------------------------------------
 @app.get("/question", response_model=QuestionResponse)
 def get_current_question():
+    """
+    Returns the current interview question
+    along with synthesized speech.
+    """
     idx = SESSION.current_index
 
     if idx >= len(SESSION.questions):
-        raise HTTPException(status_code=400, detail="No more questions")
+        raise HTTPException(
+            status_code=400,
+            detail="No more questions"
+        )
 
     question_text = SESSION.questions[idx]
     audio_url = synthesize_speech(question_text)
@@ -118,16 +148,26 @@ def get_current_question():
     )
 
 
-# ----------------------------
-# 5️⃣ Submit Answer (Voice → STT → Eval)
-# ----------------------------
+# -------------------------------------------------
+# 5️⃣ Submit Answer (Voice → STT → Evaluation)
+# -------------------------------------------------
 @app.post("/answer", response_model=AnswerResponse)
 def submit_answer(audio: UploadFile = File(...)):
+    """
+    Accepts a spoken answer, transcribes it,
+    evaluates the response, and advances the session.
+    """
     if SESSION.current_index >= len(SESSION.questions):
-        raise HTTPException(status_code=400, detail="Interview already completed")
+        raise HTTPException(
+            status_code=400,
+            detail="Interview already completed"
+        )
 
     if not audio:
-        raise HTTPException(status_code=400, detail="Audio input required")
+        raise HTTPException(
+            status_code=400,
+            detail="Audio input required"
+        )
 
     transcript = transcribe_audio(audio)
 
@@ -151,13 +191,20 @@ def submit_answer(audio: UploadFile = File(...)):
     )
 
 
-# ----------------------------
+# -------------------------------------------------
 # 6️⃣ Final Interview Report
-# ----------------------------
+# -------------------------------------------------
 @app.get("/final-report", response_model=FinalReportResponse)
 def final_report():
+    """
+    Generates a structured interview report
+    after all questions are answered.
+    """
     if not SESSION.answers:
-        raise HTTPException(status_code=400, detail="No answers submitted")
+        raise HTTPException(
+            status_code=400,
+            detail="No answers submitted"
+        )
 
     report = generate_final_report(
         profile=SESSION.profile,

@@ -1,6 +1,5 @@
 import os
 import tempfile
-from typing import Union
 
 from backend.core.audio_stack import AudioEngine
 
@@ -15,10 +14,16 @@ class STTService:
         # Load AudioEngine once (Whisper is heavy)
         self.audio_engine = AudioEngine()
 
-    def transcribe(self, audio_bytes: bytes) -> str:
+    def transcribe(self, audio_file) -> str:
         """
-        Transcribes raw audio bytes into text.
+        Transcribes FastAPI UploadFile into text.
         """
+
+        # Read raw bytes from UploadFile
+        audio_bytes = audio_file.file.read()
+
+        if not audio_bytes:
+            return ""
 
         # Write audio bytes to a temporary file
         with tempfile.NamedTemporaryFile(
@@ -29,7 +34,7 @@ class STTService:
 
         try:
             text = self.audio_engine.speech_to_text(audio_path)
-            return text
+            return text.strip()
 
         finally:
             if os.path.exists(audio_path):
