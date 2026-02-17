@@ -10,7 +10,7 @@ from backend.core.llm_brain import (
 )
 from backend.services.stt_service import transcribe_audio
 from backend.services.tts_service import synthesize_speech
-from backend.models.interview import InterviewState
+from backend.models.interview import InterviewState, ResumeData
 
 # -------------------------------------------------
 # App Initialization
@@ -89,7 +89,7 @@ def upload_resume(file: UploadFile = File(...)):
     resume_text, extracted_profile = parse_resume(file)
 
     SESSION.resume_text = resume_text
-    SESSION.profile = extracted_profile
+    SESSION.profile = ResumeData(**extracted_profile)
 
     return {
         "status": "resume_parsed",
