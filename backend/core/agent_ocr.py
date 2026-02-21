@@ -3,7 +3,7 @@ import json
 import tempfile
 from typing import Tuple
 
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 from backend.config.prompt_loader import PromptManager
 from fastapi import UploadFile
@@ -11,26 +11,22 @@ from fastapi import UploadFile
 load_dotenv()
 
 
+# --- Gemini Client Setup ---
+API_KEY = os.getenv("GOOGLE_API_KEY")
+if not API_KEY:
+    raise RuntimeError("GOOGLE_API_KEY not set")
+# NOTE: Using the Gemini 2.5 Flash model.
+MODEL_NAME = "gemini-2.5-flash"
+client = genai.Client(api_key=API_KEY)
+
+
 class ResumeParser:
     """
     Vision-based resume parser using Gemini VLM.
     """
 
-    def __init__(self, model_name: str = "gemini-1.5-pro-latest"):
-        # NOTE: Using the Gemini 1.5 Pro model.
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise RuntimeError("GOOGLE_API_KEY not set")
-
-        genai.configure(api_key=api_key)
-
-        self.model = genai.GenerativeModel(
-            model_name,
-            generation_config={
-                "response_mime_type": "application/json"
-            }
-        )
-
+    def __init__(self, model_name: str = MODEL_NAME):
+        self.model_name = model_name
         self.prompt_manager = PromptManager()
 
     def parse(self, file_path: str) -> dict:
@@ -39,14 +35,16 @@ class ResumeParser:
         """
         print(f"[INFO] Uploading resume to Gemini: {file_path}")
 
-        uploaded_file = genai.upload_file(file_path)
+        uploaded_file = client.files.upload(file=file_path)
 
         try:
             prompt = self.prompt_manager.get("resume_parser")
 
             print("[INFO] Analyzing resume...")
-            response = self.model.generate_content(
-                [prompt, uploaded_file]
+            response = client.models.generate_content(
+                model=self.model_name,
+                contents=[prompt, uploaded_file],
+                config={"response_mime_type": "application/json"}
             )
 
             return json.loads(response.text)
@@ -62,7 +60,7 @@ class ResumeParser:
         finally:
             # Cleanup uploaded artifact
             try:
-                genai.delete_file(uploaded_file.name)
+                client.files.delete(name=uploaded_file.name)
             except Exception:
                 pass
 

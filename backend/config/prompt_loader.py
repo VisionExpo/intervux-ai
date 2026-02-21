@@ -8,7 +8,7 @@ class PromptManager:
         with open(PROMPT_PATH, "r", encoding="utf-8") as f:
             self.prompts = yaml.safe_load(f)["system_prompts"]
 
-    def get(self, prompt_name: str, **kwargs) -> str;
+    def get(self, prompt_name: str, **kwargs) -> str:
         """
         Fetch and format a prompt safely.
         """

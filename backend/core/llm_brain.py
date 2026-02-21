@@ -1,8 +1,7 @@
 import os
 import json
 from typing import Dict, List
-
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 
 # from backend.config.prompt_loader import PromptManager # NOTE: Using inline prompts for v1.0 simplicity
@@ -15,9 +14,9 @@ load_dotenv()
 API_KEY = os.getenv("GOOGLE_API_KEY")
 if not API_KEY:
     raise RuntimeError("GOOGLE_API_KEY not set")
-genai.configure(api_key=API_KEY)
-# NOTE: Using the Gemini 1.5 Pro model.
-MODEL = genai.GenerativeModel("gemini-1.5-pro-latest")
+# NOTE: Using the Gemini 2.5 Flash model.
+MODEL_NAME = "gemini-2.5-flash"
+client = genai.Client(api_key=API_KEY)
 
 
 def generate_questions(profile: dict, num_questions: int) -> List[str]:
@@ -34,9 +33,10 @@ def generate_questions(profile: dict, num_questions: int) -> List[str]:
     ["Question 1", "Question 2", "Question 3", "Question 4"]
     """
     try:
-        response = MODEL.generate_content(
-            prompt,
-            generation_config={"response_mime_type": "application/json"}
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt,
+            config={"response_mime_type": "application/json"}
         )
         questions = json.loads(response.text)
         return questions
@@ -77,9 +77,10 @@ def evaluate_answer(question: str, answer: str, profile: dict) -> dict:
     "{answer}"
     """
     try:
-        response = MODEL.generate_content(
-            prompt,
-            generation_config={"response_mime_type": "application/json"}
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt,
+            config={"response_mime_type": "application/json"}
         )
         evaluation = json.loads(response.text)
         return evaluation
@@ -108,9 +109,10 @@ def generate_final_report(profile: dict, answers: List[dict]) -> dict:
     {json.dumps(answers, indent=2)}
     """
     try:
-        response = MODEL.generate_content(
-            prompt,
-            generation_config={"response_mime_type": "application/json"}
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt,
+            config={"response_mime_type": "application/json"}
         )
         report = json.loads(response.text)
         return report
