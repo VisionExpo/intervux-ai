@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
@@ -22,7 +23,16 @@ app = FastAPI(
 )
 
 # Mount static directory to serve audio files
-app.mount("/static", StaticFiles(directory="/app/static"), name="static")
+# Use /app/static for Docker, or ./backend/static for local development
+if os.path.exists("/app"):
+    STATIC_DIR = "/app/static"
+else:
+    STATIC_DIR = "backend/static"
+
+# Create static directory if it doesn't exist
+os.makedirs(STATIC_DIR, exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # -------------------------------------------------
 # Global Session (v1.0 = single session only)

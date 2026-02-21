@@ -39,3 +39,15 @@ class STTService:
         finally:
             if os.path.exists(audio_path):
                 os.remove(audio_path)
+
+
+# --- v1.0 Public Function ---
+_stt_service_instance = STTService()
+
+
+def transcribe_audio(audio_file) -> str:
+    """
+    Wrapper function for STT service.
+    Accepts FastAPI UploadFile and returns transcribed text.
+    """
+    return _stt_service_instance.transcribe(audio_file)

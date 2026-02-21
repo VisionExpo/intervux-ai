@@ -11,7 +11,12 @@ import pyttsx3
 
 
 # Define and create the static directory for audio files
-STATIC_DIR = Path("/app/static/audio")
+# Use /app/static for Docker, or ./static for local development
+if os.path.exists("/app"):
+    STATIC_DIR = Path("/app/static/audio")
+else:
+    STATIC_DIR = Path("backend/static/audio")
+
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
 
