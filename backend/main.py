@@ -4,6 +4,7 @@ import uuid
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
@@ -18,6 +19,13 @@ logger = get_logger(__name__)
 app = FastAPI(
     title="Intervux-AI",
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 
 # -------------------------
