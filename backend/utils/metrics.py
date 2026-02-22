@@ -31,4 +31,4 @@ class Metrics:
             }
         }
     
-Metrics = Metrics()
+metrics = Metrics()
