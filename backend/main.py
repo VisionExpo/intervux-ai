@@ -2,6 +2,9 @@ import os
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
+from backend.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 from backend.core.agent_ocr import parse_resume
 from backend.core.llm_brain import (
