@@ -1,48 +1,72 @@
 import os
 import json
+import time
 from typing import Dict, List
+
 from google import genai
 from dotenv import load_dotenv
 
-# from backend.config.prompt_loader import PromptManager # NOTE: Using inline prompts for v1.0 simplicity
+from backend.utils.logger import get_logger
+from backend.utils.metrics import metrics
 
 load_dotenv()
 
-
-# --- v1.0 Simple Functions (as required by main.py) ---
+logger = get_logger(__name__)
 
 API_KEY = os.getenv("GOOGLE_API_KEY")
 if not API_KEY:
     raise RuntimeError("GOOGLE_API_KEY not set")
-# NOTE: Using the Gemini 2.5 Flash model.
+
 MODEL_NAME = "gemini-2.5-flash"
 client = genai.Client(api_key=API_KEY)
 
 
+# ---------------------------------------------------------
+# Question Generation
+# ---------------------------------------------------------
+
 def generate_questions(profile: dict, num_questions: int) -> List[str]:
-    """Generates interview questions based on a resume profile."""
+    start = time.time()
+
     prompt = f"""
-    You are an expert AI interviewer. Based on the following candidate profile, generate exactly {num_questions} technical interview questions.
-    The questions should be relevant to the candidate's skills and project experience.
+    You are an expert AI interviewer. Based on the following candidate profile, 
+    generate exactly {num_questions} technical interview questions.
     Return the questions as a JSON list of strings.
 
     Candidate Profile:
     {json.dumps(profile, indent=2)}
-
-    Example Output:
-    ["Question 1", "Question 2", "Question 3", "Question 4"]
     """
+
     try:
         response = client.models.generate_content(
             model=MODEL_NAME,
             contents=prompt,
-            config={"response_mime_type": "application/json"}
+            config={
+                "response_mime_type": "application/json",
+                "temperature": 0.7
+            }
         )
+
         questions = json.loads(response.text)
+
+        duration = round(time.time() - start, 3)
+        metrics.record_latency("llm_question_generation", duration)
+
+        logger.info(
+            "Questions generated",
+            extra={
+                "extra_data": {
+                    "num_questions": len(questions),
+                    "duration": duration
+                }
+            }
+        )
+
         return questions
-    except (json.JSONDecodeError, Exception) as e:
-        print(f"[ERROR] Failed to generate questions: {e}")
-        # Fallback questions
+
+    except Exception:
+        metrics.record_error()
+        logger.exception("Question generation failed")
         return [
             "Tell me about a challenging project you worked on.",
             "What are your strongest technical skills?",
@@ -51,80 +75,138 @@ def generate_questions(profile: dict, num_questions: int) -> List[str]:
         ]
 
 
+# ---------------------------------------------------------
+# Answer Evaluation
+# ---------------------------------------------------------
+
 def evaluate_answer(question: str, answer: str, profile: dict) -> dict:
-    """Evaluates a candidate's answer to a question."""
+    start = time.time()
+
     prompt = f"""
     You are an expert AI interviewer evaluating a candidate's answer.
-    Use the provided rubric to score the answer from 0 to 10 on four dimensions.
-    Provide a brief summary and bullet-point feedback.
-    Return a JSON object with keys: "scores", "feedback", "summary".
-    "scores" should be a dictionary mapping dimension to an integer score.
-    "feedback" should be a list of strings.
+    Score 0-10 on four dimensions:
+    - Technical Accuracy
+    - Clarity of Explanation
+    - Depth of Understanding
+    - Confidence & Communication
 
-    Rubric:
-    - Technical Accuracy (0-10): Correctness of technical information.
-    - Clarity of Explanation (0-10): How clearly the candidate explains concepts.
-    - Depth of Understanding (0-10): How well the candidate demonstrates deep knowledge vs. surface-level.
-    - Confidence & Communication (0-10): Overall communication style and confidence.
+    Return JSON:
+    {{
+      "scores": {{ ... }},
+      "feedback": [...],
+      "summary": "..."
+    }}
 
     Candidate Profile:
     {json.dumps(profile, indent=2)}
 
-    Interview Question:
+    Question:
     "{question}"
 
-    Candidate's Answer:
+    Answer:
     "{answer}"
     """
+
     try:
         response = client.models.generate_content(
             model=MODEL_NAME,
             contents=prompt,
-            config={"response_mime_type": "application/json"}
+            config={
+                "response_mime_type": "application/json",
+                "temperature": 0.3
+            }
         )
+
         evaluation = json.loads(response.text)
+
+        # Clamp scores 0–10
+        if "scores" in evaluation:
+            for k, v in evaluation["scores"].items():
+                evaluation["scores"][k] = max(0, min(10, int(v)))
+
+        duration = round(time.time() - start, 3)
+        metrics.record_latency("llm_evaluation", duration)
+
+        logger.info(
+            "Answer evaluated",
+            extra={
+                "extra_data": {
+                    "duration": duration,
+                    "scores": evaluation.get("scores", {}),
+                    "answer_length": len(answer)
+                }
+            }
+        )
+
         return evaluation
-    except (json.JSONDecodeError, Exception) as e:
-        print(f"[ERROR] Failed to evaluate answer: {e}")
-        # Fallback evaluation
+
+    except Exception:
+        metrics.record_error()
+        logger.exception("Evaluation failed")
         return {
-            "scores": {"clarity": 5, "depth": 5},
-            "feedback": ["Evaluation failed, providing default feedback."],
-            "summary": "Could not process the evaluation via the AI model."
+            "scores": {
+                "Technical Accuracy": 5,
+                "Clarity of Explanation": 5,
+                "Depth of Understanding": 5,
+                "Confidence & Communication": 5,
+            },
+            "feedback": ["Evaluation fallback triggered."],
+            "summary": "AI evaluation failed."
         }
 
 
+# ---------------------------------------------------------
+# Final Report
+# ---------------------------------------------------------
+
 def generate_final_report(profile: dict, answers: List[dict]) -> dict:
-    """Generates a final interview report."""
+    start = time.time()
+
     prompt = f"""
-    You are an expert hiring manager. You have conducted an interview and now need to write a final report.
-    Summarize the candidate's performance based on their profile and their answers/evaluations.
-    Provide an overall recommendation (e.g., "Strong Hire", "Hire", "No Hire") and a summary of strengths and weaknesses.
-    Return a JSON object.
+    You are a hiring manager writing a final report.
+    Provide:
+    - Overall Recommendation
+    - Strengths
+    - Weaknesses
+    - Final Summary
+
+    Return JSON.
 
     Candidate Profile:
     {json.dumps(profile, indent=2)}
 
-    Interview Q&A and Evaluations:
+    Q&A:
     {json.dumps(answers, indent=2)}
     """
+
     try:
         response = client.models.generate_content(
             model=MODEL_NAME,
             contents=prompt,
-            config={"response_mime_type": "application/json"}
+            config={
+                "response_mime_type": "application/json",
+                "temperature": 0.4
+            }
         )
+
         report = json.loads(response.text)
+
+        duration = round(time.time() - start, 3)
+        metrics.record_latency("llm_final_report", duration)
+
+        logger.info(
+            "Final report generated",
+            extra={
+                "extra_data": {
+                    "duration": duration,
+                    "num_answers": len(answers)
+                }
+            }
+        )
+
         return report
-    except (json.JSONDecodeError, Exception) as e:
-        print(f"[ERROR] Failed to generate final report: {e}")
+
+    except Exception:
+        metrics.record_error()
+        logger.exception("Final report generation failed")
         return {"error": "Failed to generate report."}
-
-
-"""
-# --- v2.0+ Class (Commented out for v1.0 as it's not used) ---
-# The InterviewerAI class is designed for a more complex, multi-session architecture
-# with features like chat history, which is beyond the scope of the stateless v1.0 API.
-class InterviewerAI:
-    ... (Code commented out for brevity)
-"""
