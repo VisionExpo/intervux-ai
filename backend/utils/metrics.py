@@ -3,8 +3,8 @@ from collections import defaultdict
 
 class Metrics:
     def __init__(self):
-        self.request_counts = 0,
-        self.error_count = 0,
+        self.request_counts = 0
+        self.error_count = 0
         self.latencies = defaultdict(list)
         self.interviews_completed = 0
 
