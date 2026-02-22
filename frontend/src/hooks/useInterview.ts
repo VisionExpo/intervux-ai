@@ -3,11 +3,33 @@ import { useState } from "react";
 export function useInterview() {
   const [avatarText, setAvatarText] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [stage, setStage] = useState("idle");
 
   async function startInterview() {
     await fetch("http://localhost:8000/start", {
       method: "POST"
     });
+    setStage("started");
+  }
+
+  async function uploadResume(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    await fetch("http://localhost:8000/upload-resume", {
+      method: "POST",
+      body: formData
+    });
+
+    setStage("resume_uploaded");
+  }
+
+  async function generateQuestions() {
+    await fetch("http://localhost:8000/generate-questions", {
+      method: "POST"
+    });
+
+    setStage("questions_ready");
   }
 
   async function getQuestion() {
@@ -29,7 +51,10 @@ export function useInterview() {
   return {
     avatarText,
     isSpeaking,
+    stage,
     startInterview,
-    getQuestion,
+    uploadResume,
+    generateQuestions,
+    getQuestion
   };
 }
