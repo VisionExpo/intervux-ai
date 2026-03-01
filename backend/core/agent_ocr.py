@@ -1,5 +1,6 @@
 import os
 import json
+import base64
 import tempfile
 from typing import Tuple
 
@@ -84,5 +85,25 @@ def parse_resume(file: UploadFile) -> Tuple[str, dict]:
         return "", profile_data
     finally:
         # Clean up the local temporary file
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+
+def parse_resume_bytes(file_name: str, file_bytes_b64: str) -> Tuple[str, dict]:
+    """
+    Parse a base64-encoded resume payload from WebSocket transport.
+    """
+    parser = ResumeParser()
+    decoded = base64.b64decode(file_bytes_b64)
+
+    suffix = os.path.splitext(file_name)[1] if file_name else ""
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(decoded)
+        file_path = tmp.name
+
+    try:
+        profile_data = parser.parse(file_path)
+        return "", profile_data
+    finally:
         if os.path.exists(file_path):
             os.remove(file_path)

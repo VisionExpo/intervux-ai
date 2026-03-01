@@ -77,3 +77,46 @@ _stt_service_instance = STTService()
 
 def transcribe_audio(audio_file) -> str:
     return _stt_service_instance.transcribe(audio_file)
+
+
+def transcribe_audio_bytes(audio_bytes: bytes, suffix: str = ".wav") -> str:
+    """
+    Transcribe raw audio bytes received via WebSocket.
+    """
+    start_time = time.time()
+
+    if not audio_bytes:
+        logger.warning("Empty audio bytes received")
+        metrics.record_error()
+        return ""
+
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        audio_path = tmp.name
+        tmp.write(audio_bytes)
+
+    try:
+        text = _stt_service_instance.audio_engine.speech_to_text(audio_path)
+        text = text.strip()
+
+        duration = round(time.time() - start_time, 3)
+        metrics.record_latency("stt_processing", duration)
+
+        logger.info(
+            "STT completed from bytes",
+            extra={
+                "extra_data": {
+                    "file_size_kb": round(len(audio_bytes) / 1024, 2),
+                    "transcript_length": len(text),
+                    "duration": duration
+                }
+            }
+        )
+
+        return text
+    except Exception:
+        metrics.record_error()
+        logger.exception("STT byte processing failed")
+        raise
+    finally:
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
