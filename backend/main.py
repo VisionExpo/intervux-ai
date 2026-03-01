@@ -149,6 +149,29 @@ def generate_interview_questions():
     return {"total_questions": len(questions)}
 
 # -------------------------
+# Get Current Question
+# -------------------------
+@app.get("/question")
+def get_current_question():
+    if not SESSION.questions:
+        raise HTTPException(400, "Questions not generated")
+
+    if SESSION.current_index >= len(SESSION.questions):
+        raise HTTPException(400, "Interview completed")
+
+    question_text = SESSION.questions[SESSION.current_index]
+
+    start_tts = time.time()
+    question_audio_url = synthesize_speech(question_text)
+    metrics.record_latency("tts", time.time() - start_tts)
+
+    return {
+        "question_index": SESSION.current_index,
+        "question_text": question_text,
+        "question_audio_url": question_audio_url
+    }
+
+# -------------------------
 # Submit Answer
 # -------------------------
 @app.post("/answer")
