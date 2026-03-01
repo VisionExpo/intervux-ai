@@ -1,15 +1,19 @@
 import time
 import uuid
+import asyncio
 
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.core.llm_brain import prewarm_llm
 from backend.sockets.interview import InterviewSocket
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
+from backend.utils.runtime_monitor import RuntimeMonitor
 
 logger = get_logger(__name__)
 interview_socket = InterviewSocket(total_questions=2)
+runtime_monitor = RuntimeMonitor(interview_socket=interview_socket)
 
 app = FastAPI(title="Intervux-AI", version="1.0.0")
 
@@ -70,6 +74,13 @@ async def websocket_interview(ws: WebSocket):
     await interview_socket.handle(ws)
 
 
+@app.on_event("startup")
+async def on_startup():
+    await runtime_monitor.start()
+    await asyncio.to_thread(prewarm_llm)
+
+
 @app.on_event("shutdown")
 async def on_shutdown():
     await interview_socket.shutdown()
+    await runtime_monitor.stop()

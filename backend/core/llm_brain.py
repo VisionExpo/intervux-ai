@@ -267,8 +267,11 @@ def _normalize_questions(questions: List[str], num_questions: int) -> List[str]:
     return cleaned
 
 
-def generate_questions(profile: dict, num_questions: int) -> List[str]:
+def generate_questions(
+    profile: dict, num_questions: int, temperature_override: float | None = None
+) -> List[str]:
     start = time.time()
+    temperature = 0.7 if temperature_override is None else temperature_override
     prompt = f"""
     You are an expert AI interviewer. Based on the following candidate profile,
     generate exactly {num_questions} technical interview questions.
@@ -280,7 +283,7 @@ def generate_questions(profile: dict, num_questions: int) -> List[str]:
     """
 
     try:
-        questions, provider = _run_json_task(prompt, list, temperature=0.7)
+        questions, provider = _run_json_task(prompt, list, temperature=temperature)
         normalized = _normalize_questions(questions, num_questions)
 
         duration = round(time.time() - start, 3)
@@ -302,15 +305,31 @@ def generate_questions(profile: dict, num_questions: int) -> List[str]:
         return _normalize_questions([], num_questions)
 
 
-def evaluate_answer(question: str, answer: str, profile: dict) -> dict:
+def evaluate_answer(
+    question: str,
+    answer: str,
+    profile: dict,
+    lightweight: bool = False,
+    temperature_override: float | None = None,
+) -> dict:
     start = time.time()
-    prompt = f"""
-    You are an expert AI interviewer evaluating a candidate's answer.
-    Score 0-10 on four dimensions:
+    temperature = 0.3 if temperature_override is None else temperature_override
+    criteria = """
     - Technical Accuracy
     - Clarity of Explanation
     - Depth of Understanding
     - Confidence & Communication
+    """
+    if lightweight:
+        criteria = """
+    - Technical Accuracy
+    - Clarity of Explanation
+    """
+
+    prompt = f"""
+    You are an expert AI interviewer evaluating a candidate's answer.
+    Score 0-10 on these dimensions:
+    {criteria}
 
     Return ONLY valid JSON with this exact structure:
     {{
@@ -331,7 +350,7 @@ def evaluate_answer(question: str, answer: str, profile: dict) -> dict:
     """
 
     try:
-        evaluation, provider = _run_json_task(prompt, dict, temperature=0.3)
+        evaluation, provider = _run_json_task(prompt, dict, temperature=temperature)
         if "scores" in evaluation and isinstance(evaluation["scores"], dict):
             for key, value in evaluation["scores"].items():
                 evaluation["scores"][key] = max(0, min(10, int(value)))
@@ -357,8 +376,8 @@ def evaluate_answer(question: str, answer: str, profile: dict) -> dict:
             "scores": {
                 "Technical Accuracy": 5,
                 "Clarity of Explanation": 5,
-                "Depth of Understanding": 5,
-                "Confidence & Communication": 5,
+                "Depth of Understanding": 5 if not lightweight else 0,
+                "Confidence & Communication": 5 if not lightweight else 0,
             },
             "feedback": ["Evaluation fallback triggered."],
             "summary": "AI evaluation failed.",
@@ -404,3 +423,33 @@ def generate_final_report(profile: dict, answers: List[dict]) -> dict:
         metrics.record_error()
         logger.exception("Final report generation failed")
         return {"error": "Failed to generate report."}
+
+
+def prewarm_llm():
+    """
+    Best-effort prewarm to reduce first request latency.
+    """
+    prompt = (
+        'Return ONLY valid JSON: {"status":"ok"} '
+        "Do not include markdown or any extra text."
+    )
+    try:
+        providers = _provider_order()
+        for provider in providers:
+            if _is_circuit_open(provider):
+                continue
+            started = time.time()
+            raw = _call_provider(provider, prompt, temperature=0.0)
+            parsed = _safe_json_loads(raw, dict)
+            if parsed.get("status") != "ok":
+                raise ValueError("Prewarm response missing status=ok")
+            _record_provider_success(provider, time.time() - started)
+            metrics.record_latency("llm_prewarm", time.time() - started)
+            logger.info(
+                "LLM prewarm successful",
+                extra={"extra_data": {"provider": provider}},
+            )
+            return
+    except Exception:
+        metrics.record_error()
+        logger.exception("LLM prewarm failed")

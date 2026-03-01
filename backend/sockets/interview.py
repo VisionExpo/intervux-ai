@@ -32,6 +32,7 @@ class InterviewSocket:
     def __init__(self, total_questions: int = 2):
         self.total_questions = total_questions
         self.max_concurrent_sessions = int(os.getenv("MAX_CONCURRENT_SESSIONS", "5"))
+        self.rate_limit_per_minute = int(os.getenv("RATE_LIMIT_WS_PER_MINUTE", "30"))
         self.receive_timeout_s = int(os.getenv("WS_RECEIVE_TIMEOUT_S", "120"))
         self.send_timeout_s = int(os.getenv("WS_SEND_TIMEOUT_S", "20"))
         self.max_audio_bytes = int(os.getenv("WS_MAX_AUDIO_BYTES", "20000000"))
@@ -39,12 +40,34 @@ class InterviewSocket:
             os.getenv("WS_MAX_RESUME_B64_CHARS", "14000000")
         )
         self._session_lock = asyncio.Lock()
+        self._rate_limit_lock = asyncio.Lock()
         self._active_sessions = 0
+        self._pending_connections = 0
         self._connections: Set[WebSocket] = set()
+        self._ip_hits: Dict[str, list[float]] = {}
 
     async def handle(self, ws: WebSocket):
+        client_ip = self._client_ip(ws)
+
+        if not await self._allow_ip(client_ip):
+            await ws.accept()
+            await self._safe_send_json(
+                ws,
+                {
+                    "type": "error",
+                    "code": "RATE_LIMITED",
+                    "message": "Too many connection attempts from this IP.",
+                    "recoverable": True,
+                },
+            )
+            await self._close_ws(ws, code=1008)
+            metrics.increment_counter("rate_limit_rejections")
+            return
+
         await ws.accept()
+        await self._mark_pending(delta=1)
         if not await self._try_acquire_session_slot():
+            await self._mark_pending(delta=-1)
             await self._safe_send_json(
                 ws,
                 {
@@ -56,10 +79,14 @@ class InterviewSocket:
             )
             await self._close_ws(ws, code=1013)
             return
+        await self._mark_pending(delta=-1)
 
         session_id = str(uuid.uuid4())
         state = InterviewState()
         self._connections.add(ws)
+        session_policy = self._build_load_policy()
+        metrics.record_gauge("queue_depth", self._pending_connections)
+        metrics.record_gauge("active_sessions", self._active_sessions)
 
         logger.info(
             "WebSocket session started",
@@ -67,6 +94,7 @@ class InterviewSocket:
                 "extra_data": {
                     "session_id": session_id,
                     "active_sessions": self._active_sessions,
+                    "policy": session_policy,
                 }
             },
         )
@@ -85,6 +113,7 @@ class InterviewSocket:
                 state=state,
                 resume_payload=resume_payload,
                 session_id=session_id,
+                session_policy=session_policy,
             )
 
             while state.current_index < len(state.questions):
@@ -94,6 +123,7 @@ class InterviewSocket:
                     state=state,
                     answer_audio=answer_audio,
                     session_id=session_id,
+                    session_policy=session_policy,
                 )
 
             await self._complete_interview(ws=ws, state=state, session_id=session_id)
@@ -140,6 +170,7 @@ class InterviewSocket:
             state.reset()
             self._connections.discard(ws)
             await self._release_session_slot()
+            metrics.record_gauge("active_sessions", self._active_sessions)
 
     async def _recv_with_timeout(self, ws: WebSocket) -> Dict[str, Any]:
         try:
@@ -207,6 +238,7 @@ class InterviewSocket:
         state: InterviewState,
         resume_payload: Dict[str, str],
         session_id: str,
+        session_policy: Dict[str, Any],
     ):
         resume_start = time.time()
         _, extracted = await asyncio.to_thread(
@@ -228,7 +260,8 @@ class InterviewSocket:
             partial(
                 generate_questions,
                 profile=state.profile.model_dump(),
-                num_questions=self.total_questions,
+                num_questions=session_policy["question_count"],
+                temperature_override=session_policy["question_temperature"],
             )
         )
         state.current_index = 0
@@ -301,6 +334,7 @@ class InterviewSocket:
         state: InterviewState,
         answer_audio: bytes,
         session_id: str,
+        session_policy: Dict[str, Any],
     ):
         answer_cycle_start = time.time()
         question = state.questions[state.current_index]
@@ -325,6 +359,8 @@ class InterviewSocket:
                 question=question,
                 answer=transcript,
                 profile=state.profile.model_dump(),
+                lightweight=session_policy["lightweight_eval"],
+                temperature_override=session_policy["evaluation_temperature"],
             )
         )
         metrics.record_latency("evaluation", time.time() - eval_start)
@@ -458,12 +494,75 @@ class InterviewSocket:
             if self._active_sessions >= self.max_concurrent_sessions:
                 return False
             self._active_sessions += 1
+            metrics.record_gauge("active_sessions", self._active_sessions)
             return True
 
     async def _release_session_slot(self):
         async with self._session_lock:
             if self._active_sessions > 0:
                 self._active_sessions -= 1
+            metrics.record_gauge("active_sessions", self._active_sessions)
+
+    async def _mark_pending(self, delta: int):
+        async with self._session_lock:
+            self._pending_connections = max(0, self._pending_connections + delta)
+            metrics.record_gauge("queue_depth", self._pending_connections)
+
+    async def _allow_ip(self, ip: str) -> bool:
+        now = time.time()
+        window_start = now - 60.0
+
+        async with self._rate_limit_lock:
+            hits = self._ip_hits.get(ip, [])
+            hits = [ts for ts in hits if ts >= window_start]
+            if len(hits) >= self.rate_limit_per_minute:
+                self._ip_hits[ip] = hits
+                return False
+
+            hits.append(now)
+            self._ip_hits[ip] = hits
+            return True
+
+    def _build_load_policy(self) -> Dict[str, Any]:
+        if self.max_concurrent_sessions <= 0:
+            load_ratio = 1.0
+        else:
+            load_ratio = self._active_sessions / float(self.max_concurrent_sessions)
+
+        question_count = self.total_questions
+        question_temperature = 0.7
+        evaluation_temperature = 0.3
+        lightweight_eval = False
+
+        if load_ratio >= 0.8:
+            question_count = max(1, self.total_questions - 1)
+            question_temperature = 0.35
+            evaluation_temperature = 0.2
+            lightweight_eval = True
+        elif load_ratio >= 0.6:
+            question_temperature = 0.5
+            evaluation_temperature = 0.25
+
+        return {
+            "load_ratio": round(load_ratio, 3),
+            "question_count": question_count,
+            "question_temperature": question_temperature,
+            "evaluation_temperature": evaluation_temperature,
+            "lightweight_eval": lightweight_eval,
+        }
+
+    @staticmethod
+    def _client_ip(ws: WebSocket) -> str:
+        if ws.client and ws.client.host:
+            return ws.client.host
+        return "unknown"
+
+    def runtime_stats(self) -> Dict[str, float]:
+        return {
+            "active_sessions": float(self._active_sessions),
+            "queue_depth": float(self._pending_connections),
+            "max_concurrent_sessions": float(self.max_concurrent_sessions),
+        }
 
     async def shutdown(self):
         connections = list(self._connections)
