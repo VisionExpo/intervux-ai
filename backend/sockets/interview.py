@@ -14,12 +14,14 @@ from backend.core.llm_brain import (
     evaluate_answer,
     generate_final_report,
     generate_questions,
+    prepare_evaluation_context,
 )
 from backend.models.interview import InterviewState, ResumeData
 from backend.services.stt_service import transcribe_audio_bytes
 from backend.services.tts_service import synthesize_speech
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
+from backend.utils.research_logger import research_logger
 
 logger = get_logger(__name__)
 
@@ -85,6 +87,7 @@ class InterviewSocket:
         state = InterviewState()
         self._connections.add(ws)
         session_policy = self._build_load_policy()
+        eval_context_cache: Dict[int, dict] = {}
         metrics.record_gauge("queue_depth", self._pending_connections)
         metrics.record_gauge("active_sessions", self._active_sessions)
 
@@ -114,6 +117,7 @@ class InterviewSocket:
                 resume_payload=resume_payload,
                 session_id=session_id,
                 session_policy=session_policy,
+                eval_context_cache=eval_context_cache,
             )
 
             while state.current_index < len(state.questions):
@@ -124,6 +128,7 @@ class InterviewSocket:
                     answer_audio=answer_audio,
                     session_id=session_id,
                     session_policy=session_policy,
+                    eval_context_cache=eval_context_cache,
                 )
 
             await self._complete_interview(ws=ws, state=state, session_id=session_id)
@@ -239,6 +244,7 @@ class InterviewSocket:
         resume_payload: Dict[str, str],
         session_id: str,
         session_policy: Dict[str, Any],
+        eval_context_cache: Dict[int, dict],
     ):
         resume_start = time.time()
         _, extracted = await asyncio.to_thread(
@@ -284,7 +290,13 @@ class InterviewSocket:
             },
         )
 
-        await self._send_current_question(ws=ws, state=state)
+        await self._send_current_question(
+            ws=ws,
+            state=state,
+            profile_dict=state.profile.model_dump(),
+            session_policy=session_policy,
+            eval_context_cache=eval_context_cache,
+        )
 
     async def _wait_for_audio_answer(self, ws: WebSocket) -> bytes:
         while True:
@@ -335,8 +347,10 @@ class InterviewSocket:
         answer_audio: bytes,
         session_id: str,
         session_policy: Dict[str, Any],
+        eval_context_cache: Dict[int, dict],
     ):
         answer_cycle_start = time.time()
+        current_index = state.current_index
         question = state.questions[state.current_index]
 
         stt_start = time.time()
@@ -347,12 +361,14 @@ class InterviewSocket:
                 suffix=self._detect_audio_suffix(answer_audio),
             )
         )
-        metrics.record_latency("stt", time.time() - stt_start)
-        metrics.record_latency("phase_stt", time.time() - stt_start)
+        stt_duration = time.time() - stt_start
+        metrics.record_latency("stt", stt_duration)
+        metrics.record_latency("phase_stt", stt_duration)
         if not transcript:
             transcript = "(No transcript captured)"
 
         eval_start = time.time()
+        prepared_context = eval_context_cache.get(current_index)
         evaluation = await asyncio.to_thread(
             partial(
                 evaluate_answer,
@@ -361,10 +377,16 @@ class InterviewSocket:
                 profile=state.profile.model_dump(),
                 lightweight=session_policy["lightweight_eval"],
                 temperature_override=session_policy["evaluation_temperature"],
+                prepared_context=prepared_context,
             )
         )
-        metrics.record_latency("evaluation", time.time() - eval_start)
-        metrics.record_latency("phase_evaluation", time.time() - eval_start)
+        eval_duration = time.time() - eval_start
+        metrics.record_latency("evaluation", eval_duration)
+        metrics.record_latency("phase_evaluation", eval_duration)
+        evaluation = self._normalize_scores_for_session(
+            evaluation=evaluation,
+            previous_answers=state.answers,
+        )
 
         state.answers.append(
             {
@@ -400,9 +422,26 @@ class InterviewSocket:
         )
 
         if state.current_index < len(state.questions):
-            await self._send_current_question(ws=ws, state=state)
+            await self._send_current_question(
+                ws=ws,
+                state=state,
+                profile_dict=state.profile.model_dump(),
+                session_policy=session_policy,
+                eval_context_cache=eval_context_cache,
+            )
 
-        metrics.record_latency("answer_cycle_total", time.time() - answer_cycle_start)
+        answer_cycle_duration = time.time() - answer_cycle_start
+        metrics.record_latency("answer_cycle_total", answer_cycle_duration)
+        self._log_research_record(
+            session_id=session_id,
+            question_index=current_index + 1,
+            transcript=transcript,
+            evaluation=evaluation,
+            session_policy=session_policy,
+            stt_latency=stt_duration,
+            eval_latency=eval_duration,
+            answer_cycle_latency=answer_cycle_duration,
+        )
 
     async def _complete_interview(
         self, ws: WebSocket, state: InterviewState, session_id: str
@@ -430,14 +469,34 @@ class InterviewSocket:
             },
         )
 
-    async def _send_current_question(self, ws: WebSocket, state: InterviewState):
+    async def _send_current_question(
+        self,
+        ws: WebSocket,
+        state: InterviewState,
+        profile_dict: dict,
+        session_policy: Dict[str, Any],
+        eval_context_cache: Dict[int, dict],
+    ):
         question_text = state.questions[state.current_index]
+        preload_task = asyncio.create_task(
+            asyncio.to_thread(
+                prepare_evaluation_context,
+                profile_dict,
+                question_text,
+                session_policy["lightweight_eval"],
+            )
+        )
+
         await self._send_avatar_with_audio(
             ws=ws,
             text=question_text,
             question_index=state.current_index + 1,
             total_questions=len(state.questions),
         )
+        try:
+            eval_context_cache[state.current_index] = await preload_task
+        except Exception:
+            metrics.record_error()
 
     async def _send_avatar_with_audio(
         self, ws: WebSocket, text: str, question_index: int, total_questions: int
@@ -563,6 +622,80 @@ class InterviewSocket:
             "queue_depth": float(self._pending_connections),
             "max_concurrent_sessions": float(self.max_concurrent_sessions),
         }
+
+    @staticmethod
+    def _normalize_scores_for_session(evaluation: dict, previous_answers: list[dict]) -> dict:
+        scores = evaluation.get("scores")
+        if not isinstance(scores, dict) or not scores:
+            return evaluation
+
+        history_values: Dict[str, list[float]] = {}
+        for answer in previous_answers:
+            prev_scores = answer.get("evaluation", {}).get("scores", {})
+            if not isinstance(prev_scores, dict):
+                continue
+            for key, value in prev_scores.items():
+                try:
+                    history_values.setdefault(key, []).append(float(value))
+                except Exception:
+                    pass
+
+        if not history_values:
+            return evaluation
+
+        normalized = dict(scores)
+        for key, value in scores.items():
+            try:
+                raw = float(value)
+            except Exception:
+                continue
+
+            history = history_values.get(key, [])
+            if not history:
+                normalized[key] = int(max(0, min(10, round(raw))))
+                continue
+
+            avg = sum(history) / len(history)
+            target = 7.5
+            if avg <= 0:
+                factor = 1.0
+            else:
+                factor = max(0.75, min(1.0, target / avg))
+            adjusted = raw * factor
+            normalized[key] = int(max(0, min(10, round(adjusted))))
+
+        evaluation["scores"] = normalized
+        evaluation.setdefault("meta", {})["normalized"] = True
+        return evaluation
+
+    @staticmethod
+    def _log_research_record(
+        session_id: str,
+        question_index: int,
+        transcript: str,
+        evaluation: dict,
+        session_policy: Dict[str, Any],
+        stt_latency: float,
+        eval_latency: float,
+        answer_cycle_latency: float,
+    ):
+        research_logger.write_evaluation_record(
+            {
+                "session_id": session_id,
+                "question_index": question_index,
+                "answer_text": transcript,
+                "scores": evaluation.get("scores", {}),
+                "confidence_score": evaluation.get("confidence_score"),
+                "evaluator_variance": evaluation.get("evaluator_variance"),
+                "provider": evaluation.get("meta", {}).get("provider"),
+                "load_policy": session_policy,
+                "latency": {
+                    "stt_s": round(stt_latency, 3),
+                    "evaluation_s": round(eval_latency, 3),
+                    "answer_cycle_s": round(answer_cycle_latency, 3),
+                },
+            }
+        )
 
     async def shutdown(self):
         connections = list(self._connections)

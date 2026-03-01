@@ -4,6 +4,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from statistics import mean
 from typing import Any, Dict, List, Tuple
 
 from dotenv import load_dotenv
@@ -41,6 +42,55 @@ LLM_CB_FAILURE_THRESHOLD = int(os.getenv("LLM_CB_FAILURE_THRESHOLD", "3"))
 LLM_CB_SLOW_THRESHOLD_S = float(os.getenv("LLM_CB_SLOW_THRESHOLD_S", "12"))
 LLM_CB_SLOW_STRIKES_THRESHOLD = int(os.getenv("LLM_CB_SLOW_STRIKES_THRESHOLD", "3"))
 LLM_CB_OPEN_SECONDS = int(os.getenv("LLM_CB_OPEN_SECONDS", "60"))
+EVAL_MULTI_PASS = _env_flag("EVAL_MULTI_PASS", True)
+EVAL_SELF_CONSISTENCY = _env_flag("EVAL_SELF_CONSISTENCY", True)
+
+RUBRIC_FULL = [
+    "Technical Accuracy",
+    "Clarity of Explanation",
+    "Depth of Understanding",
+    "Confidence & Communication",
+]
+RUBRIC_LITE = ["Technical Accuracy", "Clarity of Explanation"]
+
+QUESTION_PROMPT_TEMPLATE = """
+You are an AI interviewer.
+Return ONLY JSON list[str] with exactly {num_questions} concise technical questions.
+No markdown, no extra text.
+Profile: {profile_json}
+""".strip()
+
+EVAL_PROMPT_TEMPLATE = """
+You are an AI evaluator.
+Return ONLY JSON:
+{{"scores":{{...}},"feedback":[...],"summary":"..."}}
+Score 0-10 for rubric: {rubric_json}
+No markdown, no extra text.
+Q: {question}
+A: {answer}
+Profile: {profile_json}
+""".strip()
+
+EVAL_CRITIQUE_TEMPLATE = """
+You are a second-pass evaluator.
+Review first-pass result and adjust only if needed.
+Return ONLY JSON:
+{{"scores":{{...}},"feedback":[...],"summary":"..."}}
+Rubric: {rubric_json}
+Q: {question}
+A: {answer}
+FirstPass: {first_pass_json}
+No markdown, no extra text.
+""".strip()
+
+FINAL_REPORT_TEMPLATE = """
+You are a hiring manager.
+Return ONLY JSON with keys:
+overall_recommendation,strengths,weaknesses,final_summary
+Profile: {profile_json}
+Answers: {answers_json}
+No markdown, no extra text.
+""".strip()
 
 _CB_LOCK = threading.Lock()
 _CB_STATE: Dict[str, Dict[str, float]] = {}
@@ -219,10 +269,9 @@ def _run_json_task(
         provider_start = time.time()
         try:
             raw = _call_provider(provider, prompt, temperature)
-            _record_provider_success(provider, time.time() - provider_start)
-            metrics.record_latency(
-                f"llm_provider_{provider}_latency", time.time() - provider_start
-            )
+            elapsed = time.time() - provider_start
+            _record_provider_success(provider, elapsed)
+            metrics.record_latency(f"llm_provider_{provider}_latency", elapsed)
             parsed = _safe_json_loads(raw, expected_type)
             return parsed, provider
         except Exception as exc:
@@ -271,16 +320,11 @@ def generate_questions(
     profile: dict, num_questions: int, temperature_override: float | None = None
 ) -> List[str]:
     start = time.time()
-    temperature = 0.7 if temperature_override is None else temperature_override
-    prompt = f"""
-    You are an expert AI interviewer. Based on the following candidate profile,
-    generate exactly {num_questions} technical interview questions.
-    Return ONLY valid JSON as a list of strings.
-    Do not include markdown fences, labels, or explanations.
-
-    Candidate Profile:
-    {json.dumps(profile, indent=2)}
-    """
+    temperature = 0.4 if temperature_override is None else temperature_override
+    prompt = QUESTION_PROMPT_TEMPLATE.format(
+        num_questions=num_questions,
+        profile_json=json.dumps(profile, separators=(",", ":")),
+    )
 
     try:
         questions, provider = _run_json_task(prompt, list, temperature=temperature)
@@ -305,58 +349,110 @@ def generate_questions(
         return _normalize_questions([], num_questions)
 
 
+def prepare_evaluation_context(profile: dict, question: str, lightweight: bool) -> dict:
+    rubric = RUBRIC_LITE if lightweight else RUBRIC_FULL
+    return {
+        "profile_json": json.dumps(profile, separators=(",", ":")),
+        "question": question,
+        "rubric_json": json.dumps(rubric, separators=(",", ":")),
+        "lightweight": lightweight,
+    }
+
+
+def _clamp_scores(scores: Dict[str, Any], rubric: List[str]) -> Dict[str, int]:
+    result: Dict[str, int] = {}
+    for key in rubric:
+        raw = scores.get(key, 0)
+        try:
+            value = int(raw)
+        except Exception:
+            value = 0
+        result[key] = max(0, min(10, value))
+    return result
+
+
+def _score_variance(a: Dict[str, int], b: Dict[str, int]) -> float:
+    keys = list(set(a.keys()).union(set(b.keys())))
+    if not keys:
+        return 0.0
+    diffs = [(a.get(k, 0) - b.get(k, 0)) ** 2 for k in keys]
+    return mean(diffs)
+
+
 def evaluate_answer(
     question: str,
     answer: str,
     profile: dict,
     lightweight: bool = False,
     temperature_override: float | None = None,
+    prepared_context: dict | None = None,
 ) -> dict:
     start = time.time()
-    temperature = 0.3 if temperature_override is None else temperature_override
-    criteria = """
-    - Technical Accuracy
-    - Clarity of Explanation
-    - Depth of Understanding
-    - Confidence & Communication
-    """
-    if lightweight:
-        criteria = """
-    - Technical Accuracy
-    - Clarity of Explanation
-    """
+    base_temperature = 0.2 if temperature_override is None else temperature_override
+    context = prepared_context or prepare_evaluation_context(profile, question, lightweight)
+    rubric = RUBRIC_LITE if context["lightweight"] else RUBRIC_FULL
 
-    prompt = f"""
-    You are an expert AI interviewer evaluating a candidate's answer.
-    Score 0-10 on these dimensions:
-    {criteria}
-
-    Return ONLY valid JSON with this exact structure:
-    {{
-      "scores": {{ ... }},
-      "feedback": [...],
-      "summary": "..."
-    }}
-    Do not include markdown fences, labels, or explanations.
-
-    Candidate Profile:
-    {json.dumps(profile, indent=2)}
-
-    Question:
-    "{question}"
-
-    Answer:
-    "{answer}"
-    """
+    eval_prompt = EVAL_PROMPT_TEMPLATE.format(
+        rubric_json=context["rubric_json"],
+        question=context["question"],
+        answer=answer,
+        profile_json=context["profile_json"],
+    )
 
     try:
-        evaluation, provider = _run_json_task(prompt, dict, temperature=temperature)
-        if "scores" in evaluation and isinstance(evaluation["scores"], dict):
-            for key, value in evaluation["scores"].items():
-                evaluation["scores"][key] = max(0, min(10, int(value)))
+        first_pass, provider = _run_json_task(eval_prompt, dict, temperature=base_temperature)
+        first_scores = _clamp_scores(first_pass.get("scores", {}), rubric)
+
+        final_eval = first_pass
+        final_scores = first_scores
+        critique_used = False
+
+        if EVAL_MULTI_PASS and not lightweight:
+            critique_prompt = EVAL_CRITIQUE_TEMPLATE.format(
+                rubric_json=context["rubric_json"],
+                question=context["question"],
+                answer=answer,
+                first_pass_json=json.dumps(first_pass, separators=(",", ":")),
+            )
+            critique_pass, _ = _run_json_task(
+                critique_prompt,
+                dict,
+                temperature=max(0.05, base_temperature - 0.05),
+            )
+            critique_scores = _clamp_scores(critique_pass.get("scores", {}), rubric)
+            final_eval = critique_pass
+            final_scores = critique_scores
+            critique_used = True
+
+        variance = 0.0
+        consistency_scores = final_scores
+        if EVAL_SELF_CONSISTENCY:
+            consistency_pass, _ = _run_json_task(
+                eval_prompt,
+                dict,
+                temperature=min(0.45, base_temperature + 0.12),
+            )
+            consistency_scores = _clamp_scores(consistency_pass.get("scores", {}), rubric)
+            variance = _score_variance(final_scores, consistency_scores)
+
+        confidence_score = round(1.0 / (1.0 + variance), 3)
 
         duration = round(time.time() - start, 3)
         metrics.record_latency("llm_evaluation", duration)
+
+        evaluation = {
+            "scores": final_scores,
+            "feedback": final_eval.get("feedback", []),
+            "summary": final_eval.get("summary", ""),
+            "confidence_score": confidence_score,
+            "evaluator_variance": round(variance, 3),
+            "meta": {
+                "provider": provider,
+                "critique_used": critique_used,
+                "self_consistency_used": EVAL_SELF_CONSISTENCY,
+            },
+        }
+
         logger.info(
             "Answer evaluated",
             extra={
@@ -365,6 +461,7 @@ def evaluate_answer(
                     "duration": duration,
                     "scores": evaluation.get("scores", {}),
                     "answer_length": len(answer),
+                    "confidence": confidence_score,
                 }
             },
         )
@@ -372,40 +469,30 @@ def evaluate_answer(
     except Exception:
         metrics.record_error()
         logger.exception("Evaluation failed")
+        fallback_scores = {name: 5 for name in rubric}
         return {
-            "scores": {
-                "Technical Accuracy": 5,
-                "Clarity of Explanation": 5,
-                "Depth of Understanding": 5 if not lightweight else 0,
-                "Confidence & Communication": 5 if not lightweight else 0,
-            },
+            "scores": fallback_scores,
             "feedback": ["Evaluation fallback triggered."],
             "summary": "AI evaluation failed.",
+            "confidence_score": 0.2,
+            "evaluator_variance": 3.0,
+            "meta": {
+                "provider": "fallback",
+                "critique_used": False,
+                "self_consistency_used": False,
+            },
         }
 
 
 def generate_final_report(profile: dict, answers: List[dict]) -> dict:
     start = time.time()
-    prompt = f"""
-    You are a hiring manager writing a final report.
-    Provide:
-    - Overall Recommendation
-    - Strengths
-    - Weaknesses
-    - Final Summary
-
-    Return ONLY valid JSON.
-    Do not include markdown fences, labels, or explanations.
-
-    Candidate Profile:
-    {json.dumps(profile, indent=2)}
-
-    Q&A:
-    {json.dumps(answers, indent=2)}
-    """
+    prompt = FINAL_REPORT_TEMPLATE.format(
+        profile_json=json.dumps(profile, separators=(",", ":")),
+        answers_json=json.dumps(answers, separators=(",", ":")),
+    )
 
     try:
-        report, provider = _run_json_task(prompt, dict, temperature=0.4)
+        report, provider = _run_json_task(prompt, dict, temperature=0.2)
         duration = round(time.time() - start, 3)
         metrics.record_latency("llm_final_report", duration)
         logger.info(
@@ -429,10 +516,7 @@ def prewarm_llm():
     """
     Best-effort prewarm to reduce first request latency.
     """
-    prompt = (
-        'Return ONLY valid JSON: {"status":"ok"} '
-        "Do not include markdown or any extra text."
-    )
+    prompt = '{"status":"ok"}'
     try:
         providers = _provider_order()
         for provider in providers:

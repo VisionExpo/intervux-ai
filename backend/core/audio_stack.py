@@ -1,9 +1,12 @@
 import asyncio
 import os
 import tempfile
+import wave
+from io import BytesIO
 from typing import Optional
 
 import edge_tts
+import numpy as np
 import whisper
 
 from backend.config.setting import DEVICE
@@ -60,5 +63,25 @@ class AudioEngine:
         result = self.stt_model.transcribe(
             audio_path,
             fp16=(DEVICE == "cuda")
+        )
+        return result.get("text", "").strip()
+
+    def speech_to_text_wav_bytes(self, audio_bytes: bytes) -> str:
+        """
+        Fast path for WAV bytes without filesystem roundtrip.
+        """
+        with wave.open(BytesIO(audio_bytes), "rb") as wf:
+            sample_rate = wf.getframerate()
+            channels = wf.getnchannels()
+            frames = wf.readframes(wf.getnframes())
+
+        audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+        if channels > 1:
+            audio = audio.reshape(-1, channels).mean(axis=1)
+
+        result = self.stt_model.transcribe(
+            audio,
+            fp16=(DEVICE == "cuda"),
+            language="en",
         )
         return result.get("text", "").strip()

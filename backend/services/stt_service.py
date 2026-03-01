@@ -16,7 +16,8 @@ class STTService:
     """
 
     def __init__(self):
-        self.audio_engine = AudioEngine()
+        whisper_model = os.getenv("WHISPER_MODEL", "base")
+        self.audio_engine = AudioEngine(whisper_model=whisper_model)
 
     def transcribe(self, audio_file) -> str:
         start_time = time.time()
@@ -89,6 +90,29 @@ def transcribe_audio_bytes(audio_bytes: bytes, suffix: str = ".wav") -> str:
         logger.warning("Empty audio bytes received")
         metrics.record_error()
         return ""
+
+    if suffix.lower() == ".wav":
+        try:
+            text = _stt_service_instance.audio_engine.speech_to_text_wav_bytes(audio_bytes)
+            text = text.strip()
+
+            duration = round(time.time() - start_time, 3)
+            metrics.record_latency("stt_processing", duration)
+            metrics.record_latency("stt_in_memory_wav", duration)
+            logger.info(
+                "STT completed from in-memory wav bytes",
+                extra={
+                    "extra_data": {
+                        "file_size_kb": round(len(audio_bytes) / 1024, 2),
+                        "transcript_length": len(text),
+                        "duration": duration,
+                    }
+                },
+            )
+            return text
+        except Exception:
+            # Fall back to file path pipeline for robustness.
+            pass
 
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         audio_path = tmp.name
