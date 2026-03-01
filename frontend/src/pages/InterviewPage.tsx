@@ -11,6 +11,7 @@ export default function InterviewPage() {
     totalQuestions,
     lastEvaluation,
     finalReport,
+    lastError,
     uploadResume,
     sendAudioAnswer,
   } = useInterview();
@@ -30,6 +31,7 @@ export default function InterviewPage() {
       <p>
         Socket: {isConnected ? "connected" : "disconnected"} | State: {stage}
       </p>
+      {lastError && <p style={{ color: "#b00020" }}>{lastError}</p>}
 
       <Avatar3D isSpeacking={isSpeaking} />
 

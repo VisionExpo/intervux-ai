@@ -7,6 +7,7 @@ from functools import partial
 from typing import Any, Dict
 
 from fastapi import WebSocket, WebSocketDisconnect
+from pydantic import ValidationError
 
 from backend.core.agent_ocr import parse_resume_bytes
 from backend.core.llm_brain import (
@@ -30,6 +31,12 @@ class InterviewSocket:
 
     def __init__(self, total_questions: int = 2):
         self.total_questions = total_questions
+        self.receive_timeout_s = int(os.getenv("WS_RECEIVE_TIMEOUT_S", "120"))
+        self.send_timeout_s = int(os.getenv("WS_SEND_TIMEOUT_S", "20"))
+        self.max_audio_bytes = int(os.getenv("WS_MAX_AUDIO_BYTES", "20000000"))
+        self.max_resume_b64_chars = int(
+            os.getenv("WS_MAX_RESUME_B64_CHARS", "14000000")
+        )
 
     async def handle(self, ws: WebSocket):
         await ws.accept()
@@ -67,10 +74,30 @@ class InterviewSocket:
                 )
 
             await self._complete_interview(ws=ws, state=state, session_id=session_id)
+            await self._close_ws(ws, code=1000)
+            logger.info(
+                "WebSocket session completed",
+                extra={"extra_data": {"session_id": session_id}},
+            )
         except WebSocketDisconnect:
             logger.info(
                 "WebSocket session disconnected",
                 extra={"extra_data": {"session_id": session_id}},
+            )
+        except TimeoutError as exc:
+            await self._send_error(
+                ws=ws,
+                code="TIMEOUT",
+                message=str(exc),
+                recoverable=False,
+            )
+            await self._close_ws(ws, code=1001)
+        except ValueError as exc:
+            await self._send_error(
+                ws=ws,
+                code="BAD_PAYLOAD",
+                message=str(exc),
+                recoverable=True,
             )
         except Exception:
             metrics.record_error()
@@ -78,68 +105,95 @@ class InterviewSocket:
                 "WebSocket interview failed",
                 extra={"extra_data": {"session_id": session_id}},
             )
-            await ws.send_json(
-                {
-                    "type": "error",
-                    "message": "Interview session failed.",
-                }
+            await self._send_error(
+                ws=ws,
+                code="INTERNAL_ERROR",
+                message="Interview session failed.",
+                recoverable=False,
             )
-            await ws.close(code=1011)
-        else:
-            await ws.close(code=1000)
-            logger.info(
-                "WebSocket session completed",
-                extra={"extra_data": {"session_id": session_id}},
-            )
+            await self._close_ws(ws, code=1011)
+        finally:
+            state.reset()
 
-    async def _wait_for_resume_upload(self, ws: WebSocket) -> Dict[str, Any]:
+    async def _recv_with_timeout(self, ws: WebSocket) -> Dict[str, Any]:
+        try:
+            message = await asyncio.wait_for(ws.receive(), timeout=self.receive_timeout_s)
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError("Timed out waiting for client message") from exc
+
+        if message.get("type") == "websocket.disconnect":
+            raise WebSocketDisconnect(message.get("code", 1001))
+        return message
+
+    async def _wait_for_resume_upload(self, ws: WebSocket) -> Dict[str, str]:
         while True:
-            message = await ws.receive()
+            message = await self._recv_with_timeout(ws)
             payload = message.get("text")
             if not payload:
-                await ws.send_json(
-                    {"type": "error", "message": "Expected resume_upload JSON."}
+                await self._send_error(
+                    ws=ws,
+                    code="EXPECTED_JSON",
+                    message="Expected resume_upload JSON message.",
+                    recoverable=True,
                 )
                 continue
 
             try:
                 data = json.loads(payload)
             except json.JSONDecodeError:
-                await ws.send_json(
-                    {"type": "error", "message": "Invalid JSON payload."}
+                await self._send_error(
+                    ws=ws,
+                    code="INVALID_JSON",
+                    message="Invalid JSON payload.",
+                    recoverable=True,
                 )
                 continue
 
-            if data.get("type") != "resume_upload":
-                await ws.send_json(
-                    {"type": "error", "message": "Expected type=resume_upload."}
+            msg_type = data.get("type")
+            if msg_type == "ping":
+                await self._safe_send_json(ws, {"type": "pong"})
+                continue
+
+            if msg_type != "resume_upload":
+                await self._send_error(
+                    ws=ws,
+                    code="UNEXPECTED_MESSAGE",
+                    message="Expected type=resume_upload.",
+                    recoverable=True,
                 )
                 continue
 
-            if not data.get("file_bytes"):
-                await ws.send_json(
-                    {"type": "error", "message": "resume_upload missing file_bytes."}
-                )
-                continue
+            file_name = data.get("file_name")
+            file_bytes = data.get("file_bytes")
 
-            return data
+            if not isinstance(file_name, str) or not file_name.strip():
+                raise ValueError("resume_upload.file_name must be a non-empty string")
+            if not isinstance(file_bytes, str) or not file_bytes.strip():
+                raise ValueError("resume_upload.file_bytes must be a non-empty string")
+            if len(file_bytes) > self.max_resume_b64_chars:
+                raise ValueError("resume_upload file is too large")
+
+            return {"file_name": file_name.strip(), "file_bytes": file_bytes}
 
     async def _bootstrap_interview(
         self,
         ws: WebSocket,
         state: InterviewState,
-        resume_payload: Dict[str, Any],
+        resume_payload: Dict[str, str],
         session_id: str,
     ):
         resume_start = time.time()
         _, extracted = await asyncio.to_thread(
             partial(
                 parse_resume_bytes,
-                file_name=resume_payload.get("file_name", "resume.pdf"),
+                file_name=resume_payload["file_name"],
                 file_bytes_b64=resume_payload["file_bytes"],
             )
         )
-        state.profile = ResumeData(**extracted)
+        try:
+            state.profile = ResumeData(**extracted)
+        except ValidationError:
+            state.profile = ResumeData()
         metrics.record_latency("resume_parsing", time.time() - resume_start)
 
         question_start = time.time()
@@ -152,6 +206,9 @@ class InterviewSocket:
         )
         state.current_index = 0
         metrics.record_latency("question_generation", time.time() - question_start)
+
+        if not state.questions:
+            raise RuntimeError("Question generation returned no questions")
 
         logger.info(
             "Interview initialized",
@@ -168,28 +225,45 @@ class InterviewSocket:
 
     async def _wait_for_audio_answer(self, ws: WebSocket) -> bytes:
         while True:
-            message = await ws.receive()
+            message = await self._recv_with_timeout(ws)
             answer_audio = message.get("bytes")
             if answer_audio:
+                if len(answer_audio) > self.max_audio_bytes:
+                    raise ValueError("Audio payload too large")
                 return answer_audio
 
             payload = message.get("text")
             if payload:
                 try:
                     data = json.loads(payload)
-                except Exception:
-                    data = {}
-
-                if data.get("type") == "resume_upload":
-                    await ws.send_json(
-                        {
-                            "type": "error",
-                            "message": "Resume already uploaded for this session.",
-                        }
+                except json.JSONDecodeError:
+                    await self._send_error(
+                        ws=ws,
+                        code="INVALID_JSON",
+                        message="Invalid JSON payload.",
+                        recoverable=True,
                     )
                     continue
 
-            await ws.send_json({"type": "error", "message": "Expected audio bytes."})
+                msg_type = data.get("type")
+                if msg_type == "ping":
+                    await self._safe_send_json(ws, {"type": "pong"})
+                    continue
+
+                await self._send_error(
+                    ws=ws,
+                    code="UNEXPECTED_MESSAGE",
+                    message="Expected binary audio answer.",
+                    recoverable=True,
+                )
+                continue
+
+            await self._send_error(
+                ws=ws,
+                code="UNSUPPORTED_FRAME",
+                message="Unsupported frame type.",
+                recoverable=True,
+            )
 
     async def _process_answer(
         self,
@@ -209,6 +283,8 @@ class InterviewSocket:
             )
         )
         metrics.record_latency("stt", time.time() - stt_start)
+        if not transcript:
+            transcript = "(No transcript captured)"
 
         eval_start = time.time()
         evaluation = await asyncio.to_thread(
@@ -229,7 +305,8 @@ class InterviewSocket:
             }
         )
 
-        await ws.send_json(
+        await self._safe_send_json(
+            ws,
             {
                 "type": "evaluation",
                 "data": {
@@ -238,11 +315,10 @@ class InterviewSocket:
                     "transcript": transcript,
                     "evaluation": evaluation,
                 },
-            }
+            },
         )
 
         state.current_index += 1
-
         logger.info(
             "Answer evaluated",
             extra={
@@ -270,11 +346,9 @@ class InterviewSocket:
         )
         metrics.record_latency("final_report", time.time() - report_start)
         metrics.record_interview_completed()
-
         state.final_report = report
 
-        await ws.send_json({"type": "interview_complete", "report": report})
-
+        await self._safe_send_json(ws, {"type": "interview_complete", "report": report})
         logger.info(
             "Interview completed",
             extra={
@@ -297,19 +371,52 @@ class InterviewSocket:
     async def _send_avatar_with_audio(
         self, ws: WebSocket, text: str, question_index: int, total_questions: int
     ):
-        await ws.send_json(
+        await self._safe_send_json(
+            ws,
             {
                 "type": "avatar_sync",
                 "text": text,
                 "question_index": question_index,
                 "total_questions": total_questions,
-            }
+            },
         )
 
         tts_start = time.time()
         audio_bytes = await asyncio.to_thread(self._synthesize_wav_bytes, text)
         metrics.record_latency("tts", time.time() - tts_start)
-        await ws.send_bytes(audio_bytes)
+        await self._safe_send_bytes(ws, audio_bytes)
+
+    async def _safe_send_json(self, ws: WebSocket, payload: Dict[str, Any]):
+        try:
+            await asyncio.wait_for(ws.send_json(payload), timeout=self.send_timeout_s)
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError("Timed out sending JSON response") from exc
+
+    async def _safe_send_bytes(self, ws: WebSocket, data: bytes):
+        try:
+            await asyncio.wait_for(ws.send_bytes(data), timeout=self.send_timeout_s)
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError("Timed out sending binary audio") from exc
+
+    async def _send_error(
+        self, ws: WebSocket, code: str, message: str, recoverable: bool
+    ):
+        metrics.record_error()
+        await self._safe_send_json(
+            ws,
+            {
+                "type": "error",
+                "code": code,
+                "message": message,
+                "recoverable": recoverable,
+            },
+        )
+
+    async def _close_ws(self, ws: WebSocket, code: int):
+        try:
+            await ws.close(code=code)
+        except Exception:
+            pass
 
     @staticmethod
     def _synthesize_wav_bytes(text: str) -> bytes:
