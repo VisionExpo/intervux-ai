@@ -68,3 +68,8 @@ def get_metrics():
 @app.websocket("/ws/interview")
 async def websocket_interview(ws: WebSocket):
     await interview_socket.handle(ws)
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    await interview_socket.shutdown()

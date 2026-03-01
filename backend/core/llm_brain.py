@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -35,6 +36,14 @@ GEMINI_CLIENT = genai.Client(api_key=GOOGLE_API_KEY) if GOOGLE_API_KEY else None
 LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "qwen2.5:7b-instruct")
 LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "http://localhost:11434/api/generate")
 LOCAL_LLM_TIMEOUT_S = int(os.getenv("LOCAL_LLM_TIMEOUT_S", "120"))
+LLM_CIRCUIT_BREAKER_ENABLED = _env_flag("LLM_CIRCUIT_BREAKER_ENABLED", True)
+LLM_CB_FAILURE_THRESHOLD = int(os.getenv("LLM_CB_FAILURE_THRESHOLD", "3"))
+LLM_CB_SLOW_THRESHOLD_S = float(os.getenv("LLM_CB_SLOW_THRESHOLD_S", "12"))
+LLM_CB_SLOW_STRIKES_THRESHOLD = int(os.getenv("LLM_CB_SLOW_STRIKES_THRESHOLD", "3"))
+LLM_CB_OPEN_SECONDS = int(os.getenv("LLM_CB_OPEN_SECONDS", "60"))
+
+_CB_LOCK = threading.Lock()
+_CB_STATE: Dict[str, Dict[str, float]] = {}
 
 
 def _safe_json_loads(payload: str, expected_type: type):
@@ -44,6 +53,78 @@ def _safe_json_loads(payload: str, expected_type: type):
             f"Expected {expected_type.__name__}, got {type(parsed).__name__}"
         )
     return parsed
+
+
+def _get_or_init_state_unlocked(provider: str) -> Dict[str, float]:
+    if provider not in _CB_STATE:
+        _CB_STATE[provider] = {
+            "open_until": 0.0,
+            "failure_count": 0.0,
+            "slow_count": 0.0,
+        }
+    return _CB_STATE[provider]
+
+
+def _is_circuit_open(provider: str) -> bool:
+    if not LLM_CIRCUIT_BREAKER_ENABLED:
+        return False
+    with _CB_LOCK:
+        state = _get_or_init_state_unlocked(provider)
+        return state["open_until"] > time.time()
+
+
+def _open_circuit(provider: str, reason: str):
+    with _CB_LOCK:
+        state = _get_or_init_state_unlocked(provider)
+        state["open_until"] = time.time() + LLM_CB_OPEN_SECONDS
+        state["failure_count"] = 0.0
+        state["slow_count"] = 0.0
+
+    logger.warning(
+        "LLM circuit opened",
+        extra={
+            "extra_data": {
+                "provider": provider,
+                "reason": reason,
+                "open_seconds": LLM_CB_OPEN_SECONDS,
+            }
+        },
+    )
+
+
+def _record_provider_success(provider: str, duration_s: float):
+    if not LLM_CIRCUIT_BREAKER_ENABLED:
+        return
+
+    should_open = False
+    with _CB_LOCK:
+        state = _get_or_init_state_unlocked(provider)
+        state["failure_count"] = 0.0
+        if duration_s >= LLM_CB_SLOW_THRESHOLD_S:
+            state["slow_count"] += 1.0
+        else:
+            state["slow_count"] = 0.0
+
+        if state["slow_count"] >= LLM_CB_SLOW_STRIKES_THRESHOLD:
+            should_open = True
+
+    if should_open:
+        _open_circuit(provider, "repeated_slow_calls")
+
+
+def _record_provider_failure(provider: str):
+    if not LLM_CIRCUIT_BREAKER_ENABLED:
+        return
+
+    should_open = False
+    with _CB_LOCK:
+        state = _get_or_init_state_unlocked(provider)
+        state["failure_count"] += 1.0
+        if state["failure_count"] >= LLM_CB_FAILURE_THRESHOLD:
+            should_open = True
+
+    if should_open:
+        _open_circuit(provider, "repeated_failures")
 
 
 def _should_fallback(exc: Exception) -> bool:
@@ -127,14 +208,30 @@ def _run_json_task(
     last_error: Exception | None = None
 
     for index, provider in enumerate(providers):
+        if _is_circuit_open(provider):
+            logger.warning(
+                "LLM provider skipped due to open circuit",
+                extra={"extra_data": {"provider": provider}},
+            )
+            last_error = RuntimeError(f"Provider circuit open: {provider}")
+            continue
+
+        provider_start = time.time()
         try:
             raw = _call_provider(provider, prompt, temperature)
+            _record_provider_success(provider, time.time() - provider_start)
+            metrics.record_latency(
+                f"llm_provider_{provider}_latency", time.time() - provider_start
+            )
             parsed = _safe_json_loads(raw, expected_type)
             return parsed, provider
         except Exception as exc:
+            _record_provider_failure(provider)
             last_error = exc
             is_last = index == len(providers) - 1
-            can_try_next = not is_last and _should_fallback(exc)
+            can_try_next = not is_last and (
+                _should_fallback(exc) or _is_circuit_open(provider)
+            )
 
             logger.warning(
                 "LLM provider failed",

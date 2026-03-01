@@ -4,7 +4,7 @@ import os
 import time
 import uuid
 from functools import partial
-from typing import Any, Dict
+from typing import Any, Dict, Set
 
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
@@ -31,21 +31,44 @@ class InterviewSocket:
 
     def __init__(self, total_questions: int = 2):
         self.total_questions = total_questions
+        self.max_concurrent_sessions = int(os.getenv("MAX_CONCURRENT_SESSIONS", "5"))
         self.receive_timeout_s = int(os.getenv("WS_RECEIVE_TIMEOUT_S", "120"))
         self.send_timeout_s = int(os.getenv("WS_SEND_TIMEOUT_S", "20"))
         self.max_audio_bytes = int(os.getenv("WS_MAX_AUDIO_BYTES", "20000000"))
         self.max_resume_b64_chars = int(
             os.getenv("WS_MAX_RESUME_B64_CHARS", "14000000")
         )
+        self._session_lock = asyncio.Lock()
+        self._active_sessions = 0
+        self._connections: Set[WebSocket] = set()
 
     async def handle(self, ws: WebSocket):
         await ws.accept()
+        if not await self._try_acquire_session_slot():
+            await self._safe_send_json(
+                ws,
+                {
+                    "type": "error",
+                    "code": "SERVER_OVERLOADED",
+                    "message": "Server is at capacity. Try again shortly.",
+                    "recoverable": False,
+                },
+            )
+            await self._close_ws(ws, code=1013)
+            return
+
         session_id = str(uuid.uuid4())
         state = InterviewState()
+        self._connections.add(ws)
 
         logger.info(
             "WebSocket session started",
-            extra={"extra_data": {"session_id": session_id}},
+            extra={
+                "extra_data": {
+                    "session_id": session_id,
+                    "active_sessions": self._active_sessions,
+                }
+            },
         )
 
         try:
@@ -99,6 +122,7 @@ class InterviewSocket:
                 message=str(exc),
                 recoverable=True,
             )
+            await self._close_ws(ws, code=1003)
         except Exception:
             metrics.record_error()
             logger.exception(
@@ -114,6 +138,8 @@ class InterviewSocket:
             await self._close_ws(ws, code=1011)
         finally:
             state.reset()
+            self._connections.discard(ws)
+            await self._release_session_slot()
 
     async def _recv_with_timeout(self, ws: WebSocket) -> Dict[str, Any]:
         try:
@@ -195,6 +221,7 @@ class InterviewSocket:
         except ValidationError:
             state.profile = ResumeData()
         metrics.record_latency("resume_parsing", time.time() - resume_start)
+        metrics.record_latency("phase_resume_parse", time.time() - resume_start)
 
         question_start = time.time()
         state.questions = await asyncio.to_thread(
@@ -206,6 +233,9 @@ class InterviewSocket:
         )
         state.current_index = 0
         metrics.record_latency("question_generation", time.time() - question_start)
+        metrics.record_latency(
+            "phase_question_generation", time.time() - question_start
+        )
 
         if not state.questions:
             raise RuntimeError("Question generation returned no questions")
@@ -272,6 +302,7 @@ class InterviewSocket:
         answer_audio: bytes,
         session_id: str,
     ):
+        answer_cycle_start = time.time()
         question = state.questions[state.current_index]
 
         stt_start = time.time()
@@ -283,6 +314,7 @@ class InterviewSocket:
             )
         )
         metrics.record_latency("stt", time.time() - stt_start)
+        metrics.record_latency("phase_stt", time.time() - stt_start)
         if not transcript:
             transcript = "(No transcript captured)"
 
@@ -296,6 +328,7 @@ class InterviewSocket:
             )
         )
         metrics.record_latency("evaluation", time.time() - eval_start)
+        metrics.record_latency("phase_evaluation", time.time() - eval_start)
 
         state.answers.append(
             {
@@ -332,6 +365,8 @@ class InterviewSocket:
 
         if state.current_index < len(state.questions):
             await self._send_current_question(ws=ws, state=state)
+
+        metrics.record_latency("answer_cycle_total", time.time() - answer_cycle_start)
 
     async def _complete_interview(
         self, ws: WebSocket, state: InterviewState, session_id: str
@@ -417,6 +452,34 @@ class InterviewSocket:
             await ws.close(code=code)
         except Exception:
             pass
+
+    async def _try_acquire_session_slot(self) -> bool:
+        async with self._session_lock:
+            if self._active_sessions >= self.max_concurrent_sessions:
+                return False
+            self._active_sessions += 1
+            return True
+
+    async def _release_session_slot(self):
+        async with self._session_lock:
+            if self._active_sessions > 0:
+                self._active_sessions -= 1
+
+    async def shutdown(self):
+        connections = list(self._connections)
+        for ws in connections:
+            try:
+                await self._safe_send_json(
+                    ws,
+                    {
+                        "type": "server_shutdown",
+                        "message": "Server is shutting down. Please reconnect.",
+                        "recoverable": True,
+                    },
+                )
+            except Exception:
+                pass
+            await self._close_ws(ws, code=1001)
 
     @staticmethod
     def _synthesize_wav_bytes(text: str) -> bytes:

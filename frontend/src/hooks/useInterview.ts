@@ -119,6 +119,16 @@ export function useInterview() {
         }
         return;
       }
+
+      if (type === "server_shutdown") {
+        const message =
+          typeof msg.message === "string"
+            ? msg.message
+            : "Server is restarting. Reconnecting...";
+        setLastError(message);
+        setStage("connecting");
+        return;
+      }
     };
 
     ws.onerror = () => {
