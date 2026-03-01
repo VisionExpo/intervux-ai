@@ -1,7 +1,9 @@
+import asyncio
 import json
 import os
 import time
 import uuid
+from functools import partial
 from typing import Any, Dict
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -100,7 +102,14 @@ class InterviewSocket:
                 )
                 continue
 
-            data = json.loads(payload)
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                await ws.send_json(
+                    {"type": "error", "message": "Invalid JSON payload."}
+                )
+                continue
+
             if data.get("type") != "resume_upload":
                 await ws.send_json(
                     {"type": "error", "message": "Expected type=resume_upload."}
@@ -123,17 +132,23 @@ class InterviewSocket:
         session_id: str,
     ):
         resume_start = time.time()
-        _, extracted = parse_resume_bytes(
-            file_name=resume_payload.get("file_name", "resume.pdf"),
-            file_bytes_b64=resume_payload["file_bytes"],
+        _, extracted = await asyncio.to_thread(
+            partial(
+                parse_resume_bytes,
+                file_name=resume_payload.get("file_name", "resume.pdf"),
+                file_bytes_b64=resume_payload["file_bytes"],
+            )
         )
         state.profile = ResumeData(**extracted)
         metrics.record_latency("resume_parsing", time.time() - resume_start)
 
         question_start = time.time()
-        state.questions = generate_questions(
-            profile=state.profile.model_dump(),
-            num_questions=self.total_questions,
+        state.questions = await asyncio.to_thread(
+            partial(
+                generate_questions,
+                profile=state.profile.model_dump(),
+                num_questions=self.total_questions,
+            )
         )
         state.current_index = 0
         metrics.record_latency("question_generation", time.time() - question_start)
@@ -186,17 +201,23 @@ class InterviewSocket:
         question = state.questions[state.current_index]
 
         stt_start = time.time()
-        transcript = transcribe_audio_bytes(
-            audio_bytes=answer_audio,
-            suffix=self._detect_audio_suffix(answer_audio),
+        transcript = await asyncio.to_thread(
+            partial(
+                transcribe_audio_bytes,
+                audio_bytes=answer_audio,
+                suffix=self._detect_audio_suffix(answer_audio),
+            )
         )
         metrics.record_latency("stt", time.time() - stt_start)
 
         eval_start = time.time()
-        evaluation = evaluate_answer(
-            question=question,
-            answer=transcript,
-            profile=state.profile.model_dump(),
+        evaluation = await asyncio.to_thread(
+            partial(
+                evaluate_answer,
+                question=question,
+                answer=transcript,
+                profile=state.profile.model_dump(),
+            )
         )
         metrics.record_latency("evaluation", time.time() - eval_start)
 
@@ -240,9 +261,12 @@ class InterviewSocket:
         self, ws: WebSocket, state: InterviewState, session_id: str
     ):
         report_start = time.time()
-        report = generate_final_report(
-            profile=state.profile.model_dump(),
-            answers=state.answers,
+        report = await asyncio.to_thread(
+            partial(
+                generate_final_report,
+                profile=state.profile.model_dump(),
+                answers=state.answers,
+            )
         )
         metrics.record_latency("final_report", time.time() - report_start)
         metrics.record_interview_completed()
@@ -283,7 +307,7 @@ class InterviewSocket:
         )
 
         tts_start = time.time()
-        audio_bytes = self._synthesize_wav_bytes(text)
+        audio_bytes = await asyncio.to_thread(self._synthesize_wav_bytes, text)
         metrics.record_latency("tts", time.time() - tts_start)
         await ws.send_bytes(audio_bytes)
 
@@ -295,8 +319,12 @@ class InterviewSocket:
             file_path = os.path.join("/app", relative_path.replace("/", os.sep))
         else:
             file_path = os.path.join("backend", relative_path.replace("/", os.sep))
-        with open(file_path, "rb") as f:
-            return f.read()
+        try:
+            with open(file_path, "rb") as f:
+                return f.read()
+        finally:
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
     @staticmethod
     def _detect_audio_suffix(audio_bytes: bytes) -> str:

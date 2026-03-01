@@ -1,10 +1,12 @@
-import os
 import json
+import os
 import time
-from typing import Dict, List
+import urllib.error
+import urllib.request
+from typing import Any, Dict, List, Tuple
 
-from google import genai
 from dotenv import load_dotenv
+from google import genai
 
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
@@ -13,75 +15,198 @@ load_dotenv()
 
 logger = get_logger(__name__)
 
-API_KEY = os.getenv("GOOGLE_API_KEY")
-if not API_KEY:
-    raise RuntimeError("GOOGLE_API_KEY not set")
 
-MODEL_NAME = "gemini-2.5-flash"
-client = genai.Client(api_key=API_KEY)
+def _env_flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-# ---------------------------------------------------------
-# Question Generation
-# ---------------------------------------------------------
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
+LLM_FALLBACK_PROVIDER = os.getenv("LLM_FALLBACK_PROVIDER", "qwen").strip().lower()
+LLM_AUTO_FALLBACK = _env_flag("LLM_AUTO_FALLBACK", True)
+LLM_FALLBACK_ON_ANY_ERROR = _env_flag("LLM_FALLBACK_ON_ANY_ERROR", False)
+
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GEMINI_CLIENT = genai.Client(api_key=GOOGLE_API_KEY) if GOOGLE_API_KEY else None
+
+LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "qwen2.5:7b-instruct")
+LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "http://localhost:11434/api/generate")
+LOCAL_LLM_TIMEOUT_S = int(os.getenv("LOCAL_LLM_TIMEOUT_S", "120"))
+
+
+def _safe_json_loads(payload: str, expected_type: type):
+    parsed = json.loads(payload)
+    if not isinstance(parsed, expected_type):
+        raise ValueError(
+            f"Expected {expected_type.__name__}, got {type(parsed).__name__}"
+        )
+    return parsed
+
+
+def _should_fallback(exc: Exception) -> bool:
+    if LLM_FALLBACK_ON_ANY_ERROR:
+        return True
+
+    msg = str(exc).lower()
+    quota_markers = [
+        "quota",
+        "rate limit",
+        "resource exhausted",
+        "too many requests",
+        "429",
+    ]
+    return any(marker in msg for marker in quota_markers)
+
+
+def _provider_order() -> List[str]:
+    providers = [LLM_PROVIDER]
+    if LLM_AUTO_FALLBACK and LLM_FALLBACK_PROVIDER not in providers:
+        providers.append(LLM_FALLBACK_PROVIDER)
+    return providers
+
+
+def _call_gemini(prompt: str, temperature: float) -> str:
+    if GEMINI_CLIENT is None:
+        raise RuntimeError("Gemini is not configured: GOOGLE_API_KEY missing")
+
+    response = GEMINI_CLIENT.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
+        config={
+            "response_mime_type": "application/json",
+            "temperature": temperature,
+        },
+    )
+    return response.text
+
+
+def _call_local_qwen(prompt: str, temperature: float) -> str:
+    payload = {
+        "model": LOCAL_LLM_MODEL,
+        "prompt": prompt,
+        "stream": False,
+        "format": "json",
+        "options": {"temperature": temperature},
+    }
+
+    request = urllib.request.Request(
+        LOCAL_LLM_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=LOCAL_LLM_TIMEOUT_S) as response:
+            body = response.read().decode("utf-8")
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Local LLM request failed: {exc}") from exc
+
+    decoded = _safe_json_loads(body, dict)
+    raw = decoded.get("response", "")
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError("Local LLM returned empty response")
+    return raw
+
+
+def _call_provider(provider: str, prompt: str, temperature: float) -> str:
+    if provider == "gemini":
+        return _call_gemini(prompt, temperature)
+    if provider in {"qwen", "local", "ollama"}:
+        return _call_local_qwen(prompt, temperature)
+    raise ValueError(f"Unsupported LLM provider: {provider}")
+
+
+def _run_json_task(
+    prompt: str, expected_type: type, temperature: float
+) -> Tuple[Any, str]:
+    providers = _provider_order()
+    last_error: Exception | None = None
+
+    for index, provider in enumerate(providers):
+        try:
+            raw = _call_provider(provider, prompt, temperature)
+            parsed = _safe_json_loads(raw, expected_type)
+            return parsed, provider
+        except Exception as exc:
+            last_error = exc
+            is_last = index == len(providers) - 1
+            can_try_next = not is_last and _should_fallback(exc)
+
+            logger.warning(
+                "LLM provider failed",
+                extra={
+                    "extra_data": {
+                        "provider": provider,
+                        "error": str(exc),
+                        "fallback_next": can_try_next,
+                    }
+                },
+            )
+
+            if can_try_next:
+                continue
+            raise
+
+    raise RuntimeError("No LLM provider available") from last_error
+
+
+def _normalize_questions(questions: List[str], num_questions: int) -> List[str]:
+    cleaned = [q.strip() for q in questions if isinstance(q, str) and q.strip()]
+    if len(cleaned) >= num_questions:
+        return cleaned[:num_questions]
+
+    filler = [
+        "Tell me about a challenging project you worked on.",
+        "What are your strongest technical skills?",
+        "How do you stay up-to-date with new technologies?",
+        "Where do you see yourself in 5 years?",
+    ]
+    while len(cleaned) < num_questions:
+        cleaned.append(filler[len(cleaned) % len(filler)])
+    return cleaned
+
 
 def generate_questions(profile: dict, num_questions: int) -> List[str]:
     start = time.time()
-
     prompt = f"""
-    You are an expert AI interviewer. Based on the following candidate profile, 
+    You are an expert AI interviewer. Based on the following candidate profile,
     generate exactly {num_questions} technical interview questions.
-    Return the questions as a JSON list of strings.
+    Return ONLY valid JSON as a list of strings.
+    Do not include markdown fences, labels, or explanations.
 
     Candidate Profile:
     {json.dumps(profile, indent=2)}
     """
 
     try:
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-                "temperature": 0.7
-            }
-        )
-
-        questions = json.loads(response.text)
+        questions, provider = _run_json_task(prompt, list, temperature=0.7)
+        normalized = _normalize_questions(questions, num_questions)
 
         duration = round(time.time() - start, 3)
         metrics.record_latency("llm_question_generation", duration)
-
         logger.info(
             "Questions generated",
             extra={
                 "extra_data": {
-                    "num_questions": len(questions),
-                    "duration": duration
+                    "provider": provider,
+                    "num_questions": len(normalized),
+                    "duration": duration,
                 }
-            }
+            },
         )
-
-        return questions
-
+        return normalized
     except Exception:
         metrics.record_error()
         logger.exception("Question generation failed")
-        return [
-            "Tell me about a challenging project you worked on.",
-            "What are your strongest technical skills?",
-            "How do you stay up-to-date with new technologies?",
-            "Where do you see yourself in 5 years?",
-        ]
+        return _normalize_questions([], num_questions)
 
-
-# ---------------------------------------------------------
-# Answer Evaluation
-# ---------------------------------------------------------
 
 def evaluate_answer(question: str, answer: str, profile: dict) -> dict:
     start = time.time()
-
     prompt = f"""
     You are an expert AI interviewer evaluating a candidate's answer.
     Score 0-10 on four dimensions:
@@ -90,12 +215,13 @@ def evaluate_answer(question: str, answer: str, profile: dict) -> dict:
     - Depth of Understanding
     - Confidence & Communication
 
-    Return JSON:
+    Return ONLY valid JSON with this exact structure:
     {{
       "scores": {{ ... }},
       "feedback": [...],
       "summary": "..."
     }}
+    Do not include markdown fences, labels, or explanations.
 
     Candidate Profile:
     {json.dumps(profile, indent=2)}
@@ -108,38 +234,25 @@ def evaluate_answer(question: str, answer: str, profile: dict) -> dict:
     """
 
     try:
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-                "temperature": 0.3
-            }
-        )
-
-        evaluation = json.loads(response.text)
-
-        # Clamp scores 0–10
-        if "scores" in evaluation:
-            for k, v in evaluation["scores"].items():
-                evaluation["scores"][k] = max(0, min(10, int(v)))
+        evaluation, provider = _run_json_task(prompt, dict, temperature=0.3)
+        if "scores" in evaluation and isinstance(evaluation["scores"], dict):
+            for key, value in evaluation["scores"].items():
+                evaluation["scores"][key] = max(0, min(10, int(value)))
 
         duration = round(time.time() - start, 3)
         metrics.record_latency("llm_evaluation", duration)
-
         logger.info(
             "Answer evaluated",
             extra={
                 "extra_data": {
+                    "provider": provider,
                     "duration": duration,
                     "scores": evaluation.get("scores", {}),
-                    "answer_length": len(answer)
+                    "answer_length": len(answer),
                 }
-            }
+            },
         )
-
         return evaluation
-
     except Exception:
         metrics.record_error()
         logger.exception("Evaluation failed")
@@ -151,17 +264,12 @@ def evaluate_answer(question: str, answer: str, profile: dict) -> dict:
                 "Confidence & Communication": 5,
             },
             "feedback": ["Evaluation fallback triggered."],
-            "summary": "AI evaluation failed."
+            "summary": "AI evaluation failed.",
         }
 
 
-# ---------------------------------------------------------
-# Final Report
-# ---------------------------------------------------------
-
 def generate_final_report(profile: dict, answers: List[dict]) -> dict:
     start = time.time()
-
     prompt = f"""
     You are a hiring manager writing a final report.
     Provide:
@@ -170,7 +278,8 @@ def generate_final_report(profile: dict, answers: List[dict]) -> dict:
     - Weaknesses
     - Final Summary
 
-    Return JSON.
+    Return ONLY valid JSON.
+    Do not include markdown fences, labels, or explanations.
 
     Candidate Profile:
     {json.dumps(profile, indent=2)}
@@ -180,32 +289,20 @@ def generate_final_report(profile: dict, answers: List[dict]) -> dict:
     """
 
     try:
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-                "temperature": 0.4
-            }
-        )
-
-        report = json.loads(response.text)
-
+        report, provider = _run_json_task(prompt, dict, temperature=0.4)
         duration = round(time.time() - start, 3)
         metrics.record_latency("llm_final_report", duration)
-
         logger.info(
             "Final report generated",
             extra={
                 "extra_data": {
+                    "provider": provider,
                     "duration": duration,
-                    "num_answers": len(answers)
+                    "num_answers": len(answers),
                 }
-            }
+            },
         )
-
         return report
-
     except Exception:
         metrics.record_error()
         logger.exception("Final report generation failed")
