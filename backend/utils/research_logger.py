@@ -29,7 +29,11 @@ class ResearchLogger:
         if not self.enabled:
             return
         record = dict(payload)
-        answer_text = str(record.pop("answer_text", ""))
+        answer_text = ""
+        if "answer" in record:
+            answer_text = str(record.get("answer", ""))
+        elif "answer_text" in record:
+            answer_text = str(record.get("answer_text", ""))
         record["answer_hash"] = self._hash_answer(answer_text)
         record["timestamp"] = time.time()
         line = json.dumps(record, separators=(",", ":")) + "\n"

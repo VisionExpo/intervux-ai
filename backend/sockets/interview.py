@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import statistics
 import time
 import uuid
 from functools import partial
@@ -20,6 +21,7 @@ from backend.core.adaptive_engine import (
 from backend.core.llm_brain import generate_final_report, prepare_evaluation_context
 from backend.core.memory_engine import (
     build_memory_context,
+    extract_key_concepts,
     seed_memory_projects,
     update_memory,
 )
@@ -318,6 +320,7 @@ class InterviewSocket:
         )
         state.questions = [first_question]
         state.question_skills = [first_skill]
+        state.question_strategies = [_first_strategy]
         state.topics = [first_topic]
         state.concepts = [first_concept]
         state.concept_difficulties = [first_concept_difficulty]
@@ -530,6 +533,11 @@ class InterviewSocket:
             if state.current_index < len(state.question_skills)
             else "Machine Learning"
         )
+        strategy = (
+            state.question_strategies[state.current_index]
+            if state.current_index < len(state.question_strategies)
+            else "follow_up"
+        )
         topic = (
             state.topics[state.current_index]
             if state.current_index < len(state.topics)
@@ -649,6 +657,7 @@ class InterviewSocket:
             {
                 "question": question,
                 "skill": skill,
+                "strategy": strategy,
                 "topic": topic,
                 "concept": concept,
                 "concept_difficulty": concept_difficulty,
@@ -665,6 +674,7 @@ class InterviewSocket:
                     "question_index": state.current_index + 1,
                     "question": question,
                     "skill": skill,
+                    "strategy": strategy,
                     "topic": topic,
                     "concept": concept,
                     "concept_difficulty": concept_difficulty,
@@ -734,6 +744,7 @@ class InterviewSocket:
             )
             state.questions.append(generated_question)
             state.question_skills.append(next_skill)
+            state.question_strategies.append(next_strategy)
             state.topics.append(next_topic)
             state.concepts.append(next_concept)
             state.concept_difficulties.append(next_concept_difficulty)
@@ -790,7 +801,9 @@ class InterviewSocket:
         self._log_research_record(
             session_id=session_id,
             question_index=current_index + 1,
+            question=question,
             skill=skill,
+            strategy=strategy,
             topic=topic,
             concept=concept,
             concept_difficulty=concept_difficulty,
@@ -800,6 +813,12 @@ class InterviewSocket:
             stt_latency=stt_duration,
             eval_latency=eval_duration,
             answer_cycle_latency=answer_cycle_duration,
+            all_answers=state.answers,
+            skill_coverage_snapshot=(
+                state.skill_coverage.snapshot()
+                if state.skill_coverage is not None
+                else {}
+            ),
         )
 
     async def _complete_interview(
@@ -1101,7 +1120,9 @@ class InterviewSocket:
     def _log_research_record(
         session_id: str,
         question_index: int,
+        question: str,
         skill: str,
+        strategy: str,
         topic: str,
         concept: str,
         concept_difficulty: int,
@@ -1111,27 +1132,108 @@ class InterviewSocket:
         stt_latency: float,
         eval_latency: float,
         answer_cycle_latency: float,
+        all_answers: list[dict],
+        skill_coverage_snapshot: Dict[str, int],
     ):
+        scores = evaluation.get("scores", {})
+        if not isinstance(scores, dict):
+            scores = {}
+        technical_score = scores.get("Technical", 0)
+        behavior_score = scores.get("Behavioral", 0)
+        overall_score = scores.get("Overall", 0)
+        confidence = evaluation.get("confidence_score", 0)
+        concepts = extract_key_concepts(transcript)
+        mastery_score, coverage_completeness, confidence_variance = (
+            InterviewSocket._compute_skill_coverage_metrics(
+                skill=skill,
+                all_answers=all_answers,
+                skill_coverage_snapshot=skill_coverage_snapshot,
+            )
+        )
         research_logger.write_evaluation_record(
             {
                 "session_id": session_id,
                 "question_index": question_index,
+                "question": question,
                 "skill": skill,
+                "strategy": strategy,
                 "topic": topic,
                 "concept": concept,
+                "concepts": concepts,
                 "difficulty": concept_difficulty,
-                "answer_text": transcript,
+                "score": overall_score,
+                "technical_score": technical_score,
+                "behavior_score": behavior_score,
+                "confidence": confidence,
+                "skill_mastery_score": mastery_score,
+                "coverage_completeness": coverage_completeness,
+                "skill_confidence_variance": confidence_variance,
+                "answer": transcript,
                 "scores": evaluation.get("scores", {}),
-                "confidence_score": evaluation.get("confidence_score"),
                 "evaluator_variance": evaluation.get("evaluator_variance"),
                 "provider": evaluation.get("meta", {}).get("provider"),
                 "load_policy": session_policy,
-                "latency": {
+                "latency": round(answer_cycle_latency, 3),
+                "latency_breakdown": {
                     "stt_s": round(stt_latency, 3),
                     "evaluation_s": round(eval_latency, 3),
                     "answer_cycle_s": round(answer_cycle_latency, 3),
                 },
+                "time_taken": round(answer_cycle_latency, 3),
             }
+        )
+
+    @staticmethod
+    def _compute_skill_coverage_metrics(
+        skill: str, all_answers: list[dict], skill_coverage_snapshot: Dict[str, int]
+    ) -> tuple[float, float, float]:
+        skill_scores: list[float] = []
+        skill_confidences: list[float] = []
+
+        for item in all_answers:
+            if item.get("skill") != skill:
+                continue
+            raw_scores = item.get("evaluation", {}).get("scores", {})
+            if isinstance(raw_scores, dict) and raw_scores:
+                vals: list[float] = []
+                for value in raw_scores.values():
+                    try:
+                        vals.append(float(value))
+                    except Exception:
+                        pass
+                if vals:
+                    skill_scores.append(sum(vals) / len(vals))
+
+            try:
+                skill_confidences.append(
+                    float(item.get("evaluation", {}).get("confidence_score", 0.0))
+                )
+            except Exception:
+                pass
+
+        if skill_scores:
+            skill_mastery_score = round(sum(skill_scores) / len(skill_scores), 3)
+        else:
+            skill_mastery_score = 0.0
+
+        if skill_coverage_snapshot:
+            total_skills = len(skill_coverage_snapshot)
+            covered = sum(1 for count in skill_coverage_snapshot.values() if count > 0)
+            coverage_completeness = round(covered / float(total_skills), 3)
+        else:
+            coverage_completeness = 0.0
+
+        if len(skill_confidences) >= 2:
+            skill_confidence_variance = round(
+                float(statistics.pvariance(skill_confidences)), 4
+            )
+        else:
+            skill_confidence_variance = 0.0
+
+        return (
+            skill_mastery_score,
+            coverage_completeness,
+            skill_confidence_variance,
         )
 
     async def shutdown(self):

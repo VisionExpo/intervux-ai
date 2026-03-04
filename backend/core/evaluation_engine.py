@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import asyncio
+import os
 from typing import Any, Dict
 
 from backend.core.llm_brain import _run_json_task
+from backend.core.self_consistency import SelfConsistencyEvaluator
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
 
@@ -86,6 +89,57 @@ class DualEvaluationEngine:
 
 
 _dual_eval_engine = DualEvaluationEngine()
+_self_consistency = SelfConsistencyEvaluator(
+    passes=int(os.getenv("SELF_CONSISTENCY_PASSES", "3"))
+)
+SELF_CONSISTENCY_THRESHOLD = float(os.getenv("SELF_CONSISTENCY_THRESHOLD", "0.8"))
+SELF_CONSISTENCY_PARALLEL = os.getenv("SELF_CONSISTENCY_PARALLEL", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
+
+def _format_dual_payload(
+    tech: Dict[str, int],
+    behavior: Dict[str, int],
+    final_score: float,
+    confidence: float,
+    variance: float,
+    pass_count: int,
+    spread: float,
+) -> Dict[str, Any]:
+    tech_avg = _avg(tech)
+    beh_avg = _avg(behavior)
+    return {
+        "technical": tech,
+        "behavioral": behavior,
+        "final": {"score": round(float(final_score), 2)},
+        "scores": {
+            "Technical": round(tech_avg, 2),
+            "Behavioral": round(beh_avg, 2),
+            "Overall": round(float(final_score), 2),
+        },
+        "feedback": [
+            f"Technical average: {round(tech_avg, 2)}",
+            f"Behavioral average: {round(beh_avg, 2)}",
+        ],
+        "summary": (
+            f"Technical Score: {round(tech_avg, 2)}, "
+            f"Behavioral Score: {round(beh_avg, 2)}, "
+            f"Final Score: {round(float(final_score), 2)}"
+        ),
+        "confidence_score": round(float(confidence), 2),
+        "evaluator_variance": round(float(variance), 3),
+        "meta": {
+            "provider": "dual_evaluation",
+            "tech_weight": TECH_WEIGHT,
+            "behavior_weight": BEHAVIOR_WEIGHT,
+            "self_consistency_passes": pass_count,
+            "self_consistency_spread": round(float(spread), 3),
+        },
+    }
 
 
 def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | None = None, **_kwargs: Any) -> Dict[str, Any]:
@@ -96,30 +150,46 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
         final_score = float(combined["final"])
         tech_avg = _avg(tech)
         beh_avg = _avg(behavior)
-        confidence = round(max(0.0, min(1.0, 1.0 - abs(tech_avg - beh_avg) / 10.0)), 2)
-        metrics.record_latency("dual_eval_final_score", final_score)
-        return {
-            "technical": tech,
-            "behavioral": behavior,
-            "final": {"score": final_score},
-            "scores": {
-                "Technical": round(tech_avg, 2),
-                "Behavioral": round(beh_avg, 2),
-                "Overall": final_score,
-            },
-            "feedback": [
-                f"Technical average: {round(tech_avg, 2)}",
-                f"Behavioral average: {round(beh_avg, 2)}",
-            ],
-            "summary": f"Technical Score: {round(tech_avg, 2)}, Behavioral Score: {round(beh_avg, 2)}, Final Score: {final_score}",
-            "confidence_score": confidence,
-            "evaluator_variance": round(abs(tech_avg - beh_avg), 3),
-            "meta": {
-                "provider": "dual_evaluation",
-                "tech_weight": TECH_WEIGHT,
-                "behavior_weight": BEHAVIOR_WEIGHT,
-            },
-        }
+        initial_confidence = round(
+            max(0.0, min(1.0, 1.0 - abs(tech_avg - beh_avg) / 10.0)), 2
+        )
+
+        if initial_confidence >= SELF_CONSISTENCY_THRESHOLD or _self_consistency.passes <= 1:
+            metrics.record_latency("dual_eval_final_score", final_score)
+            return _format_dual_payload(
+                tech=tech,
+                behavior=behavior,
+                final_score=final_score,
+                confidence=initial_confidence,
+                variance=abs(tech_avg - beh_avg),
+                pass_count=1,
+                spread=0.0,
+            )
+
+        if SELF_CONSISTENCY_PARALLEL:
+            aggregate = asyncio.run(
+                _self_consistency.evaluate_parallel(
+                    _dual_eval_engine.evaluate, question, answer, profile
+                )
+            )
+        else:
+            aggregate = _self_consistency.evaluate(
+                _dual_eval_engine.evaluate, question, answer, profile
+            )
+
+        metrics.record_latency("dual_eval_final_score", aggregate.get("final_score", final_score))
+        metrics.record_latency(
+            "evaluation_variance", float(aggregate.get("spread", 0.0))
+        )
+        return _format_dual_payload(
+            tech=aggregate.get("technical", tech),
+            behavior=aggregate.get("behavioral", behavior),
+            final_score=float(aggregate.get("final_score", final_score)),
+            confidence=float(aggregate.get("confidence", initial_confidence)),
+            variance=float(aggregate.get("spread", abs(tech_avg - beh_avg))),
+            pass_count=int(aggregate.get("pass_count", _self_consistency.passes)),
+            spread=float(aggregate.get("spread", 0.0)),
+        )
     except Exception:
         metrics.record_error()
         logger.exception("Dual evaluation failed")
