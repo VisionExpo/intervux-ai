@@ -1151,6 +1151,19 @@ class InterviewSocket:
         if not isinstance(logical_steps, list):
             logical_steps = []
         logic_flow = reasoning.get("logic_flow", "unclear")
+        consistency = evaluation.get("consistency", {})
+        if not isinstance(consistency, dict):
+            consistency = {}
+        concept_consistency_score = consistency.get(
+            "concept_consistency_score", scores.get("ConceptConsistency", 0)
+        )
+        hallucination_risk = consistency.get("hallucination_risk", 0)
+        misused_terms = consistency.get("misused_terms", [])
+        if not isinstance(misused_terms, list):
+            misused_terms = []
+        contradictions = consistency.get("contradictions", [])
+        if not isinstance(contradictions, list):
+            contradictions = []
         mastery_score, coverage_completeness, confidence_variance = (
             InterviewSocket._compute_skill_coverage_metrics(
                 skill=skill,
@@ -1175,6 +1188,10 @@ class InterviewSocket:
                 "reasoning_score": reasoning_score,
                 "logical_steps": logical_steps,
                 "logic_flow": logic_flow,
+                "concept_consistency_score": concept_consistency_score,
+                "hallucination_risk": hallucination_risk,
+                "misused_terms": misused_terms,
+                "contradictions": contradictions,
                 "confidence": confidence,
                 "skill_mastery_score": mastery_score,
                 "coverage_completeness": coverage_completeness,

@@ -36,6 +36,12 @@ class SelfConsistencyEvaluator:
             return {
                 "technical": {"accuracy": 0, "depth": 0, "problem_solving": 0},
                 "behavioral": {"clarity": 0, "confidence": 0, "structure": 0},
+                "hallucination_risk": 0,
+                "misused_terms": [],
+                "contradictions": [],
+                "concept_consistency_score": 0,
+                "consistency_penalty": 0.0,
+                "consistency_notes": [],
                 "reasoning_metrics": {
                     "logical_consistency": 0,
                     "step_completeness": 0,
@@ -103,6 +109,40 @@ class SelfConsistencyEvaluator:
         tech_scores = [self._avg_scores(item.get("technical", {}), tech_keys) for item in results]
         beh_scores = [self._avg_scores(item.get("behavioral", {}), beh_keys) for item in results]
         final_scores = [self._to_float(item.get("final", 0.0)) for item in results]
+        hallucination_scores = [
+            self._to_score(item.get("consistency", {}).get("hallucination_risk", 0))
+            for item in results
+        ]
+        concept_consistency_scores = [
+            self._to_score(
+                item.get("consistency", {}).get("concept_consistency_score", 0)
+            )
+            for item in results
+        ]
+        consistency_penalties = [
+            self._to_float(item.get("consistency", {}).get("consistency_penalty", 0.0))
+            for item in results
+        ]
+
+        misused_counter: Counter[str] = Counter()
+        contradiction_counter: Counter[str] = Counter()
+        note_counter: Counter[str] = Counter()
+        for item in results:
+            misused = item.get("consistency", {}).get("misused_terms", [])
+            contradictions = item.get("consistency", {}).get("contradictions", [])
+            notes = item.get("consistency", {}).get("notes", [])
+            if isinstance(misused, list):
+                for term in misused:
+                    if isinstance(term, str) and term.strip():
+                        misused_counter[term.strip()] += 1
+            if isinstance(contradictions, list):
+                for c in contradictions:
+                    if isinstance(c, str) and c.strip():
+                        contradiction_counter[c.strip()] += 1
+            if isinstance(notes, list):
+                for n in notes:
+                    if isinstance(n, str) and n.strip():
+                        note_counter[n.strip()] += 1
 
         tech_med = float(statistics.median(tech_scores)) if tech_scores else 0.0
         beh_med = float(statistics.median(beh_scores)) if beh_scores else 0.0
@@ -114,6 +154,23 @@ class SelfConsistencyEvaluator:
         return {
             "technical": tech_agg,
             "behavioral": beh_agg,
+            "hallucination_risk": int(round(statistics.median(hallucination_scores)))
+            if hallucination_scores
+            else 0,
+            "misused_terms": [s for s, _ in misused_counter.most_common(6)],
+            "contradictions": [s for s, _ in contradiction_counter.most_common(6)],
+            "concept_consistency_score": int(
+                round(statistics.median(concept_consistency_scores))
+            )
+            if concept_consistency_scores
+            else 0,
+            "consistency_penalty": round(
+                float(statistics.median(consistency_penalties))
+                if consistency_penalties
+                else 0.0,
+                2,
+            ),
+            "consistency_notes": [s for s, _ in note_counter.most_common(8)],
             "reasoning_metrics": reasoning_agg,
             "reasoning_steps": reasoning_steps,
             "logic_flow": logic_flow,

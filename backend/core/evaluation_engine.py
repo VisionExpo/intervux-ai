@@ -5,6 +5,7 @@ import os
 from typing import Any, Dict
 
 from backend.core.llm_brain import _run_json_task
+from backend.core.consistency_checker import ConsistencyChecker
 from backend.core.reasoning_analyzer import ReasoningAnalyzer
 from backend.core.self_consistency import SelfConsistencyEvaluator
 from backend.utils.logger import get_logger
@@ -91,6 +92,7 @@ class DualEvaluationEngine:
 
 _dual_eval_engine = DualEvaluationEngine()
 _reasoning_analyzer = ReasoningAnalyzer()
+_consistency_checker = ConsistencyChecker()
 _self_consistency = SelfConsistencyEvaluator(
     passes=int(os.getenv("SELF_CONSISTENCY_PASSES", "3"))
 )
@@ -112,6 +114,7 @@ def _format_dual_payload(
     pass_count: int,
     spread: float,
     reasoning: Dict[str, Any] | None = None,
+    consistency: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     tech_avg = _avg(tech)
     beh_avg = _avg(behavior)
@@ -126,21 +129,51 @@ def _format_dual_payload(
         "reasoning_score": 0.0,
     }
     reasoning_score = float(reasoning_payload.get("reasoning_score", 0.0))
+    consistency_payload = consistency or {
+        "concepts": [],
+        "concept_correctness": 0,
+        "hallucination_risk": 0,
+        "hallucination_detected": False,
+        "misused_terms": [],
+        "contradictions": [],
+        "concept_consistency_score": 0,
+        "consistency_score": 0,
+        "technical_adjustment_factor": 1.0,
+        "consistency_penalty": 0.0,
+        "notes": [],
+    }
+
+    feedback = [
+        f"Technical average: {round(tech_avg, 2)}",
+        f"Behavioral average: {round(beh_avg, 2)}",
+    ]
+    if reasoning_payload.get("shallow_or_memorized"):
+        feedback.append("Reasoning appears shallow or potentially memorized.")
+
+    if consistency_payload.get("misused_terms"):
+        feedback.append("Detected potentially misused technical terms.")
+    if consistency_payload.get("contradictions"):
+        feedback.append("Detected possible contradictions in explanation.")
+
     return {
         "technical": tech,
         "behavioral": behavior,
         "reasoning": reasoning_payload,
+        "consistency": consistency_payload,
         "final": {"score": round(float(final_score), 2)},
         "scores": {
             "Technical": round(tech_avg, 2),
             "Behavioral": round(beh_avg, 2),
             "Reasoning": round(reasoning_score, 2),
+            "ConceptConsistency": round(
+                float(consistency_payload.get("concept_consistency_score", 0)), 2
+            ),
+            "Consistency": round(
+                float(consistency_payload.get("consistency_score", 0)), 2
+            ),
             "Overall": round(float(final_score), 2),
         },
-        "feedback": [
-            f"Technical average: {round(tech_avg, 2)}",
-            f"Behavioral average: {round(beh_avg, 2)}",
-        ],
+        "feedback": feedback,
         "summary": (
             f"Technical Score: {round(tech_avg, 2)}, "
             f"Behavioral Score: {round(beh_avg, 2)}, "
@@ -155,6 +188,16 @@ def _format_dual_payload(
             "behavior_weight": BEHAVIOR_WEIGHT,
             "self_consistency_passes": pass_count,
             "self_consistency_spread": round(float(spread), 3),
+            "reasoning_signals": reasoning_payload.get("signals", []),
+            "shallow_or_memorized": bool(
+                reasoning_payload.get("shallow_or_memorized", False)
+            ),
+            "hallucination_risk": consistency_payload.get("hallucination_risk", 0),
+            "hallucination_detected": bool(
+                consistency_payload.get("hallucination_detected", False)
+            ),
+            "misused_terms": consistency_payload.get("misused_terms", []),
+            "contradictions": consistency_payload.get("contradictions", []),
         },
     }
 
@@ -166,10 +209,27 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
         ) -> Dict[str, Any]:
             base = _dual_eval_engine.evaluate(question=q, answer=a, profile=p)
             base["reasoning"] = _reasoning_analyzer.analyze(question=q, answer=a)
+            base["consistency"] = _consistency_checker.check(
+                question=q,
+                answer=a,
+                reasoning_steps=base["reasoning"].get("steps", []),
+            )
+            adjustment_factor = float(
+                base["consistency"].get("technical_adjustment_factor", 1.0)
+            )
+            if adjustment_factor < 1.0:
+                for key in ("accuracy", "depth", "problem_solving"):
+                    base["technical"][key] = _clamp_score(
+                        round(float(base["technical"].get(key, 0)) * adjustment_factor)
+                    )
+                base["final"] = _dual_eval_engine.fuse_scores(
+                    base["technical"], base["behavioral"]
+                )
             return base
 
         combined = _evaluate_with_reasoning(question, answer, profile)
         reasoning = combined.get("reasoning", {})
+        consistency = combined.get("consistency", {})
         tech = combined["technical"]
         behavior = combined["behavioral"]
         final_score = float(combined["final"])
@@ -190,6 +250,7 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
                 pass_count=1,
                 spread=0.0,
                 reasoning=reasoning,
+                consistency=consistency,
             )
 
         if SELF_CONSISTENCY_PARALLEL:
@@ -225,6 +286,42 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
                     aggregate.get("reasoning_score", reasoning.get("reasoning_score", 0.0))
                 ),
             },
+            consistency={
+                "hallucination_risk": aggregate.get(
+                    "hallucination_risk", consistency.get("hallucination_risk", 0)
+                ),
+                "hallucination_detected": bool(
+                    aggregate.get(
+                        "hallucination_risk", consistency.get("hallucination_risk", 0)
+                    )
+                    >= 6
+                ),
+                "misused_terms": aggregate.get(
+                    "misused_terms", consistency.get("misused_terms", [])
+                ),
+                "contradictions": aggregate.get(
+                    "contradictions", consistency.get("contradictions", [])
+                ),
+                "concepts": consistency.get("concepts", []),
+                "concept_correctness": aggregate.get(
+                    "concept_consistency_score",
+                    consistency.get("concept_correctness", 0),
+                ),
+                "concept_consistency_score": aggregate.get(
+                    "concept_consistency_score",
+                    consistency.get("concept_consistency_score", 0),
+                ),
+                "consistency_score": aggregate.get(
+                    "concept_consistency_score", consistency.get("consistency_score", 0)
+                ),
+                "technical_adjustment_factor": consistency.get(
+                    "technical_adjustment_factor", 1.0
+                ),
+                "consistency_penalty": aggregate.get(
+                    "consistency_penalty", consistency.get("consistency_penalty", 0.0)
+                ),
+                "notes": aggregate.get("consistency_notes", consistency.get("notes", [])),
+            },
         )
     except Exception:
         metrics.record_error()
@@ -242,8 +339,28 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
                 },
                 "reasoning_score": 5.0,
             },
+            "consistency": {
+                "concepts": [],
+                "concept_correctness": 5,
+                "hallucination_risk": 5,
+                "hallucination_detected": False,
+                "misused_terms": [],
+                "contradictions": [],
+                "concept_consistency_score": 5,
+                "consistency_score": 5,
+                "technical_adjustment_factor": 1.0,
+                "consistency_penalty": 0.0,
+                "notes": [],
+            },
             "final": {"score": 5.0},
-            "scores": {"Technical": 5.0, "Behavioral": 5.0, "Reasoning": 5.0, "Overall": 5.0},
+            "scores": {
+                "Technical": 5.0,
+                "Behavioral": 5.0,
+                "Reasoning": 5.0,
+                "ConceptConsistency": 5.0,
+                "Consistency": 5.0,
+                "Overall": 5.0,
+            },
             "feedback": ["Evaluation fallback triggered."],
             "summary": "Dual evaluation failed.",
             "confidence_score": 0.2,
