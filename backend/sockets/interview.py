@@ -12,8 +12,8 @@ from pydantic import ValidationError
 from backend.core.agent_ocr import parse_resume_bytes
 from backend.core.adaptive_engine import (
     build_skill_map,
-    generate_adaptive_question,
     generate_initial_question,
+    next_question as build_next_question,
     update_topic_scores,
 )
 from backend.core.llm_brain import generate_final_report, prepare_evaluation_context
@@ -628,20 +628,24 @@ class InterviewSocket:
 
         if state.current_index < state.target_question_count:
             generation_start = time.time()
-            next_question, next_topic, next_strategy, next_difficulty = await asyncio.to_thread(
+            generated_question, next_topic, next_strategy, next_difficulty = await asyncio.to_thread(
                 partial(
-                    generate_adaptive_question,
-                    profile=state.profile.model_dump(),
-                    skill_map=state.skill_map,
+                    build_next_question,
+                    score=float(
+                        sum(evaluation.get("scores", {}).values())
+                        / max(1, len(evaluation.get("scores", {})))
+                    ),
+                    confidence=float(evaluation.get("confidence_score", 0.7) or 0.7),
                     topic_scores=state.topic_scores,
+                    skill_map=state.skill_map,
+                    difficulty=state.current_difficulty,
                     last_topic=topic,
                     last_question=question,
-                    evaluation=evaluation,
-                    current_difficulty=state.current_difficulty,
+                    evaluation_summary=str(evaluation.get("summary", "") or ""),
                     question_temperature=session_policy["question_temperature"],
                 )
             )
-            state.questions.append(next_question)
+            state.questions.append(generated_question)
             state.topics.append(next_topic)
             state.current_difficulty = next_difficulty
             metrics.record_latency("next_question_generation", time.time() - generation_start)

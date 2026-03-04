@@ -87,23 +87,30 @@ def update_topic_scores(
 
 def adjust_difficulty(current: int, average_score: float) -> int:
     difficulty = current
-    if average_score > 8.0:
+    if average_score >= 8.0:
         difficulty += 1
-    elif average_score < 5.0:
+    elif average_score <= 4.0:
         difficulty -= 1
     return max(1, min(3, difficulty))
 
 
-def select_strategy(score: float, confidence: float, topic_coverage: int) -> str:
-    if confidence < 0.5:
+def select_strategy(score: float, confidence: float) -> str:
+    if confidence < 0.4 and score <= 4.0:
+        return "rephrase_verify"
+    if confidence < 0.4:
         return "clarify"
-    if topic_coverage <= 0:
-        return "explore"
-    if score < 5.0:
-        return "simplify"
-    if score > 8.0:
+    if score >= 8.0:
         return "deep_dive"
+    if score <= 4.0:
+        return "simplify"
     return "follow_up"
+
+
+def _is_unbalanced_coverage(skill_map: Dict[str, int]) -> bool:
+    if not skill_map:
+        return False
+    values = list(skill_map.values())
+    return (max(values) - min(values)) >= 2
 
 
 def select_next_topic(
@@ -149,8 +156,9 @@ def generate_adaptive_question(
     next_topic = select_next_topic(skill_map, topic_scores, last_topic)
     score = _evaluation_score(evaluation)
     confidence = float(evaluation.get("confidence_score", 0.7) or 0.7)
-    coverage = skill_map.get(next_topic, 0)
-    strategy = select_strategy(score, confidence, coverage)
+    strategy = select_strategy(score, confidence)
+    if _is_unbalanced_coverage(skill_map) and skill_map.get(next_topic, 0) <= 0:
+        strategy = "topic_shift"
     next_topic_values = topic_scores.get(next_topic, [])
     if next_topic_values:
         topic_avg = sum(next_topic_values) / len(next_topic_values)
@@ -173,6 +181,39 @@ def generate_adaptive_question(
 
     skill_map[next_topic] = skill_map.get(next_topic, 0) + 1
     return question, next_topic, strategy, next_difficulty
+
+
+def next_question(
+    score: float,
+    confidence: float,
+    topic_scores: Dict[str, List[float]],
+    skill_map: Dict[str, int],
+    difficulty: int,
+    last_topic: str | None,
+    last_question: str,
+    evaluation_summary: str,
+    question_temperature: float,
+) -> Tuple[str, str, str, int]:
+    topic = select_next_topic(skill_map, topic_scores, last_topic)
+    strategy = select_strategy(score, confidence)
+    if _is_unbalanced_coverage(skill_map) and skill_map.get(topic, 0) <= 0:
+        strategy = "topic_shift"
+
+    topic_values = topic_scores.get(topic, [])
+    topic_avg = (sum(topic_values) / len(topic_values)) if topic_values else score
+    next_difficulty = adjust_difficulty(difficulty, topic_avg)
+
+    question = generate_next_question(
+        topic=topic,
+        difficulty=next_difficulty,
+        strategy=strategy,
+        previous_question=last_question,
+        evaluation_summary=evaluation_summary,
+        temperature_override=question_temperature,
+    )
+
+    skill_map[topic] = skill_map.get(topic, 0) + 1
+    return question, topic, strategy, next_difficulty
 
 
 def generate_initial_question(
