@@ -23,7 +23,7 @@ from backend.core.memory_engine import (
     seed_memory_projects,
     update_memory,
 )
-from backend.core.multipass_evaluator import evaluate_answer_multipass
+from backend.core.evaluation_engine import evaluate_answer_dual
 from backend.core.difficulty_engine import DifficultyCalibrationEngine
 from backend.models.interview import InterviewState, ResumeData
 from backend.services.stt_service import transcribe_audio_bytes
@@ -440,7 +440,7 @@ class InterviewSocket:
                             early_eval_task = asyncio.create_task(
                                 asyncio.to_thread(
                                     partial(
-                                        evaluate_answer_multipass,
+                                        evaluate_answer_dual,
                                         question=question,
                                         answer=partial_transcript,
                                         profile=profile,
@@ -601,7 +601,7 @@ class InterviewSocket:
                 else:
                     evaluation = await asyncio.to_thread(
                         partial(
-                            evaluate_answer_multipass,
+                            evaluate_answer_dual,
                             question=question,
                             answer=transcript,
                             profile=state.profile.model_dump(),
@@ -617,7 +617,7 @@ class InterviewSocket:
         if evaluation is None:
             evaluation = await asyncio.to_thread(
                 partial(
-                    evaluate_answer_multipass,
+                    evaluate_answer_dual,
                     question=question,
                     answer=transcript,
                     profile=state.profile.model_dump(),
