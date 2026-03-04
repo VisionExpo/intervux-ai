@@ -73,6 +73,9 @@ Difficulty: {difficulty}
 Strategy: {strategy}
 Previous Question: {previous_question}
 Evaluation Summary: {evaluation_summary}
+Memory Context:
+{memory_context}
+Generate a question that can reference earlier candidate statements when relevant.
 """.strip()
 
 EVAL_PROMPT_TEMPLATE = """
@@ -370,6 +373,7 @@ def generate_next_question(
     strategy: str,
     previous_question: str,
     evaluation_summary: str,
+    memory_context: str = "N/A",
     temperature_override: float | None = None,
 ) -> str:
     start = time.time()
@@ -380,6 +384,7 @@ def generate_next_question(
         strategy=strategy,
         previous_question=previous_question.strip() or "N/A",
         evaluation_summary=evaluation_summary.strip() or "N/A",
+        memory_context=memory_context.strip() or "N/A",
     )
 
     try:

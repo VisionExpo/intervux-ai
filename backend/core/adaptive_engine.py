@@ -151,6 +151,7 @@ def generate_adaptive_question(
     evaluation: Dict[str, Any],
     current_difficulty: int,
     question_temperature: float,
+    memory_context: str = "N/A",
 ) -> Tuple[str, str, str, int]:
     _ = profile
     next_topic = select_next_topic(skill_map, topic_scores, last_topic)
@@ -176,6 +177,7 @@ def generate_adaptive_question(
         strategy=strategy,
         previous_question=last_question,
         evaluation_summary=summary,
+        memory_context=memory_context,
         temperature_override=question_temperature,
     )
 
@@ -193,6 +195,7 @@ def next_question(
     last_question: str,
     evaluation_summary: str,
     question_temperature: float,
+    memory_context: str = "N/A",
 ) -> Tuple[str, str, str, int]:
     topic = select_next_topic(skill_map, topic_scores, last_topic)
     strategy = select_strategy(score, confidence)
@@ -209,6 +212,7 @@ def next_question(
         strategy=strategy,
         previous_question=last_question,
         evaluation_summary=evaluation_summary,
+        memory_context=memory_context,
         temperature_override=question_temperature,
     )
 
@@ -219,6 +223,7 @@ def next_question(
 def generate_initial_question(
     skill_map: Dict[str, int],
     question_temperature: float,
+    memory_context: str = "N/A",
 ) -> Tuple[str, str, str, int]:
     topic = select_next_topic(skill_map, topic_scores={}, last_topic=None)
     strategy = "explore"
@@ -229,6 +234,7 @@ def generate_initial_question(
         strategy=strategy,
         previous_question="N/A",
         evaluation_summary="N/A",
+        memory_context=memory_context,
         temperature_override=question_temperature,
     )
     skill_map[topic] = skill_map.get(topic, 0) + 1

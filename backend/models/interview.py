@@ -34,6 +34,18 @@ class AnswerEvaluation(BaseModel):
     summary: Optional[str] = None        # short evaluator summary
 
 
+class InterviewMemory:
+    """
+    Lightweight in-session memory for adaptive questioning.
+    """
+
+    def __init__(self):
+        self.answers: List[Dict] = []
+        self.key_concepts: set[str] = set()
+        self.projects: List[str] = []
+        self.last_topics: List[str] = []
+
+
 class InterviewState:
     """
     In-memory interview session state.
@@ -58,6 +70,7 @@ class InterviewState:
         self.skill_map: Dict[str, int] = {}
         self.topic_scores: Dict[str, List[float]] = {}
         self.answers: List[Dict] = []
+        self.memory = InterviewMemory()
         self.final_report: Optional[Dict] = None
 
 

@@ -17,6 +17,11 @@ from backend.core.adaptive_engine import (
     update_topic_scores,
 )
 from backend.core.llm_brain import generate_final_report, prepare_evaluation_context
+from backend.core.memory_engine import (
+    build_memory_context,
+    seed_memory_projects,
+    update_memory,
+)
 from backend.core.multipass_evaluator import evaluate_answer_multipass
 from backend.models.interview import InterviewState, ResumeData
 from backend.services.stt_service import transcribe_audio_bytes
@@ -282,11 +287,14 @@ class InterviewSocket:
         state.skill_map = build_skill_map(state.profile.model_dump())
         state.topic_scores = {}
         state.current_difficulty = 2
+        seed_memory_projects(state.memory, state.profile.model_dump())
+        initial_memory_context = build_memory_context(state.memory)
         first_question, first_topic, _first_strategy, first_difficulty = await asyncio.to_thread(
             partial(
                 generate_initial_question,
                 skill_map=state.skill_map,
                 question_temperature=session_policy["question_temperature"],
+                memory_context=initial_memory_context,
             )
         )
         state.questions = [first_question]
@@ -590,6 +598,13 @@ class InterviewSocket:
             previous_answers=state.answers,
         )
         update_topic_scores(state.topic_scores, topic, evaluation)
+        update_memory(
+            state.memory,
+            question=question,
+            answer=transcript,
+            evaluation=evaluation,
+            topic=topic,
+        )
 
         state.answers.append(
             {
@@ -628,6 +643,7 @@ class InterviewSocket:
 
         if state.current_index < state.target_question_count:
             generation_start = time.time()
+            memory_context = build_memory_context(state.memory)
             generated_question, next_topic, next_strategy, next_difficulty = await asyncio.to_thread(
                 partial(
                     build_next_question,
@@ -643,6 +659,7 @@ class InterviewSocket:
                     last_question=question,
                     evaluation_summary=str(evaluation.get("summary", "") or ""),
                     question_temperature=session_policy["question_temperature"],
+                    memory_context=memory_context,
                 )
             )
             state.questions.append(generated_question)
