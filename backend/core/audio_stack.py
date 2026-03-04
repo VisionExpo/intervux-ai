@@ -7,7 +7,7 @@ from io import BytesIO
 import edge_tts
 import numpy as np
 import soundfile as sf
-import whisper
+from faster_whisper import WhisperModel
 
 from backend.config.setting import DEVICE
 
@@ -21,9 +21,10 @@ class AudioEngine:
         print(f"[INFO] Initializing AudioEngine on {DEVICE}")
 
         # Load Whisper once (heavy model)
-        self.stt_model = whisper.load_model(
+        self.stt_model = WhisperModel(
             whisper_model,
-            device=DEVICE
+            device="cuda",
+            compute_type="float16",
         )
 
     # ---------------------------
@@ -60,13 +61,14 @@ class AudioEngine:
         """
         Transcribe an audio file into text.
         """
-        result = self.stt_model.transcribe(
+        segments, _info = self.stt_model.transcribe(
             audio_path,
-            fp16=(DEVICE == "cuda"),
-            language="en",
-            condition_on_previous_text=False,
+            beam_size=1,
+            vad_filter=True,
+            word_timestamps=False,
         )
-        return result.get("text", "").strip()
+        text = " ".join([segment.text for segment in segments])
+        return text.strip()
 
     def speech_to_text_bytes(self, audio_bytes: bytes) -> str:
         """
@@ -77,13 +79,14 @@ class AudioEngine:
         if audio.ndim > 1:
             audio = audio.mean(axis=1)
 
-        result = self.stt_model.transcribe(
+        segments, _info = self.stt_model.transcribe(
             audio,
-            fp16=(DEVICE == "cuda"),
-            language="en",
-            condition_on_previous_text=False,
+            beam_size=1,
+            vad_filter=True,
+            word_timestamps=False,
         )
-        return result.get("text", "").strip()
+        text = " ".join([segment.text for segment in segments])
+        return text.strip()
 
     def speech_to_text_wav_bytes(self, audio_bytes: bytes) -> str:
         """
@@ -97,10 +100,11 @@ class AudioEngine:
         if channels > 1:
             audio = audio.reshape(-1, channels).mean(axis=1)
 
-        result = self.stt_model.transcribe(
+        segments, _info = self.stt_model.transcribe(
             audio,
-            fp16=(DEVICE == "cuda"),
-            language="en",
-            condition_on_previous_text=False,
+            beam_size=1,
+            vad_filter=True,
+            word_timestamps=False,
         )
-        return result.get("text", "").strip()
+        text = " ".join([segment.text for segment in segments])
+        return text.strip()
