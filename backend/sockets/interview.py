@@ -10,10 +10,15 @@ from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from backend.core.agent_ocr import parse_resume_bytes
+from backend.core.adaptive_engine import (
+    build_skill_map,
+    generate_adaptive_question,
+    generate_initial_question,
+    update_topic_scores,
+)
 from backend.core.llm_brain import (
     evaluate_answer,
     generate_final_report,
-    generate_questions,
     prepare_evaluation_context,
 )
 from backend.models.interview import InterviewState, ResumeData
@@ -128,7 +133,7 @@ class InterviewSocket:
                 eval_context_cache=eval_context_cache,
             )
 
-            while state.current_index < len(state.questions):
+            while state.current_index < state.target_question_count:
                 question = state.questions[state.current_index]
                 answer_packet = await self._wait_for_audio_answer(
                     ws=ws,
@@ -276,14 +281,20 @@ class InterviewSocket:
         metrics.record_latency("phase_resume_parse", time.time() - resume_start)
 
         question_start = time.time()
-        state.questions = await asyncio.to_thread(
+        state.target_question_count = int(session_policy["question_count"])
+        state.skill_map = build_skill_map(state.profile.model_dump())
+        state.topic_scores = {}
+        state.current_difficulty = 2
+        first_question, first_topic, _first_strategy, first_difficulty = await asyncio.to_thread(
             partial(
-                generate_questions,
-                profile=state.profile.model_dump(),
-                num_questions=session_policy["question_count"],
-                temperature_override=session_policy["question_temperature"],
+                generate_initial_question,
+                skill_map=state.skill_map,
+                question_temperature=session_policy["question_temperature"],
             )
         )
+        state.questions = [first_question]
+        state.topics = [first_topic]
+        state.current_difficulty = first_difficulty
         state.current_index = 0
         metrics.record_latency("question_generation", time.time() - question_start)
         metrics.record_latency(
@@ -299,7 +310,8 @@ class InterviewSocket:
                 "extra_data": {
                     "session_id": session_id,
                     "skills_count": len(state.profile.skills),
-                    "questions_count": len(state.questions),
+                    "questions_count": state.target_question_count,
+                    "first_topic": first_topic,
                 }
             },
         )
@@ -484,6 +496,11 @@ class InterviewSocket:
         answer_cycle_start = time.time()
         current_index = state.current_index
         question = state.questions[state.current_index]
+        topic = (
+            state.topics[state.current_index]
+            if state.current_index < len(state.topics)
+            else "general"
+        )
         answer_audio = answer_packet.get("audio_bytes", b"")
 
         stt_start = time.time()
@@ -575,10 +592,12 @@ class InterviewSocket:
             evaluation=evaluation,
             previous_answers=state.answers,
         )
+        update_topic_scores(state.topic_scores, topic, evaluation)
 
         state.answers.append(
             {
                 "question": question,
+                "topic": topic,
                 "answer": transcript,
                 "evaluation": evaluation,
             }
@@ -591,6 +610,7 @@ class InterviewSocket:
                 "data": {
                     "question_index": state.current_index + 1,
                     "question": question,
+                    "topic": topic,
                     "transcript": transcript,
                     "evaluation": evaluation,
                 },
@@ -609,7 +629,42 @@ class InterviewSocket:
             },
         )
 
-        if state.current_index < len(state.questions):
+        if state.current_index < state.target_question_count:
+            generation_start = time.time()
+            next_question, next_topic, next_strategy, next_difficulty = await asyncio.to_thread(
+                partial(
+                    generate_adaptive_question,
+                    profile=state.profile.model_dump(),
+                    skill_map=state.skill_map,
+                    topic_scores=state.topic_scores,
+                    last_topic=topic,
+                    last_question=question,
+                    evaluation=evaluation,
+                    current_difficulty=state.current_difficulty,
+                    question_temperature=session_policy["question_temperature"],
+                )
+            )
+            state.questions.append(next_question)
+            state.topics.append(next_topic)
+            state.current_difficulty = next_difficulty
+            metrics.record_latency("next_question_generation", time.time() - generation_start)
+            metrics.record_latency(
+                "phase_next_question_generation", time.time() - generation_start
+            )
+
+            logger.info(
+                "Adaptive next question selected",
+                extra={
+                    "extra_data": {
+                        "session_id": session_id,
+                        "next_topic": next_topic,
+                        "strategy": next_strategy,
+                        "difficulty": next_difficulty,
+                        "coverage": state.skill_map.get(next_topic, 0),
+                    }
+                },
+            )
+
             await self._send_current_question(
                 ws=ws,
                 state=state,
@@ -624,6 +679,7 @@ class InterviewSocket:
         self._log_research_record(
             session_id=session_id,
             question_index=current_index + 1,
+            topic=topic,
             transcript=transcript,
             evaluation=evaluation,
             session_policy=session_policy,
@@ -688,7 +744,7 @@ class InterviewSocket:
             ws=ws,
             text=question_text,
             question_index=state.current_index + 1,
-            total_questions=len(state.questions),
+            total_questions=max(state.target_question_count, len(state.questions)),
             preloaded_audio_bytes=preloaded_audio_bytes,
         )
         try:
@@ -888,6 +944,7 @@ class InterviewSocket:
     def _log_research_record(
         session_id: str,
         question_index: int,
+        topic: str,
         transcript: str,
         evaluation: dict,
         session_policy: Dict[str, Any],
@@ -899,6 +956,7 @@ class InterviewSocket:
             {
                 "session_id": session_id,
                 "question_index": question_index,
+                "topic": topic,
                 "answer_text": transcript,
                 "scores": evaluation.get("scores", {}),
                 "confidence_score": evaluation.get("confidence_score"),

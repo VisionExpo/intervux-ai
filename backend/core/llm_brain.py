@@ -62,6 +62,19 @@ No markdown, no extra text.
 Profile: {profile_json}
 """.strip()
 
+NEXT_QUESTION_PROMPT_TEMPLATE = """
+You are an AI interviewer.
+Generate ONE concise technical interview question.
+Return ONLY JSON:
+{{"question":"..."}}
+No markdown, no extra text.
+Topic: {topic}
+Difficulty: {difficulty}
+Strategy: {strategy}
+Previous Question: {previous_question}
+Evaluation Summary: {evaluation_summary}
+""".strip()
+
 EVAL_PROMPT_TEMPLATE = """
 You are an AI evaluator.
 Return ONLY JSON:
@@ -349,6 +362,58 @@ def generate_questions(
         metrics.record_error()
         logger.exception("Question generation failed")
         return _normalize_questions([], num_questions)
+
+
+def generate_next_question(
+    topic: str,
+    difficulty: int,
+    strategy: str,
+    previous_question: str,
+    evaluation_summary: str,
+    temperature_override: float | None = None,
+) -> str:
+    start = time.time()
+    temperature = 0.3 if temperature_override is None else temperature_override
+    prompt = NEXT_QUESTION_PROMPT_TEMPLATE.format(
+        topic=topic,
+        difficulty=max(1, min(3, int(difficulty))),
+        strategy=strategy,
+        previous_question=previous_question.strip() or "N/A",
+        evaluation_summary=evaluation_summary.strip() or "N/A",
+    )
+
+    try:
+        payload, provider = _run_json_task(prompt, dict, temperature=temperature, top_p=0.85)
+        question = payload.get("question", "")
+        if not isinstance(question, str) or not question.strip():
+            raise ValueError("Next-question payload missing question")
+
+        result = question.strip()
+        duration = round(time.time() - start, 3)
+        metrics.record_latency("llm_next_question_generation", duration)
+        logger.info(
+            "Next question generated",
+            extra={
+                "extra_data": {
+                    "provider": provider,
+                    "topic": topic,
+                    "difficulty": difficulty,
+                    "strategy": strategy,
+                    "duration": duration,
+                }
+            },
+        )
+        return result
+    except Exception:
+        metrics.record_error()
+        logger.exception("Next question generation failed")
+        fallback = {
+            "python": "Can you explain a Python concept you used recently?",
+            "machine_learning": "How would you evaluate a machine learning model?",
+            "deep_learning": "What is the purpose of an activation function in neural networks?",
+            "system_design": "How would you design a scalable API for high traffic?",
+        }
+        return fallback.get(topic, "Can you explain this topic in more depth with an example?")
 
 
 def prepare_evaluation_context(profile: dict, question: str, lightweight: bool) -> dict:

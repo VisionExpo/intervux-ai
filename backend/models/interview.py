@@ -51,7 +51,12 @@ class InterviewState:
         self.resume_text: Optional[str] = None
         self.profile: Optional[ResumeData] = None
         self.questions: List[str] = []
+        self.topics: List[str] = []
         self.current_index: int = 0
+        self.target_question_count: int = 0
+        self.current_difficulty: int = 2
+        self.skill_map: Dict[str, int] = {}
+        self.topic_scores: Dict[str, List[float]] = {}
         self.answers: List[Dict] = []
         self.final_report: Optional[Dict] = None
 
