@@ -24,6 +24,7 @@ from backend.core.memory_engine import (
     update_memory,
 )
 from backend.core.multipass_evaluator import evaluate_answer_multipass
+from backend.core.difficulty_engine import DifficultyCalibrationEngine
 from backend.models.interview import InterviewState, ResumeData
 from backend.services.stt_service import transcribe_audio_bytes
 from backend.services.tts_service import synthesize_speech
@@ -42,6 +43,7 @@ class InterviewSocket:
     def __init__(self, total_questions: int = 2):
         self.total_questions = total_questions
         self.min_questions_per_skill = int(os.getenv("MIN_QUESTIONS_PER_SKILL", "1"))
+        self.difficulty_start_level = int(os.getenv("DIFFICULTY_START_LEVEL", "2"))
         self.max_concurrent_sessions = int(os.getenv("MAX_CONCURRENT_SESSIONS", "5"))
         self.rate_limit_per_minute = int(os.getenv("RATE_LIMIT_WS_PER_MINUTE", "30"))
         self.receive_timeout_s = int(os.getenv("WS_RECEIVE_TIMEOUT_S", "120"))
@@ -289,7 +291,11 @@ class InterviewSocket:
         state.skill_map = build_skill_map(state.profile.model_dump())
         state.skill_coverage = build_skill_coverage_engine(state.profile.model_dump())
         state.topic_scores = {}
-        state.current_difficulty = 2
+        state.difficulty_engine = DifficultyCalibrationEngine(
+            start_level=self.difficulty_start_level
+        )
+        state.current_difficulty = state.difficulty_engine.level
+        state.skill_max_difficulty = {}
         seed_memory_projects(state.memory, state.profile.model_dump())
         initial_memory_context = build_memory_context(state.memory)
         (
@@ -307,6 +313,7 @@ class InterviewSocket:
                 coverage_engine=state.skill_coverage,
                 question_temperature=session_policy["question_temperature"],
                 memory_context=initial_memory_context,
+                start_difficulty=state.current_difficulty,
             )
         )
         state.questions = [first_question]
@@ -670,6 +677,10 @@ class InterviewSocket:
         state.current_index += 1
         if state.skill_coverage is not None:
             state.skill_coverage.update(skill)
+        state.skill_max_difficulty[skill] = max(
+            state.skill_max_difficulty.get(skill, 1),
+            int(concept_difficulty),
+        )
         logger.info(
             "Answer evaluated",
             extra={
@@ -684,6 +695,15 @@ class InterviewSocket:
         if self._should_continue_interview(state):
             generation_start = time.time()
             memory_context = build_memory_context(state.memory)
+            score_value = float(
+                sum(evaluation.get("scores", {}).values())
+                / max(1, len(evaluation.get("scores", {})))
+            )
+            confidence_value = float(evaluation.get("confidence_score", 0.7) or 0.7)
+            if state.difficulty_engine is not None:
+                state.current_difficulty = state.difficulty_engine.update(
+                    score_value, confidence_value
+                )
             (
                 generated_question,
                 next_skill,
@@ -696,10 +716,9 @@ class InterviewSocket:
                 partial(
                     build_next_question,
                     score=float(
-                        sum(evaluation.get("scores", {}).values())
-                        / max(1, len(evaluation.get("scores", {})))
+                        score_value
                     ),
-                    confidence=float(evaluation.get("confidence_score", 0.7) or 0.7),
+                    confidence=confidence_value,
                     topic_scores=state.topic_scores,
                     skill_map=state.skill_map,
                     coverage_engine=state.skill_coverage,
@@ -794,6 +813,8 @@ class InterviewSocket:
                 answers=state.answers,
             )
         )
+        if isinstance(report, dict):
+            report["skill_performance"] = self._build_skill_performance_summary(state)
         metrics.record_latency("final_report", time.time() - report_start)
         metrics.record_interview_completed()
         state.final_report = report
@@ -989,6 +1010,39 @@ class InterviewSocket:
             "queue_depth": float(self._pending_connections),
             "max_concurrent_sessions": float(self.max_concurrent_sessions),
         }
+
+    @staticmethod
+    def _build_skill_performance_summary(state: InterviewState) -> Dict[str, Dict[str, float]]:
+        summary: Dict[str, Dict[str, float]] = {}
+        for answer in state.answers:
+            skill = answer.get("skill")
+            if not isinstance(skill, str) or not skill.strip():
+                skill = "Unknown"
+            scores = answer.get("evaluation", {}).get("scores", {})
+            values = []
+            if isinstance(scores, dict):
+                for value in scores.values():
+                    try:
+                        values.append(float(value))
+                    except Exception:
+                        pass
+            avg_score = sum(values) / len(values) if values else 0.0
+            bucket = summary.setdefault(skill, {"_sum": 0.0, "_count": 0.0, "max_difficulty_reached": 1.0})
+            bucket["_sum"] += avg_score
+            bucket["_count"] += 1.0
+            bucket["max_difficulty_reached"] = max(
+                bucket["max_difficulty_reached"],
+                float(state.skill_max_difficulty.get(skill, 1)),
+            )
+
+        result: Dict[str, Dict[str, float]] = {}
+        for skill, item in summary.items():
+            count = item["_count"] or 1.0
+            result[skill] = {
+                "score": round(item["_sum"] / count, 2),
+                "max_difficulty_reached": round(item["max_difficulty_reached"], 0),
+            }
+        return result
 
     def _should_continue_interview(self, state: InterviewState) -> bool:
         under_target = state.current_index < state.target_question_count

@@ -70,6 +70,8 @@ class InterviewState:
         self.current_index: int = 0
         self.target_question_count: int = 0
         self.current_difficulty: int = 2
+        self.difficulty_engine = None
+        self.skill_max_difficulty: Dict[str, int] = {}
         self.skill_map: Dict[str, int] = {}
         self.skill_coverage = None
         self.topic_scores: Dict[str, List[float]] = {}

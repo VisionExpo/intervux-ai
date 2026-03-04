@@ -235,11 +235,9 @@ def next_question(
     if _is_unbalanced_coverage(skill_map) and skill_map.get(topic, 0) <= 0:
         strategy = "topic_shift"
 
-    topic_values = topic_scores.get(topic, [])
-    topic_avg = (sum(topic_values) / len(topic_values)) if topic_values else score
-    next_difficulty = adjust_difficulty(difficulty, topic_avg)
+    next_difficulty = max(1, min(3, int(difficulty)))
 
-    concept = _select_next_concept(topic, current_concept, score)
+    concept = _select_next_concept(topic, current_concept, score, next_difficulty)
     concept_difficulty = _concept_difficulty(concept, next_difficulty)
 
     question, generated_skill = generate_next_question(
@@ -266,6 +264,7 @@ def generate_initial_question(
     coverage_engine: SkillCoverageEngine | None,
     question_temperature: float,
     memory_context: str = "N/A",
+    start_difficulty: int = 2,
 ) -> Tuple[str, str, str, str, int, str, int]:
     if coverage_engine is not None and coverage_engine.skills:
         skill = coverage_engine.next_skill()
@@ -275,7 +274,7 @@ def generate_initial_question(
         skill = TOPIC_TO_SKILL.get(topic, "Machine Learning")
 
     strategy = "explore"
-    difficulty = 2
+    difficulty = max(1, min(3, int(start_difficulty)))
     concept = _topic_default_concept(topic)
     concept_difficulty = _concept_difficulty(concept, difficulty)
     question, generated_skill = generate_next_question(
@@ -315,7 +314,9 @@ def _concept_difficulty(concept: str, fallback: int) -> int:
     return max(1, min(3, int(node.difficulty)))
 
 
-def _select_next_concept(topic: str, current_concept: str | None, score: float) -> str:
+def _select_next_concept(
+    topic: str, current_concept: str | None, score: float, difficulty: int
+) -> str:
     if topic not in {"machine_learning", "deep_learning"}:
         return _topic_default_concept(topic)
 
@@ -326,6 +327,22 @@ def _select_next_concept(topic: str, current_concept: str | None, score: float) 
         current_node = GRAPH.nodes.get(default) or GRAPH.nodes.get("Machine Learning")
 
     target = next_node(current_node, score)
+    if target is not None and _concept_difficulty(target.name, difficulty) == difficulty:
+        return target.name
+
+    difficulty_nodes = [
+        node.name
+        for node in GRAPH.nodes.values()
+        if _concept_difficulty(node.name, difficulty) == difficulty
+    ]
+    if difficulty_nodes:
+        for name in difficulty_nodes:
+            if topic == "deep_learning" and name in {"CNN", "Transformers", "Batch Normalization", "Dropout"}:
+                return name
+            if topic == "machine_learning" and name in {"Machine Learning", "Supervised Learning", "Gradient Descent", "Learning Rate"}:
+                return name
+        return difficulty_nodes[0]
+
     if target is None:
         return _topic_default_concept(topic)
     return target.name
