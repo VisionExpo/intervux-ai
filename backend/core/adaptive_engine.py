@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Tuple
 
 from backend.core.llm_brain import generate_next_question
+from backend.core.knowledge_graph import GRAPH, next_node
 
 DEFAULT_TOPICS = [
     "python",
@@ -173,6 +174,7 @@ def generate_adaptive_question(
 
     question = generate_next_question(
         topic=next_topic,
+        concept=_topic_default_concept(next_topic),
         difficulty=next_difficulty,
         strategy=strategy,
         previous_question=last_question,
@@ -196,7 +198,8 @@ def next_question(
     evaluation_summary: str,
     question_temperature: float,
     memory_context: str = "N/A",
-) -> Tuple[str, str, str, int]:
+    current_concept: str | None = None,
+) -> Tuple[str, str, str, int, str, int]:
     topic = select_next_topic(skill_map, topic_scores, last_topic)
     strategy = select_strategy(score, confidence)
     if _is_unbalanced_coverage(skill_map) and skill_map.get(topic, 0) <= 0:
@@ -206,8 +209,12 @@ def next_question(
     topic_avg = (sum(topic_values) / len(topic_values)) if topic_values else score
     next_difficulty = adjust_difficulty(difficulty, topic_avg)
 
+    concept = _select_next_concept(topic, current_concept, score)
+    concept_difficulty = _concept_difficulty(concept, next_difficulty)
+
     question = generate_next_question(
         topic=topic,
+        concept=concept,
         difficulty=next_difficulty,
         strategy=strategy,
         previous_question=last_question,
@@ -217,19 +224,22 @@ def next_question(
     )
 
     skill_map[topic] = skill_map.get(topic, 0) + 1
-    return question, topic, strategy, next_difficulty
+    return question, topic, strategy, next_difficulty, concept, concept_difficulty
 
 
 def generate_initial_question(
     skill_map: Dict[str, int],
     question_temperature: float,
     memory_context: str = "N/A",
-) -> Tuple[str, str, str, int]:
+) -> Tuple[str, str, str, int, str, int]:
     topic = select_next_topic(skill_map, topic_scores={}, last_topic=None)
     strategy = "explore"
     difficulty = 2
+    concept = _topic_default_concept(topic)
+    concept_difficulty = _concept_difficulty(concept, difficulty)
     question = generate_next_question(
         topic=topic,
+        concept=concept,
         difficulty=difficulty,
         strategy=strategy,
         previous_question="N/A",
@@ -238,4 +248,39 @@ def generate_initial_question(
         temperature_override=question_temperature,
     )
     skill_map[topic] = skill_map.get(topic, 0) + 1
-    return question, topic, strategy, difficulty
+    return question, topic, strategy, difficulty, concept, concept_difficulty
+
+
+def _topic_default_concept(topic: str) -> str:
+    if topic == "machine_learning":
+        return "Machine Learning"
+    if topic == "deep_learning":
+        return "CNN"
+    if topic == "python":
+        return "Python"
+    if topic == "system_design":
+        return "System Design"
+    return topic.replace("_", " ").title()
+
+
+def _concept_difficulty(concept: str, fallback: int) -> int:
+    node = GRAPH.nodes.get(concept)
+    if node is None:
+        return max(1, min(3, int(fallback)))
+    return max(1, min(3, int(node.difficulty)))
+
+
+def _select_next_concept(topic: str, current_concept: str | None, score: float) -> str:
+    if topic not in {"machine_learning", "deep_learning"}:
+        return _topic_default_concept(topic)
+
+    if current_concept and current_concept in GRAPH.nodes:
+        current_node = GRAPH.nodes[current_concept]
+    else:
+        default = _topic_default_concept(topic)
+        current_node = GRAPH.nodes.get(default) or GRAPH.nodes.get("Machine Learning")
+
+    target = next_node(current_node, score)
+    if target is None:
+        return _topic_default_concept(topic)
+    return target.name

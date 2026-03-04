@@ -69,6 +69,7 @@ Return ONLY JSON:
 {{"question":"..."}}
 No markdown, no extra text.
 Topic: {topic}
+Concept: {concept}
 Difficulty: {difficulty}
 Strategy: {strategy}
 Previous Question: {previous_question}
@@ -369,6 +370,7 @@ def generate_questions(
 
 def generate_next_question(
     topic: str,
+    concept: str,
     difficulty: int,
     strategy: str,
     previous_question: str,
@@ -380,6 +382,7 @@ def generate_next_question(
     temperature = 0.3 if temperature_override is None else temperature_override
     prompt = NEXT_QUESTION_PROMPT_TEMPLATE.format(
         topic=topic,
+        concept=concept.strip() or "N/A",
         difficulty=max(1, min(3, int(difficulty))),
         strategy=strategy,
         previous_question=previous_question.strip() or "N/A",

@@ -64,6 +64,8 @@ class InterviewState:
         self.profile: Optional[ResumeData] = None
         self.questions: List[str] = []
         self.topics: List[str] = []
+        self.concepts: List[str] = []
+        self.concept_difficulties: List[int] = []
         self.current_index: int = 0
         self.target_question_count: int = 0
         self.current_difficulty: int = 2

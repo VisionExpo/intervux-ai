@@ -289,7 +289,14 @@ class InterviewSocket:
         state.current_difficulty = 2
         seed_memory_projects(state.memory, state.profile.model_dump())
         initial_memory_context = build_memory_context(state.memory)
-        first_question, first_topic, _first_strategy, first_difficulty = await asyncio.to_thread(
+        (
+            first_question,
+            first_topic,
+            _first_strategy,
+            first_difficulty,
+            first_concept,
+            first_concept_difficulty,
+        ) = await asyncio.to_thread(
             partial(
                 generate_initial_question,
                 skill_map=state.skill_map,
@@ -299,6 +306,8 @@ class InterviewSocket:
         )
         state.questions = [first_question]
         state.topics = [first_topic]
+        state.concepts = [first_concept]
+        state.concept_difficulties = [first_concept_difficulty]
         state.current_difficulty = first_difficulty
         state.current_index = 0
         metrics.record_latency("question_generation", time.time() - question_start)
@@ -317,6 +326,7 @@ class InterviewSocket:
                     "skills_count": len(state.profile.skills),
                     "questions_count": state.target_question_count,
                     "first_topic": first_topic,
+                    "first_concept": first_concept,
                 }
             },
         )
@@ -506,6 +516,16 @@ class InterviewSocket:
             if state.current_index < len(state.topics)
             else "general"
         )
+        concept = (
+            state.concepts[state.current_index]
+            if state.current_index < len(state.concepts)
+            else topic
+        )
+        concept_difficulty = (
+            state.concept_difficulties[state.current_index]
+            if state.current_index < len(state.concept_difficulties)
+            else state.current_difficulty
+        )
         answer_audio = answer_packet.get("audio_bytes", b"")
 
         stt_start = time.time()
@@ -610,6 +630,8 @@ class InterviewSocket:
             {
                 "question": question,
                 "topic": topic,
+                "concept": concept,
+                "concept_difficulty": concept_difficulty,
                 "answer": transcript,
                 "evaluation": evaluation,
             }
@@ -623,6 +645,8 @@ class InterviewSocket:
                     "question_index": state.current_index + 1,
                     "question": question,
                     "topic": topic,
+                    "concept": concept,
+                    "concept_difficulty": concept_difficulty,
                     "transcript": transcript,
                     "evaluation": evaluation,
                 },
@@ -644,7 +668,14 @@ class InterviewSocket:
         if state.current_index < state.target_question_count:
             generation_start = time.time()
             memory_context = build_memory_context(state.memory)
-            generated_question, next_topic, next_strategy, next_difficulty = await asyncio.to_thread(
+            (
+                generated_question,
+                next_topic,
+                next_strategy,
+                next_difficulty,
+                next_concept,
+                next_concept_difficulty,
+            ) = await asyncio.to_thread(
                 partial(
                     build_next_question,
                     score=float(
@@ -660,10 +691,13 @@ class InterviewSocket:
                     evaluation_summary=str(evaluation.get("summary", "") or ""),
                     question_temperature=session_policy["question_temperature"],
                     memory_context=memory_context,
+                    current_concept=concept,
                 )
             )
             state.questions.append(generated_question)
             state.topics.append(next_topic)
+            state.concepts.append(next_concept)
+            state.concept_difficulties.append(next_concept_difficulty)
             state.current_difficulty = next_difficulty
             metrics.record_latency("next_question_generation", time.time() - generation_start)
             metrics.record_latency(
@@ -676,6 +710,8 @@ class InterviewSocket:
                     "extra_data": {
                         "session_id": session_id,
                         "next_topic": next_topic,
+                        "next_concept": next_concept,
+                        "next_concept_difficulty": next_concept_difficulty,
                         "strategy": next_strategy,
                         "difficulty": next_difficulty,
                         "coverage": state.skill_map.get(next_topic, 0),
@@ -698,6 +734,8 @@ class InterviewSocket:
             session_id=session_id,
             question_index=current_index + 1,
             topic=topic,
+            concept=concept,
+            concept_difficulty=concept_difficulty,
             transcript=transcript,
             evaluation=evaluation,
             session_policy=session_policy,
@@ -963,6 +1001,8 @@ class InterviewSocket:
         session_id: str,
         question_index: int,
         topic: str,
+        concept: str,
+        concept_difficulty: int,
         transcript: str,
         evaluation: dict,
         session_policy: Dict[str, Any],
@@ -975,6 +1015,8 @@ class InterviewSocket:
                 "session_id": session_id,
                 "question_index": question_index,
                 "topic": topic,
+                "concept": concept,
+                "difficulty": concept_difficulty,
                 "answer_text": transcript,
                 "scores": evaluation.get("scores", {}),
                 "confidence_score": evaluation.get("confidence_score"),
