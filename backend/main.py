@@ -80,7 +80,7 @@ async def websocket_interview(ws: WebSocket):
 @app.on_event("startup")
 async def on_startup():
     global thread_pool
-    workers = int(os.getenv("RUNTIME_THREADPOOL_WORKERS", "8"))
+    workers = int(os.getenv("RUNTIME_THREADPOOL_WORKERS", "4"))
     loop = asyncio.get_running_loop()
     thread_pool = ThreadPoolExecutor(max_workers=workers)
     loop.set_default_executor(thread_pool)

@@ -52,6 +52,8 @@ RUBRIC_FULL = [
     "Confidence & Communication",
 ]
 RUBRIC_LITE = ["Technical Accuracy", "Clarity of Explanation"]
+RUBRIC_JSON_FULL = json.dumps(RUBRIC_FULL, separators=(",", ":"))
+RUBRIC_JSON_LITE = json.dumps(RUBRIC_LITE, separators=(",", ":"))
 
 QUESTION_PROMPT_TEMPLATE = """
 You are an AI interviewer.
@@ -68,7 +70,6 @@ Score 0-10 for rubric: {rubric_json}
 No markdown, no extra text.
 Q: {question}
 A: {answer}
-Profile: {profile_json}
 """.strip()
 
 EVAL_CRITIQUE_TEMPLATE = """
@@ -199,7 +200,7 @@ def _provider_order() -> List[str]:
     return providers
 
 
-def _call_gemini(prompt: str, temperature: float) -> str:
+def _call_gemini(prompt: str, temperature: float, top_p: float = 1.0) -> str:
     if GEMINI_CLIENT is None:
         raise RuntimeError("Gemini is not configured: GOOGLE_API_KEY missing")
 
@@ -209,18 +210,19 @@ def _call_gemini(prompt: str, temperature: float) -> str:
         config={
             "response_mime_type": "application/json",
             "temperature": temperature,
+            "top_p": top_p,
         },
     )
     return response.text
 
 
-def _call_local_qwen(prompt: str, temperature: float) -> str:
+def _call_local_qwen(prompt: str, temperature: float, top_p: float = 1.0) -> str:
     payload = {
         "model": LOCAL_LLM_MODEL,
         "prompt": prompt,
         "stream": False,
         "format": "json",
-        "options": {"temperature": temperature},
+        "options": {"temperature": temperature, "top_p": top_p},
     }
 
     request = urllib.request.Request(
@@ -243,16 +245,16 @@ def _call_local_qwen(prompt: str, temperature: float) -> str:
     return raw
 
 
-def _call_provider(provider: str, prompt: str, temperature: float) -> str:
+def _call_provider(provider: str, prompt: str, temperature: float, top_p: float = 1.0) -> str:
     if provider == "gemini":
-        return _call_gemini(prompt, temperature)
+        return _call_gemini(prompt, temperature, top_p=top_p)
     if provider in {"qwen", "local", "ollama"}:
-        return _call_local_qwen(prompt, temperature)
+        return _call_local_qwen(prompt, temperature, top_p=top_p)
     raise ValueError(f"Unsupported LLM provider: {provider}")
 
 
 def _run_json_task(
-    prompt: str, expected_type: type, temperature: float
+    prompt: str, expected_type: type, temperature: float, top_p: float = 1.0
 ) -> Tuple[Any, str]:
     providers = _provider_order()
     last_error: Exception | None = None
@@ -268,7 +270,7 @@ def _run_json_task(
 
         provider_start = time.time()
         try:
-            raw = _call_provider(provider, prompt, temperature)
+            raw = _call_provider(provider, prompt, temperature, top_p=top_p)
             elapsed = time.time() - provider_start
             _record_provider_success(provider, elapsed)
             metrics.record_latency(f"llm_provider_{provider}_latency", elapsed)
@@ -350,11 +352,9 @@ def generate_questions(
 
 
 def prepare_evaluation_context(profile: dict, question: str, lightweight: bool) -> dict:
-    rubric = RUBRIC_LITE if lightweight else RUBRIC_FULL
     return {
-        "profile_json": json.dumps(profile, separators=(",", ":")),
         "question": question,
-        "rubric_json": json.dumps(rubric, separators=(",", ":")),
+        "rubric_json": RUBRIC_JSON_LITE if lightweight else RUBRIC_JSON_FULL,
         "lightweight": lightweight,
     }
 
@@ -388,7 +388,7 @@ def evaluate_answer(
     prepared_context: dict | None = None,
 ) -> dict:
     start = time.time()
-    base_temperature = 0.2 if temperature_override is None else temperature_override
+    base_temperature = 0.1 if temperature_override is None else temperature_override
     context = prepared_context or prepare_evaluation_context(profile, question, lightweight)
     rubric = RUBRIC_LITE if context["lightweight"] else RUBRIC_FULL
 
@@ -396,11 +396,12 @@ def evaluate_answer(
         rubric_json=context["rubric_json"],
         question=context["question"],
         answer=answer,
-        profile_json=context["profile_json"],
     )
 
     try:
-        first_pass, provider = _run_json_task(eval_prompt, dict, temperature=base_temperature)
+        first_pass, provider = _run_json_task(
+            eval_prompt, dict, temperature=base_temperature, top_p=0.8
+        )
         first_scores = _clamp_scores(first_pass.get("scores", {}), rubric)
 
         final_eval = first_pass
@@ -418,6 +419,7 @@ def evaluate_answer(
                 critique_prompt,
                 dict,
                 temperature=max(0.05, base_temperature - 0.05),
+                top_p=0.8,
             )
             critique_scores = _clamp_scores(critique_pass.get("scores", {}), rubric)
             final_eval = critique_pass
@@ -431,6 +433,7 @@ def evaluate_answer(
                 eval_prompt,
                 dict,
                 temperature=min(0.45, base_temperature + 0.12),
+                top_p=0.8,
             )
             consistency_scores = _clamp_scores(consistency_pass.get("scores", {}), rubric)
             variance = _score_variance(final_scores, consistency_scores)

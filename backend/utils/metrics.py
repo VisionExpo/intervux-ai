@@ -41,14 +41,41 @@ class Metrics:
             values = self.latencies.get(name, [])
             return values[-1] if values else default
 
+    def latency_percentile(
+        self, name: str, percentile: float, default: float = 0.0
+    ) -> float:
+        with self._lock:
+            values = self.latencies.get(name, [])
+            if not values:
+                return default
+            p = max(0.0, min(1.0, percentile))
+            sorted_vals = sorted(values)
+            index = int((len(sorted_vals) - 1) * p)
+            return sorted_vals[index]
+
     def snapshot(self):
         with self._lock:
+            def _percentile(values, pct):
+                if not values:
+                    return 0.0
+                sorted_vals = sorted(values)
+                index = int((len(sorted_vals) - 1) * pct)
+                return sorted_vals[index]
+
             return {
                 "request": self.request_counts,
                 "error": self.error_count,
                 "interviews_completed": self.interviews_completed,
                 "avg_latency": {
                     k: sum(v) / len(v) if v else 0
+                    for k, v in self.latencies.items()
+                },
+                "latency_percentiles": {
+                    k: {
+                        "p50": _percentile(v, 0.50),
+                        "p95": _percentile(v, 0.95),
+                        "p99": _percentile(v, 0.99),
+                    }
                     for k, v in self.latencies.items()
                 },
                 "gauges": dict(self.gauges),

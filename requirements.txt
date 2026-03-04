@@ -10,6 +10,7 @@ numpy==1.26.4
 pyttsx3==2.90
 whisper
 edge-tts
+soundfile
 
 # --- Vision ---
 opencv-python

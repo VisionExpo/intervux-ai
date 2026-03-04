@@ -367,6 +367,14 @@ class InterviewSocket:
         if not transcript:
             transcript = "(No transcript captured)"
 
+        next_audio_task: asyncio.Task | None = None
+        next_index = state.current_index + 1
+        if next_index < len(state.questions):
+            next_question = state.questions[next_index]
+            next_audio_task = asyncio.create_task(
+                asyncio.to_thread(self._synthesize_wav_bytes, next_question)
+            )
+
         eval_start = time.time()
         prepared_context = eval_context_cache.get(current_index)
         evaluation = await asyncio.to_thread(
@@ -428,6 +436,7 @@ class InterviewSocket:
                 profile_dict=state.profile.model_dump(),
                 session_policy=session_policy,
                 eval_context_cache=eval_context_cache,
+                preloaded_audio_task=next_audio_task,
             )
 
         answer_cycle_duration = time.time() - answer_cycle_start
@@ -476,6 +485,7 @@ class InterviewSocket:
         profile_dict: dict,
         session_policy: Dict[str, Any],
         eval_context_cache: Dict[int, dict],
+        preloaded_audio_task: asyncio.Task | None = None,
     ):
         question_text = state.questions[state.current_index]
         preload_task = asyncio.create_task(
@@ -487,11 +497,19 @@ class InterviewSocket:
             )
         )
 
+        preloaded_audio_bytes: bytes | None = None
+        if preloaded_audio_task is not None:
+            try:
+                preloaded_audio_bytes = await preloaded_audio_task
+            except Exception:
+                metrics.record_error()
+
         await self._send_avatar_with_audio(
             ws=ws,
             text=question_text,
             question_index=state.current_index + 1,
             total_questions=len(state.questions),
+            preloaded_audio_bytes=preloaded_audio_bytes,
         )
         try:
             eval_context_cache[state.current_index] = await preload_task
@@ -499,7 +517,12 @@ class InterviewSocket:
             metrics.record_error()
 
     async def _send_avatar_with_audio(
-        self, ws: WebSocket, text: str, question_index: int, total_questions: int
+        self,
+        ws: WebSocket,
+        text: str,
+        question_index: int,
+        total_questions: int,
+        preloaded_audio_bytes: bytes | None = None,
     ):
         await self._safe_send_json(
             ws,
@@ -512,7 +535,10 @@ class InterviewSocket:
         )
 
         tts_start = time.time()
-        audio_bytes = await asyncio.to_thread(self._synthesize_wav_bytes, text)
+        if preloaded_audio_bytes is not None:
+            audio_bytes = preloaded_audio_bytes
+        else:
+            audio_bytes = await asyncio.to_thread(self._synthesize_wav_bytes, text)
         metrics.record_latency("tts", time.time() - tts_start)
         await self._safe_send_bytes(ws, audio_bytes)
 
@@ -587,23 +613,33 @@ class InterviewSocket:
             load_ratio = 1.0
         else:
             load_ratio = self._active_sessions / float(self.max_concurrent_sessions)
+        answer_cycle_p95 = metrics.latency_percentile("answer_cycle_total", 0.95, 0.0)
+        adaptive_high_latency = answer_cycle_p95 > 6.0
 
         question_count = self.total_questions
         question_temperature = 0.7
-        evaluation_temperature = 0.3
+        evaluation_temperature = 0.1
         lightweight_eval = False
 
         if load_ratio >= 0.8:
             question_count = max(1, self.total_questions - 1)
             question_temperature = 0.35
-            evaluation_temperature = 0.2
+            evaluation_temperature = 0.08
             lightweight_eval = True
         elif load_ratio >= 0.6:
             question_temperature = 0.5
-            evaluation_temperature = 0.25
+            evaluation_temperature = 0.1
+
+        if adaptive_high_latency:
+            question_count = max(1, min(question_count, 2) - 1)
+            question_temperature = min(question_temperature, 0.45)
+            evaluation_temperature = min(evaluation_temperature, 0.08)
+            lightweight_eval = True
 
         return {
             "load_ratio": round(load_ratio, 3),
+            "answer_cycle_p95_s": round(answer_cycle_p95, 3),
+            "adaptive_high_latency": adaptive_high_latency,
             "question_count": question_count,
             "question_temperature": question_temperature,
             "evaluation_temperature": evaluation_temperature,

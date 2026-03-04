@@ -31,42 +31,30 @@ class STTService:
                 return ""
 
             file_size_kb = round(len(audio_bytes) / 1024, 2)
+            text = self.audio_engine.speech_to_text_bytes(audio_bytes)
+            text = text.strip()
 
-            with tempfile.NamedTemporaryFile(
-                suffix=".wav", delete=False
-            ) as tmp:
-                audio_path = tmp.name
-                tmp.write(audio_bytes)
+            duration = round(time.time() - start_time, 3)
+            metrics.record_latency("stt_processing", duration)
 
-            try:
-                text = self.audio_engine.speech_to_text(audio_path)
-                text = text.strip()
-
-                duration = round(time.time() - start_time, 3)
-                metrics.record_latency("stt_processing", duration)
-
-                logger.info(
-                    "STT completed",
-                    extra={
-                        "extra_data": {
-                            "file_size_kb": file_size_kb,
-                            "transcript_length": len(text),
-                            "duration": duration
-                        }
+            logger.info(
+                "STT completed",
+                extra={
+                    "extra_data": {
+                        "file_size_kb": file_size_kb,
+                        "transcript_length": len(text),
+                        "duration": duration
                     }
-                )
+                }
+            )
 
-                # Basic transcript validation
-                if len(text) < 3:
-                    logger.warning("Very short transcript detected")
+            # Basic transcript validation
+            if len(text) < 3:
+                logger.warning("Very short transcript detected")
 
-                return text
+            return text
 
-            finally:
-                if os.path.exists(audio_path):
-                    os.remove(audio_path)
-
-        except Exception as e:
+        except Exception:
             metrics.record_error()
             logger.exception("STT processing failed")
             raise
@@ -91,28 +79,48 @@ def transcribe_audio_bytes(audio_bytes: bytes, suffix: str = ".wav") -> str:
         metrics.record_error()
         return ""
 
-    if suffix.lower() == ".wav":
-        try:
-            text = _stt_service_instance.audio_engine.speech_to_text_wav_bytes(audio_bytes)
-            text = text.strip()
+    try:
+        text = _stt_service_instance.audio_engine.speech_to_text_bytes(audio_bytes)
+        text = text.strip()
 
-            duration = round(time.time() - start_time, 3)
-            metrics.record_latency("stt_processing", duration)
-            metrics.record_latency("stt_in_memory_wav", duration)
-            logger.info(
-                "STT completed from in-memory wav bytes",
-                extra={
-                    "extra_data": {
-                        "file_size_kb": round(len(audio_bytes) / 1024, 2),
-                        "transcript_length": len(text),
-                        "duration": duration,
-                    }
-                },
-            )
-            return text
-        except Exception:
-            # Fall back to file path pipeline for robustness.
-            pass
+        duration = round(time.time() - start_time, 3)
+        metrics.record_latency("stt_processing", duration)
+        metrics.record_latency("stt_in_memory", duration)
+        logger.info(
+            "STT completed from in-memory bytes",
+            extra={
+                "extra_data": {
+                    "suffix": suffix,
+                    "file_size_kb": round(len(audio_bytes) / 1024, 2),
+                    "transcript_length": len(text),
+                    "duration": duration,
+                }
+            },
+        )
+        return text
+    except Exception:
+        # Fall back to file path pipeline for formats unsupported in memory.
+        if suffix.lower() == ".wav":
+            try:
+                text = _stt_service_instance.audio_engine.speech_to_text_wav_bytes(audio_bytes)
+                text = text.strip()
+
+                duration = round(time.time() - start_time, 3)
+                metrics.record_latency("stt_processing", duration)
+                metrics.record_latency("stt_in_memory_wav", duration)
+                logger.info(
+                    "STT completed from in-memory wav bytes",
+                    extra={
+                        "extra_data": {
+                            "file_size_kb": round(len(audio_bytes) / 1024, 2),
+                            "transcript_length": len(text),
+                            "duration": duration,
+                        }
+                    },
+                )
+                return text
+            except Exception:
+                pass
 
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         audio_path = tmp.name
