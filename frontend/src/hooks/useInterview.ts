@@ -20,6 +20,8 @@ const MAX_RECONNECT_ATTEMPTS = 6;
 
 export function useInterview() {
   const socketRef = useRef<WebSocket | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const connectIdRef = useRef(0);
   const reconnectAttemptRef = useRef(0);
@@ -35,6 +37,8 @@ export function useInterview() {
   const [lastEvaluation, setLastEvaluation] = useState<EvaluationPayload | null>(
     null
   );
+  const [partialTranscript, setPartialTranscript] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
   const [finalReport, setFinalReport] = useState<Record<string, unknown> | null>(
     null
   );
@@ -48,6 +52,10 @@ export function useInterview() {
       if (reconnectTimerRef.current !== null) {
         window.clearTimeout(reconnectTimerRef.current);
       }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
       socketRef.current?.close(1000, "Component unmounted");
     };
   }, []);
@@ -98,6 +106,8 @@ export function useInterview() {
       if (type === "evaluation") {
         const data = (msg.data ?? null) as EvaluationPayload | null;
         setLastEvaluation(data);
+        setPartialTranscript("");
+        setStage("asking_question");
         return;
       }
 
@@ -127,6 +137,21 @@ export function useInterview() {
             : "Server is restarting. Reconnecting...";
         setLastError(message);
         setStage("connecting");
+        return;
+      }
+
+      if (type === "partial_transcript") {
+        setPartialTranscript(typeof msg.text === "string" ? msg.text : "");
+        return;
+      }
+
+      if (type === "phase") {
+        const value = typeof msg.value === "string" ? msg.value : "";
+        if (value === "LISTENING") {
+          setStage("listening");
+        } else if (value === "PROCESSING") {
+          setStage("processing");
+        }
         return;
       }
     };
@@ -218,6 +243,58 @@ export function useInterview() {
     }
   }
 
+  async function startAudioStream() {
+    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
+      setLastError("Socket is not connected.");
+      return;
+    }
+    if (isRecording) return;
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaStreamRef.current = stream;
+
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : "audio/webm";
+
+    const recorder = new MediaRecorder(stream, { mimeType });
+    mediaRecorderRef.current = recorder;
+
+    recorder.ondataavailable = async (event) => {
+      if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      if (event.data.size <= 0) return;
+      const buffer = await event.data.arrayBuffer();
+      socketRef.current.send(buffer);
+    };
+
+    recorder.onstop = () => {
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.send(JSON.stringify({ type: "stream_end" }));
+      }
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+      mediaRecorderRef.current = null;
+      setIsRecording(false);
+      setStage("processing");
+    };
+
+    recorder.start(300);
+    setPartialTranscript("");
+    setIsRecording(true);
+    setStage("listening");
+    setLastError("");
+  }
+
+  function stopAudioStream() {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder) return;
+    if (recorder.state !== "inactive") {
+      recorder.stop();
+    }
+  }
+
   return {
     stage,
     avatarText,
@@ -225,11 +302,15 @@ export function useInterview() {
     isConnected,
     questionIndex,
     totalQuestions,
+    partialTranscript,
+    isRecording,
     lastEvaluation,
     finalReport,
     lastError,
     uploadResume,
     sendAudioAnswer,
+    startAudioStream,
+    stopAudioStream,
   };
 }
 

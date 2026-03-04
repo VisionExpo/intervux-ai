@@ -38,6 +38,14 @@ class InterviewSocket:
         self.receive_timeout_s = int(os.getenv("WS_RECEIVE_TIMEOUT_S", "120"))
         self.send_timeout_s = int(os.getenv("WS_SEND_TIMEOUT_S", "20"))
         self.max_audio_bytes = int(os.getenv("WS_MAX_AUDIO_BYTES", "20000000"))
+        self.stream_silence_timeout_s = float(
+            os.getenv("WS_STREAM_SILENCE_TIMEOUT_S", "1.0")
+        )
+        self.partial_transcript_interval_s = float(
+            os.getenv("WS_PARTIAL_TRANSCRIPT_INTERVAL_S", "0.9")
+        )
+        self.partial_min_bytes = int(os.getenv("WS_PARTIAL_MIN_BYTES", "12000"))
+        self.early_eval_min_words = int(os.getenv("WS_EARLY_EVAL_MIN_WORDS", "20"))
         self.max_resume_b64_chars = int(
             os.getenv("WS_MAX_RESUME_B64_CHARS", "14000000")
         )
@@ -121,11 +129,17 @@ class InterviewSocket:
             )
 
             while state.current_index < len(state.questions):
-                answer_audio = await self._wait_for_audio_answer(ws)
+                question = state.questions[state.current_index]
+                answer_packet = await self._wait_for_audio_answer(
+                    ws=ws,
+                    question=question,
+                    profile=state.profile.model_dump(),
+                    session_policy=session_policy,
+                )
                 await self._process_answer(
                     ws=ws,
                     state=state,
-                    answer_audio=answer_audio,
+                    answer_packet=answer_packet,
                     session_id=session_id,
                     session_policy=session_policy,
                     eval_context_cache=eval_context_cache,
@@ -298,14 +312,106 @@ class InterviewSocket:
             eval_context_cache=eval_context_cache,
         )
 
-    async def _wait_for_audio_answer(self, ws: WebSocket) -> bytes:
+    async def _wait_for_audio_answer(
+        self,
+        ws: WebSocket,
+        question: str,
+        profile: dict,
+        session_policy: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        await self._safe_send_json(
+            ws,
+            {
+                "type": "phase",
+                "value": "LISTENING",
+            },
+        )
+        audio_buffer = bytearray()
+        first_chunk_time: float | None = None
+        last_chunk_time: float | None = None
+        last_partial_at = 0.0
+        partial_count = 0
+        partial_transcript = ""
+        early_eval_task: asyncio.Task | None = None
+
         while True:
-            message = await self._recv_with_timeout(ws)
+            timeout_s = (
+                self.stream_silence_timeout_s if audio_buffer else self.receive_timeout_s
+            )
+            try:
+                message = await asyncio.wait_for(ws.receive(), timeout=timeout_s)
+            except asyncio.TimeoutError as exc:
+                if audio_buffer:
+                    break
+                raise TimeoutError("Timed out waiting for client message") from exc
+
+            if message.get("type") == "websocket.disconnect":
+                raise WebSocketDisconnect(message.get("code", 1001))
+
             answer_audio = message.get("bytes")
             if answer_audio:
-                if len(answer_audio) > self.max_audio_bytes:
+                if len(audio_buffer) + len(answer_audio) > self.max_audio_bytes:
                     raise ValueError("Audio payload too large")
-                return answer_audio
+                audio_buffer.extend(answer_audio)
+                now = time.time()
+                if first_chunk_time is None:
+                    first_chunk_time = now
+                last_chunk_time = now
+
+                should_emit_partial = (
+                    len(audio_buffer) >= self.partial_min_bytes
+                    and (now - last_partial_at) >= self.partial_transcript_interval_s
+                )
+                if should_emit_partial:
+                    last_partial_at = now
+                    partial_start = time.time()
+                    partial_text = await asyncio.to_thread(
+                        partial(
+                            transcribe_audio_bytes,
+                            audio_bytes=bytes(audio_buffer),
+                            suffix=self._detect_audio_suffix(bytes(audio_buffer)),
+                        )
+                    )
+                    metrics.record_latency(
+                        "stt_stream_latency", time.time() - partial_start
+                    )
+                    if partial_text:
+                        partial_transcript = partial_text
+                        partial_count += 1
+                        metrics.increment_counter("partial_transcript_count")
+                        await self._safe_send_json(
+                            ws,
+                            {
+                                "type": "partial_transcript",
+                                "text": partial_transcript,
+                            },
+                        )
+                        word_count = len(partial_transcript.split())
+                        if (
+                            early_eval_task is None
+                            and word_count >= self.early_eval_min_words
+                        ):
+                            if first_chunk_time is not None:
+                                metrics.record_latency(
+                                    "early_eval_trigger_time",
+                                    time.time() - first_chunk_time,
+                                )
+                            early_eval_task = asyncio.create_task(
+                                asyncio.to_thread(
+                                    partial(
+                                        evaluate_answer,
+                                        question=question,
+                                        answer=partial_transcript,
+                                        profile=profile,
+                                        lightweight=True,
+                                        temperature_override=min(
+                                            session_policy["evaluation_temperature"], 0.08
+                                        ),
+                                        prepared_context=None,
+                                    )
+                                )
+                            )
+                continue
 
             payload = message.get("text")
             if payload:
@@ -324,11 +430,15 @@ class InterviewSocket:
                 if msg_type == "ping":
                     await self._safe_send_json(ws, {"type": "pong"})
                     continue
+                if msg_type in {"stream_end", "audio_end"}:
+                    if audio_buffer:
+                        break
+                    continue
 
                 await self._send_error(
                     ws=ws,
                     code="UNEXPECTED_MESSAGE",
-                    message="Expected binary audio answer.",
+                    message="Expected binary audio chunks or stream_end.",
                     recoverable=True,
                 )
                 continue
@@ -340,11 +450,33 @@ class InterviewSocket:
                 recoverable=True,
             )
 
+        speech_duration = 0.0
+        if first_chunk_time is not None and last_chunk_time is not None:
+            speech_duration = max(0.0, last_chunk_time - first_chunk_time)
+        metrics.record_latency("speech_duration", speech_duration)
+        metrics.record_latency("partial_transcript_count", float(partial_count))
+
+        await self._safe_send_json(
+            ws,
+            {
+                "type": "phase",
+                "value": "PROCESSING",
+            },
+        )
+
+        return {
+            "audio_bytes": bytes(audio_buffer),
+            "draft_transcript": partial_transcript,
+            "early_eval_task": early_eval_task,
+            "speech_duration": speech_duration,
+            "partial_transcript_count": partial_count,
+        }
+
     async def _process_answer(
         self,
         ws: WebSocket,
         state: InterviewState,
-        answer_audio: bytes,
+        answer_packet: Dict[str, Any],
         session_id: str,
         session_policy: Dict[str, Any],
         eval_context_cache: Dict[int, dict],
@@ -352,16 +484,21 @@ class InterviewSocket:
         answer_cycle_start = time.time()
         current_index = state.current_index
         question = state.questions[state.current_index]
+        answer_audio = answer_packet.get("audio_bytes", b"")
 
         stt_start = time.time()
-        transcript = await asyncio.to_thread(
-            partial(
-                transcribe_audio_bytes,
-                audio_bytes=answer_audio,
-                suffix=self._detect_audio_suffix(answer_audio),
+        if answer_audio:
+            transcript = await asyncio.to_thread(
+                partial(
+                    transcribe_audio_bytes,
+                    audio_bytes=answer_audio,
+                    suffix=self._detect_audio_suffix(answer_audio),
+                )
             )
-        )
+        else:
+            transcript = ""
         stt_duration = time.time() - stt_start
+        metrics.record_latency("stt_stream_latency", stt_duration)
         metrics.record_latency("stt", stt_duration)
         metrics.record_latency("phase_stt", stt_duration)
         if not transcript:
@@ -377,18 +514,61 @@ class InterviewSocket:
 
         eval_start = time.time()
         prepared_context = eval_context_cache.get(current_index)
-        evaluation = await asyncio.to_thread(
-            partial(
-                evaluate_answer,
-                question=question,
-                answer=transcript,
-                profile=state.profile.model_dump(),
-                lightweight=session_policy["lightweight_eval"],
-                temperature_override=session_policy["evaluation_temperature"],
-                prepared_context=prepared_context,
+        draft_transcript = answer_packet.get("draft_transcript", "")
+        early_eval_task = answer_packet.get("early_eval_task")
+        draft_words = len(draft_transcript.split()) if draft_transcript else 0
+        final_words = len(transcript.split())
+        evaluation = None
+        eval_mode = "final_full"
+
+        if isinstance(early_eval_task, asyncio.Task):
+            early_result = None
+            try:
+                if early_eval_task.done():
+                    early_result = early_eval_task.result()
+                else:
+                    early_result = await asyncio.wait_for(
+                        asyncio.shield(early_eval_task), timeout=0.8
+                    )
+            except Exception:
+                early_result = None
+
+            if isinstance(early_result, dict):
+                if final_words <= max(self.early_eval_min_words, draft_words + 8):
+                    evaluation = early_result
+                    eval_mode = "early_reuse"
+                else:
+                    evaluation = await asyncio.to_thread(
+                        partial(
+                            evaluate_answer,
+                            question=question,
+                            answer=transcript,
+                            profile=state.profile.model_dump(),
+                            lightweight=True,
+                            temperature_override=min(
+                                session_policy["evaluation_temperature"], 0.08
+                            ),
+                            prepared_context=None,
+                        )
+                    )
+                    eval_mode = "final_adjustment"
+
+        if evaluation is None:
+            evaluation = await asyncio.to_thread(
+                partial(
+                    evaluate_answer,
+                    question=question,
+                    answer=transcript,
+                    profile=state.profile.model_dump(),
+                    lightweight=session_policy["lightweight_eval"],
+                    temperature_override=session_policy["evaluation_temperature"],
+                    prepared_context=prepared_context,
+                )
             )
-        )
+
+        evaluation.setdefault("meta", {})["eval_mode"] = eval_mode
         eval_duration = time.time() - eval_start
+        metrics.record_latency("final_eval_latency", eval_duration)
         metrics.record_latency("evaluation", eval_duration)
         metrics.record_latency("phase_evaluation", eval_duration)
         evaluation = self._normalize_scores_for_session(

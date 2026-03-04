@@ -9,11 +9,15 @@ export default function InterviewPage() {
     isConnected,
     questionIndex,
     totalQuestions,
+    partialTranscript,
+    isRecording,
     lastEvaluation,
     finalReport,
     lastError,
     uploadResume,
     sendAudioAnswer,
+    startAudioStream,
+    stopAudioStream,
   } = useInterview();
 
   return (
@@ -60,19 +64,41 @@ export default function InterviewPage() {
         </label>
       )}
 
-      {stage === "asking_question" && (
-        <label>
-          Upload Answer Audio (wav/webm):
-          <input
-            type="file"
-            accept=".wav,.webm,.mp3"
-            onChange={(e) => {
-              if (e.target.files?.[0]) {
-                sendAudioAnswer(e.target.files[0]);
-              }
-            }}
-          />
-        </label>
+      {(stage === "asking_question" || stage === "listening") && (
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+          <button type="button" onClick={startAudioStream} disabled={isRecording}>
+            Start Mic Stream
+          </button>
+          <button type="button" onClick={stopAudioStream} disabled={!isRecording}>
+            Stop Mic Stream
+          </button>
+          <label>
+            Upload (fallback):
+            <input
+              type="file"
+              accept=".wav,.webm,.mp3"
+              onChange={(e) => {
+                if (e.target.files?.[0]) {
+                  sendAudioAnswer(e.target.files[0]);
+                }
+              }}
+            />
+          </label>
+        </div>
+      )}
+
+      {partialTranscript && (
+        <pre
+          style={{
+            whiteSpace: "pre-wrap",
+            maxWidth: "900px",
+            background: "#eef3ff",
+            padding: "1rem",
+            borderRadius: "8px",
+          }}
+        >
+          {partialTranscript}
+        </pre>
       )}
 
       {lastEvaluation && (
