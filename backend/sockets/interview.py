@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from backend.core.agent_ocr import parse_resume_bytes
 from backend.core.adaptive_engine import (
+    build_skill_coverage_engine,
     build_skill_map,
     generate_initial_question,
     next_question as build_next_question,
@@ -40,6 +41,7 @@ class InterviewSocket:
 
     def __init__(self, total_questions: int = 2):
         self.total_questions = total_questions
+        self.min_questions_per_skill = int(os.getenv("MIN_QUESTIONS_PER_SKILL", "1"))
         self.max_concurrent_sessions = int(os.getenv("MAX_CONCURRENT_SESSIONS", "5"))
         self.rate_limit_per_minute = int(os.getenv("RATE_LIMIT_WS_PER_MINUTE", "30"))
         self.receive_timeout_s = int(os.getenv("WS_RECEIVE_TIMEOUT_S", "120"))
@@ -135,7 +137,7 @@ class InterviewSocket:
                 eval_context_cache=eval_context_cache,
             )
 
-            while state.current_index < state.target_question_count:
+            while self._should_continue_interview(state):
                 question = state.questions[state.current_index]
                 answer_packet = await self._wait_for_audio_answer(
                     ws=ws,
@@ -285,12 +287,14 @@ class InterviewSocket:
         question_start = time.time()
         state.target_question_count = int(session_policy["question_count"])
         state.skill_map = build_skill_map(state.profile.model_dump())
+        state.skill_coverage = build_skill_coverage_engine(state.profile.model_dump())
         state.topic_scores = {}
         state.current_difficulty = 2
         seed_memory_projects(state.memory, state.profile.model_dump())
         initial_memory_context = build_memory_context(state.memory)
         (
             first_question,
+            first_skill,
             first_topic,
             _first_strategy,
             first_difficulty,
@@ -300,11 +304,13 @@ class InterviewSocket:
             partial(
                 generate_initial_question,
                 skill_map=state.skill_map,
+                coverage_engine=state.skill_coverage,
                 question_temperature=session_policy["question_temperature"],
                 memory_context=initial_memory_context,
             )
         )
         state.questions = [first_question]
+        state.question_skills = [first_skill]
         state.topics = [first_topic]
         state.concepts = [first_concept]
         state.concept_difficulties = [first_concept_difficulty]
@@ -325,6 +331,7 @@ class InterviewSocket:
                     "session_id": session_id,
                     "skills_count": len(state.profile.skills),
                     "questions_count": state.target_question_count,
+                    "first_skill": first_skill,
                     "first_topic": first_topic,
                     "first_concept": first_concept,
                 }
@@ -511,6 +518,11 @@ class InterviewSocket:
         answer_cycle_start = time.time()
         current_index = state.current_index
         question = state.questions[state.current_index]
+        skill = (
+            state.question_skills[state.current_index]
+            if state.current_index < len(state.question_skills)
+            else "Machine Learning"
+        )
         topic = (
             state.topics[state.current_index]
             if state.current_index < len(state.topics)
@@ -629,6 +641,7 @@ class InterviewSocket:
         state.answers.append(
             {
                 "question": question,
+                "skill": skill,
                 "topic": topic,
                 "concept": concept,
                 "concept_difficulty": concept_difficulty,
@@ -644,6 +657,7 @@ class InterviewSocket:
                 "data": {
                     "question_index": state.current_index + 1,
                     "question": question,
+                    "skill": skill,
                     "topic": topic,
                     "concept": concept,
                     "concept_difficulty": concept_difficulty,
@@ -654,6 +668,8 @@ class InterviewSocket:
         )
 
         state.current_index += 1
+        if state.skill_coverage is not None:
+            state.skill_coverage.update(skill)
         logger.info(
             "Answer evaluated",
             extra={
@@ -665,11 +681,12 @@ class InterviewSocket:
             },
         )
 
-        if state.current_index < state.target_question_count:
+        if self._should_continue_interview(state):
             generation_start = time.time()
             memory_context = build_memory_context(state.memory)
             (
                 generated_question,
+                next_skill,
                 next_topic,
                 next_strategy,
                 next_difficulty,
@@ -685,8 +702,10 @@ class InterviewSocket:
                     confidence=float(evaluation.get("confidence_score", 0.7) or 0.7),
                     topic_scores=state.topic_scores,
                     skill_map=state.skill_map,
+                    coverage_engine=state.skill_coverage,
                     difficulty=state.current_difficulty,
                     last_topic=topic,
+                    last_skill=skill,
                     last_question=question,
                     evaluation_summary=str(evaluation.get("summary", "") or ""),
                     question_temperature=session_policy["question_temperature"],
@@ -695,6 +714,7 @@ class InterviewSocket:
                 )
             )
             state.questions.append(generated_question)
+            state.question_skills.append(next_skill)
             state.topics.append(next_topic)
             state.concepts.append(next_concept)
             state.concept_difficulties.append(next_concept_difficulty)
@@ -710,6 +730,7 @@ class InterviewSocket:
                     "extra_data": {
                         "session_id": session_id,
                         "next_topic": next_topic,
+                        "next_skill": next_skill,
                         "next_concept": next_concept,
                         "next_concept_difficulty": next_concept_difficulty,
                         "strategy": next_strategy,
@@ -727,12 +748,30 @@ class InterviewSocket:
                 eval_context_cache=eval_context_cache,
                 preloaded_audio_task=next_audio_task,
             )
+        else:
+            logger.info(
+                "Interview stopping criteria met",
+                extra={
+                    "extra_data": {
+                        "session_id": session_id,
+                        "questions_asked": state.current_index,
+                        "target_questions": state.target_question_count,
+                        "skill_coverage": (
+                            state.skill_coverage.snapshot()
+                            if state.skill_coverage is not None
+                            else {}
+                        ),
+                        "min_questions_per_skill": self.min_questions_per_skill,
+                    }
+                },
+            )
 
         answer_cycle_duration = time.time() - answer_cycle_start
         metrics.record_latency("answer_cycle_total", answer_cycle_duration)
         self._log_research_record(
             session_id=session_id,
             question_index=current_index + 1,
+            skill=skill,
             topic=topic,
             concept=concept,
             concept_difficulty=concept_difficulty,
@@ -951,6 +990,14 @@ class InterviewSocket:
             "max_concurrent_sessions": float(self.max_concurrent_sessions),
         }
 
+    def _should_continue_interview(self, state: InterviewState) -> bool:
+        under_target = state.current_index < state.target_question_count
+        if state.skill_coverage is None:
+            return under_target
+
+        coverage_met = state.skill_coverage.meets_minimum(self.min_questions_per_skill)
+        return under_target or (not coverage_met)
+
     @staticmethod
     def _normalize_scores_for_session(evaluation: dict, previous_answers: list[dict]) -> dict:
         scores = evaluation.get("scores")
@@ -1000,6 +1047,7 @@ class InterviewSocket:
     def _log_research_record(
         session_id: str,
         question_index: int,
+        skill: str,
         topic: str,
         concept: str,
         concept_difficulty: int,
@@ -1014,6 +1062,7 @@ class InterviewSocket:
             {
                 "session_id": session_id,
                 "question_index": question_index,
+                "skill": skill,
                 "topic": topic,
                 "concept": concept,
                 "difficulty": concept_difficulty,

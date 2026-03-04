@@ -63,6 +63,7 @@ class InterviewState:
         self.resume_text: Optional[str] = None
         self.profile: Optional[ResumeData] = None
         self.questions: List[str] = []
+        self.question_skills: List[str] = []
         self.topics: List[str] = []
         self.concepts: List[str] = []
         self.concept_difficulties: List[int] = []
@@ -70,6 +71,7 @@ class InterviewState:
         self.target_question_count: int = 0
         self.current_difficulty: int = 2
         self.skill_map: Dict[str, int] = {}
+        self.skill_coverage = None
         self.topic_scores: Dict[str, List[float]] = {}
         self.answers: List[Dict] = []
         self.memory = InterviewMemory()

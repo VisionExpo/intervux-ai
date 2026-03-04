@@ -66,12 +66,14 @@ NEXT_QUESTION_PROMPT_TEMPLATE = """
 You are an AI interviewer.
 Generate ONE concise technical interview question.
 Return ONLY JSON:
-{{"question":"..."}}
+{{"question":"...","skill":"..."}}
 No markdown, no extra text.
 Topic: {topic}
 Concept: {concept}
 Difficulty: {difficulty}
 Strategy: {strategy}
+Preferred Skill: {preferred_skill}
+Allowed Skills: {allowed_skills_json}
 Previous Question: {previous_question}
 Evaluation Summary: {evaluation_summary}
 Memory Context:
@@ -373,18 +375,26 @@ def generate_next_question(
     concept: str,
     difficulty: int,
     strategy: str,
+    preferred_skill: str,
+    allowed_skills: List[str],
     previous_question: str,
     evaluation_summary: str,
     memory_context: str = "N/A",
     temperature_override: float | None = None,
-) -> str:
+) -> Tuple[str, str]:
     start = time.time()
     temperature = 0.3 if temperature_override is None else temperature_override
+    if not allowed_skills:
+        allowed_skills = [preferred_skill or "Machine Learning"]
+    if preferred_skill not in allowed_skills:
+        preferred_skill = allowed_skills[0]
     prompt = NEXT_QUESTION_PROMPT_TEMPLATE.format(
         topic=topic,
         concept=concept.strip() or "N/A",
         difficulty=max(1, min(3, int(difficulty))),
         strategy=strategy,
+        preferred_skill=preferred_skill.strip() or "N/A",
+        allowed_skills_json=json.dumps(allowed_skills, separators=(",", ":")),
         previous_question=previous_question.strip() or "N/A",
         evaluation_summary=evaluation_summary.strip() or "N/A",
         memory_context=memory_context.strip() or "N/A",
@@ -393,8 +403,14 @@ def generate_next_question(
     try:
         payload, provider = _run_json_task(prompt, dict, temperature=temperature, top_p=0.85)
         question = payload.get("question", "")
+        generated_skill = payload.get("skill", preferred_skill)
         if not isinstance(question, str) or not question.strip():
             raise ValueError("Next-question payload missing question")
+        if not isinstance(generated_skill, str) or not generated_skill.strip():
+            generated_skill = preferred_skill
+        generated_skill = generated_skill.strip()
+        if generated_skill not in allowed_skills:
+            generated_skill = preferred_skill if preferred_skill in allowed_skills else allowed_skills[0]
 
         result = question.strip()
         duration = round(time.time() - start, 3)
@@ -407,11 +423,12 @@ def generate_next_question(
                     "topic": topic,
                     "difficulty": difficulty,
                     "strategy": strategy,
+                    "skill": generated_skill,
                     "duration": duration,
                 }
             },
         )
-        return result
+        return result, generated_skill
     except Exception:
         metrics.record_error()
         logger.exception("Next question generation failed")
@@ -421,7 +438,7 @@ def generate_next_question(
             "deep_learning": "What is the purpose of an activation function in neural networks?",
             "system_design": "How would you design a scalable API for high traffic?",
         }
-        return fallback.get(topic, "Can you explain this topic in more depth with an example?")
+        return fallback.get(topic, "Can you explain this topic in more depth with an example?"), preferred_skill
 
 
 def prepare_evaluation_context(profile: dict, question: str, lightweight: bool) -> dict:

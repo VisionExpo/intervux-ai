@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Tuple
 
 from backend.core.llm_brain import generate_next_question
 from backend.core.knowledge_graph import GRAPH, next_node
+from backend.core.skill_coverage import SkillCoverageEngine
 
 DEFAULT_TOPICS = [
     "python",
@@ -11,6 +12,14 @@ DEFAULT_TOPICS = [
     "deep_learning",
     "system_design",
 ]
+DEFAULT_SKILLS = ["Python", "Machine Learning", "Deep Learning", "System Design"]
+SKILL_TO_TOPIC = {
+    "Python": "python",
+    "Machine Learning": "machine_learning",
+    "Deep Learning": "deep_learning",
+    "System Design": "system_design",
+}
+TOPIC_TO_SKILL = {value: key for key, value in SKILL_TO_TOPIC.items()}
 
 _TOPIC_ALIASES = {
     "python": {"python", "django", "flask", "fastapi"},
@@ -60,6 +69,16 @@ def build_skill_map(profile: Dict[str, Any]) -> Dict[str, int]:
         for topic in DEFAULT_TOPICS:
             skill_map[topic] = 0
     return skill_map
+
+
+def build_skill_coverage_engine(profile: Dict[str, Any]) -> SkillCoverageEngine:
+    discovered: List[str] = []
+    topic_map = build_skill_map(profile)
+    for topic in topic_map.keys():
+        discovered.append(TOPIC_TO_SKILL.get(topic, "Machine Learning"))
+    if not discovered:
+        discovered = list(DEFAULT_SKILLS)
+    return SkillCoverageEngine(discovered)
 
 
 def _evaluation_score(evaluation: Dict[str, Any]) -> float:
@@ -156,6 +175,7 @@ def generate_adaptive_question(
 ) -> Tuple[str, str, str, int]:
     _ = profile
     next_topic = select_next_topic(skill_map, topic_scores, last_topic)
+    next_skill = TOPIC_TO_SKILL.get(next_topic, "Machine Learning")
     score = _evaluation_score(evaluation)
     confidence = float(evaluation.get("confidence_score", 0.7) or 0.7)
     strategy = select_strategy(score, confidence)
@@ -172,11 +192,13 @@ def generate_adaptive_question(
     if not isinstance(summary, str):
         summary = ""
 
-    question = generate_next_question(
+    question, _skill = generate_next_question(
         topic=next_topic,
         concept=_topic_default_concept(next_topic),
         difficulty=next_difficulty,
         strategy=strategy,
+        preferred_skill=next_skill,
+        allowed_skills=list(DEFAULT_SKILLS),
         previous_question=last_question,
         evaluation_summary=summary,
         memory_context=memory_context,
@@ -192,15 +214,23 @@ def next_question(
     confidence: float,
     topic_scores: Dict[str, List[float]],
     skill_map: Dict[str, int],
+    coverage_engine: SkillCoverageEngine | None,
     difficulty: int,
     last_topic: str | None,
+    last_skill: str | None,
     last_question: str,
     evaluation_summary: str,
     question_temperature: float,
     memory_context: str = "N/A",
     current_concept: str | None = None,
-) -> Tuple[str, str, str, int, str, int]:
-    topic = select_next_topic(skill_map, topic_scores, last_topic)
+) -> Tuple[str, str, str, str, int, str, int]:
+    if coverage_engine is not None and coverage_engine.skills:
+        skill = coverage_engine.next_skill()
+        topic = SKILL_TO_TOPIC.get(skill, "machine_learning")
+    else:
+        topic = select_next_topic(skill_map, topic_scores, last_topic)
+        skill = TOPIC_TO_SKILL.get(topic, "Machine Learning")
+
     strategy = select_strategy(score, confidence)
     if _is_unbalanced_coverage(skill_map) and skill_map.get(topic, 0) <= 0:
         strategy = "topic_shift"
@@ -212,43 +242,58 @@ def next_question(
     concept = _select_next_concept(topic, current_concept, score)
     concept_difficulty = _concept_difficulty(concept, next_difficulty)
 
-    question = generate_next_question(
+    question, generated_skill = generate_next_question(
         topic=topic,
         concept=concept,
         difficulty=next_difficulty,
         strategy=strategy,
+        preferred_skill=skill,
+        allowed_skills=list(coverage_engine.skills.keys()) if coverage_engine else list(DEFAULT_SKILLS),
         previous_question=last_question,
         evaluation_summary=evaluation_summary,
         memory_context=memory_context,
         temperature_override=question_temperature,
     )
+    skill = generated_skill if generated_skill else skill
+    topic = SKILL_TO_TOPIC.get(skill, topic)
 
     skill_map[topic] = skill_map.get(topic, 0) + 1
-    return question, topic, strategy, next_difficulty, concept, concept_difficulty
+    return question, skill, topic, strategy, next_difficulty, concept, concept_difficulty
 
 
 def generate_initial_question(
     skill_map: Dict[str, int],
+    coverage_engine: SkillCoverageEngine | None,
     question_temperature: float,
     memory_context: str = "N/A",
-) -> Tuple[str, str, str, int, str, int]:
-    topic = select_next_topic(skill_map, topic_scores={}, last_topic=None)
+) -> Tuple[str, str, str, str, int, str, int]:
+    if coverage_engine is not None and coverage_engine.skills:
+        skill = coverage_engine.next_skill()
+        topic = SKILL_TO_TOPIC.get(skill, "machine_learning")
+    else:
+        topic = select_next_topic(skill_map, topic_scores={}, last_topic=None)
+        skill = TOPIC_TO_SKILL.get(topic, "Machine Learning")
+
     strategy = "explore"
     difficulty = 2
     concept = _topic_default_concept(topic)
     concept_difficulty = _concept_difficulty(concept, difficulty)
-    question = generate_next_question(
+    question, generated_skill = generate_next_question(
         topic=topic,
         concept=concept,
         difficulty=difficulty,
         strategy=strategy,
+        preferred_skill=skill,
+        allowed_skills=list(coverage_engine.skills.keys()) if coverage_engine else list(DEFAULT_SKILLS),
         previous_question="N/A",
         evaluation_summary="N/A",
         memory_context=memory_context,
         temperature_override=question_temperature,
     )
+    skill = generated_skill if generated_skill else skill
+    topic = SKILL_TO_TOPIC.get(skill, topic)
     skill_map[topic] = skill_map.get(topic, 0) + 1
-    return question, topic, strategy, difficulty, concept, concept_difficulty
+    return question, skill, topic, strategy, difficulty, concept, concept_difficulty
 
 
 def _topic_default_concept(topic: str) -> str:
