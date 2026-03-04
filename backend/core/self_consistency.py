@@ -1,5 +1,6 @@
 import asyncio
 import statistics
+from collections import Counter
 from typing import Any, Dict, List
 
 
@@ -35,6 +36,14 @@ class SelfConsistencyEvaluator:
             return {
                 "technical": {"accuracy": 0, "depth": 0, "problem_solving": 0},
                 "behavioral": {"clarity": 0, "confidence": 0, "structure": 0},
+                "reasoning_metrics": {
+                    "logical_consistency": 0,
+                    "step_completeness": 0,
+                    "causal_reasoning": 0,
+                },
+                "reasoning_steps": [],
+                "logic_flow": "unclear",
+                "reasoning_score": 0.0,
                 "technical_score": 0.0,
                 "behavioral_score": 0.0,
                 "final_score": 0.0,
@@ -45,6 +54,7 @@ class SelfConsistencyEvaluator:
 
         tech_keys = ("accuracy", "depth", "problem_solving")
         beh_keys = ("clarity", "confidence", "structure")
+        reasoning_keys = ("logical_consistency", "step_completeness", "causal_reasoning")
 
         tech_agg: Dict[str, int] = {}
         for key in tech_keys:
@@ -55,6 +65,40 @@ class SelfConsistencyEvaluator:
         for key in beh_keys:
             values = [self._to_score(item.get("behavioral", {}).get(key, 0)) for item in results]
             beh_agg[key] = int(round(statistics.median(values)))
+
+        reasoning_agg: Dict[str, int] = {}
+        for key in reasoning_keys:
+            values = [
+                self._to_score(item.get("reasoning", {}).get("metrics", {}).get(key, 0))
+                for item in results
+            ]
+            reasoning_agg[key] = int(round(statistics.median(values)))
+
+        reasoning_score_values = [
+            self._to_float(item.get("reasoning", {}).get("reasoning_score", 0.0))
+            for item in results
+        ]
+        reasoning_score = (
+            float(statistics.median(reasoning_score_values))
+            if reasoning_score_values
+            else 0.0
+        )
+
+        logic_flows = [
+            str(item.get("reasoning", {}).get("logic_flow", "unclear")).strip().lower()
+            for item in results
+        ]
+        logic_flow = Counter(logic_flows).most_common(1)[0][0] if logic_flows else "unclear"
+
+        steps_counter: Counter[str] = Counter()
+        for item in results:
+            steps = item.get("reasoning", {}).get("steps", [])
+            if not isinstance(steps, list):
+                continue
+            for step in steps:
+                if isinstance(step, str) and step.strip():
+                    steps_counter[step.strip()] += 1
+        reasoning_steps = [step for step, _count in steps_counter.most_common(6)]
 
         tech_scores = [self._avg_scores(item.get("technical", {}), tech_keys) for item in results]
         beh_scores = [self._avg_scores(item.get("behavioral", {}), beh_keys) for item in results]
@@ -70,6 +114,10 @@ class SelfConsistencyEvaluator:
         return {
             "technical": tech_agg,
             "behavioral": beh_agg,
+            "reasoning_metrics": reasoning_agg,
+            "reasoning_steps": reasoning_steps,
+            "logic_flow": logic_flow,
+            "reasoning_score": round(reasoning_score, 2),
             "technical_score": round(tech_med, 2),
             "behavioral_score": round(beh_med, 2),
             "final_score": round(final_med, 2),

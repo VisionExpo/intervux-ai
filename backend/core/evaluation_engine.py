@@ -5,6 +5,7 @@ import os
 from typing import Any, Dict
 
 from backend.core.llm_brain import _run_json_task
+from backend.core.reasoning_analyzer import ReasoningAnalyzer
 from backend.core.self_consistency import SelfConsistencyEvaluator
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
@@ -89,6 +90,7 @@ class DualEvaluationEngine:
 
 
 _dual_eval_engine = DualEvaluationEngine()
+_reasoning_analyzer = ReasoningAnalyzer()
 _self_consistency = SelfConsistencyEvaluator(
     passes=int(os.getenv("SELF_CONSISTENCY_PASSES", "3"))
 )
@@ -109,16 +111,30 @@ def _format_dual_payload(
     variance: float,
     pass_count: int,
     spread: float,
+    reasoning: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     tech_avg = _avg(tech)
     beh_avg = _avg(behavior)
+    reasoning_payload = reasoning or {
+        "steps": [],
+        "logic_flow": "unclear",
+        "metrics": {
+            "logical_consistency": 0,
+            "step_completeness": 0,
+            "causal_reasoning": 0,
+        },
+        "reasoning_score": 0.0,
+    }
+    reasoning_score = float(reasoning_payload.get("reasoning_score", 0.0))
     return {
         "technical": tech,
         "behavioral": behavior,
+        "reasoning": reasoning_payload,
         "final": {"score": round(float(final_score), 2)},
         "scores": {
             "Technical": round(tech_avg, 2),
             "Behavioral": round(beh_avg, 2),
+            "Reasoning": round(reasoning_score, 2),
             "Overall": round(float(final_score), 2),
         },
         "feedback": [
@@ -128,6 +144,7 @@ def _format_dual_payload(
         "summary": (
             f"Technical Score: {round(tech_avg, 2)}, "
             f"Behavioral Score: {round(beh_avg, 2)}, "
+            f"Reasoning Score: {round(reasoning_score, 2)}, "
             f"Final Score: {round(float(final_score), 2)}"
         ),
         "confidence_score": round(float(confidence), 2),
@@ -144,7 +161,15 @@ def _format_dual_payload(
 
 def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | None = None, **_kwargs: Any) -> Dict[str, Any]:
     try:
-        combined = _dual_eval_engine.evaluate(question=question, answer=answer, profile=profile)
+        def _evaluate_with_reasoning(
+            q: str, a: str, p: Dict[str, Any] | None
+        ) -> Dict[str, Any]:
+            base = _dual_eval_engine.evaluate(question=q, answer=a, profile=p)
+            base["reasoning"] = _reasoning_analyzer.analyze(question=q, answer=a)
+            return base
+
+        combined = _evaluate_with_reasoning(question, answer, profile)
+        reasoning = combined.get("reasoning", {})
         tech = combined["technical"]
         behavior = combined["behavioral"]
         final_score = float(combined["final"])
@@ -164,17 +189,18 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
                 variance=abs(tech_avg - beh_avg),
                 pass_count=1,
                 spread=0.0,
+                reasoning=reasoning,
             )
 
         if SELF_CONSISTENCY_PARALLEL:
             aggregate = asyncio.run(
                 _self_consistency.evaluate_parallel(
-                    _dual_eval_engine.evaluate, question, answer, profile
+                    _evaluate_with_reasoning, question, answer, profile
                 )
             )
         else:
             aggregate = _self_consistency.evaluate(
-                _dual_eval_engine.evaluate, question, answer, profile
+                _evaluate_with_reasoning, question, answer, profile
             )
 
         metrics.record_latency("dual_eval_final_score", aggregate.get("final_score", final_score))
@@ -189,6 +215,16 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
             variance=float(aggregate.get("spread", abs(tech_avg - beh_avg))),
             pass_count=int(aggregate.get("pass_count", _self_consistency.passes)),
             spread=float(aggregate.get("spread", 0.0)),
+            reasoning={
+                "steps": aggregate.get("reasoning_steps", reasoning.get("steps", [])),
+                "logic_flow": aggregate.get("logic_flow", reasoning.get("logic_flow", "unclear")),
+                "metrics": aggregate.get(
+                    "reasoning_metrics", reasoning.get("metrics", {})
+                ),
+                "reasoning_score": float(
+                    aggregate.get("reasoning_score", reasoning.get("reasoning_score", 0.0))
+                ),
+            },
         )
     except Exception:
         metrics.record_error()
@@ -196,8 +232,18 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
         return {
             "technical": {"accuracy": 5, "depth": 5, "problem_solving": 5},
             "behavioral": {"clarity": 5, "confidence": 5, "structure": 5},
+            "reasoning": {
+                "steps": [],
+                "logic_flow": "unclear",
+                "metrics": {
+                    "logical_consistency": 5,
+                    "step_completeness": 5,
+                    "causal_reasoning": 5,
+                },
+                "reasoning_score": 5.0,
+            },
             "final": {"score": 5.0},
-            "scores": {"Technical": 5.0, "Behavioral": 5.0, "Overall": 5.0},
+            "scores": {"Technical": 5.0, "Behavioral": 5.0, "Reasoning": 5.0, "Overall": 5.0},
             "feedback": ["Evaluation fallback triggered."],
             "summary": "Dual evaluation failed.",
             "confidence_score": 0.2,

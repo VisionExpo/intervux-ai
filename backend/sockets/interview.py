@@ -1143,6 +1143,14 @@ class InterviewSocket:
         overall_score = scores.get("Overall", 0)
         confidence = evaluation.get("confidence_score", 0)
         concepts = extract_key_concepts(transcript)
+        reasoning = evaluation.get("reasoning", {})
+        if not isinstance(reasoning, dict):
+            reasoning = {}
+        reasoning_score = reasoning.get("reasoning_score", scores.get("Reasoning", 0))
+        logical_steps = reasoning.get("steps", [])
+        if not isinstance(logical_steps, list):
+            logical_steps = []
+        logic_flow = reasoning.get("logic_flow", "unclear")
         mastery_score, coverage_completeness, confidence_variance = (
             InterviewSocket._compute_skill_coverage_metrics(
                 skill=skill,
@@ -1164,6 +1172,9 @@ class InterviewSocket:
                 "score": overall_score,
                 "technical_score": technical_score,
                 "behavior_score": behavior_score,
+                "reasoning_score": reasoning_score,
+                "logical_steps": logical_steps,
+                "logic_flow": logic_flow,
                 "confidence": confidence,
                 "skill_mastery_score": mastery_score,
                 "coverage_completeness": coverage_completeness,
