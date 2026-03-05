@@ -60,6 +60,7 @@ export function useInterview() {
   );
   const [lastError, setLastError] = useState<string>("");
   const [visemes, setVisemes] = useState<VisemeCue[]>([]);
+  const [emotion, setEmotion] = useState("neutral");
 
   useEffect(() => {
     stageRef.current = stage;
@@ -128,6 +129,11 @@ export function useInterview() {
 
       if (type === "avatar_visemes") {
         pendingVisemesRef.current = parseVisemes(msg.visemes);
+        return;
+      }
+
+      if (type === "emotion_update") {
+        setEmotion(typeof msg.emotion === "string" ? msg.emotion : "neutral");
         return;
       }
 
@@ -436,6 +442,7 @@ export function useInterview() {
     lastError,
     audioRef,
     visemes,
+    emotion,
     uploadResume,
     sendAudioAnswer,
     startAudioStream,

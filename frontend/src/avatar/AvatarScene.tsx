@@ -6,9 +6,16 @@ import type { VisemeCue } from "./LipSyncController";
 type AvatarSceneProps = {
   audioRef: RefObject<HTMLAudioElement | null>;
   visemes?: VisemeCue[];
+  avatarState?: "speaking" | "listening" | "thinking";
+  emotion?: string;
 };
 
-export default function AvatarScene({ audioRef, visemes }: AvatarSceneProps) {
+export default function AvatarScene({
+  audioRef,
+  visemes,
+  avatarState = "listening",
+  emotion = "neutral",
+}: AvatarSceneProps) {
   return (
     <Canvas
       camera={{ position: [0, 1.4, 1.8], fov: 30 }}
@@ -18,7 +25,12 @@ export default function AvatarScene({ audioRef, visemes }: AvatarSceneProps) {
       <directionalLight position={[0, 5, 5]} intensity={1} />
 
       <Suspense fallback={null}>
-        <VRMAvatar audioRef={audioRef} visemes={visemes} />
+        <VRMAvatar
+          audioRef={audioRef}
+          visemes={visemes}
+          avatarState={avatarState}
+          emotion={emotion}
+        />
       </Suspense>
     </Canvas>
   );

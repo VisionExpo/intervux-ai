@@ -17,6 +17,7 @@ export default function InterviewPage() {
     lastError,
     audioRef,
     visemes,
+    emotion,
     uploadResume,
     sendAudioAnswer,
     startAudioStream,
@@ -45,6 +46,7 @@ export default function InterviewPage() {
         audioRef={audioRef}
         visemes={visemes}
         avatarState={avatarState}
+        emotion={emotion}
       />
 
       <p style={{ minHeight: "60px", maxWidth: "700px", textAlign: "center" }}>

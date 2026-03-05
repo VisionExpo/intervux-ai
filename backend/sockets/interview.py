@@ -2,6 +2,7 @@ import asyncio
 import io
 import json
 import os
+import re
 import statistics
 import time
 import uuid
@@ -31,7 +32,7 @@ from backend.core.evaluation_engine import evaluate_answer_dual
 from backend.core.difficulty_engine import DifficultyCalibrationEngine
 from backend.models.interview import InterviewState, ResumeData
 from backend.services.stt_service import transcribe_audio_bytes
-from backend.services.tts_service import synthesize_speech
+from backend.services.tts_service import synthesize_speech_with_visemes
 from backend.services.viseme_service import VisemeService
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
@@ -582,7 +583,7 @@ class InterviewSocket:
         if next_index < len(state.questions):
             next_question = state.questions[next_index]
             next_audio_task = asyncio.create_task(
-                asyncio.to_thread(self._synthesize_wav_bytes, next_question)
+                asyncio.to_thread(self._synthesize_tts_chunks, next_question)
             )
 
         eval_start = time.time()
@@ -685,6 +686,13 @@ class InterviewSocket:
                     "transcript": transcript,
                     "evaluation": evaluation,
                 },
+            },
+        )
+        await self._safe_send_json(
+            ws,
+            {
+                "type": "emotion_update",
+                "emotion": self._emotion_from_evaluation(evaluation),
             },
         )
 
@@ -872,10 +880,10 @@ class InterviewSocket:
             )
         )
 
-        preloaded_audio_bytes: bytes | None = None
+        preloaded_audio_chunks: list[dict[str, Any]] | None = None
         if preloaded_audio_task is not None:
             try:
-                preloaded_audio_bytes = await preloaded_audio_task
+                preloaded_audio_chunks = await preloaded_audio_task
             except Exception:
                 metrics.record_error()
 
@@ -884,7 +892,7 @@ class InterviewSocket:
             text=question_text,
             question_index=state.current_index + 1,
             total_questions=max(state.target_question_count, len(state.questions)),
-            preloaded_audio_bytes=preloaded_audio_bytes,
+            preloaded_audio_chunks=preloaded_audio_chunks,
         )
         try:
             eval_context_cache[state.current_index] = await preload_task
@@ -897,7 +905,7 @@ class InterviewSocket:
         text: str,
         question_index: int,
         total_questions: int,
-        preloaded_audio_bytes: bytes | None = None,
+        preloaded_audio_chunks: list[dict[str, Any]] | None = None,
     ):
         await self._safe_send_json(
             ws,
@@ -910,22 +918,26 @@ class InterviewSocket:
         )
 
         tts_start = time.time()
-        if preloaded_audio_bytes is not None:
-            audio_bytes = preloaded_audio_bytes
+        if preloaded_audio_chunks is not None:
+            audio_chunks = preloaded_audio_chunks
         else:
-            audio_bytes = await asyncio.to_thread(self._synthesize_wav_bytes, text)
+            audio_chunks = await asyncio.to_thread(self._synthesize_tts_chunks, text)
         metrics.record_latency("tts", time.time() - tts_start)
 
-        duration_ms = self._wav_duration_ms(audio_bytes)
-        visemes = viseme_service.generate_timeline(duration_ms)
-        await self._safe_send_json(
-            ws,
-            {
-                "type": "avatar_visemes",
-                "visemes": visemes,
-            },
-        )
-        await self._safe_send_bytes(ws, audio_bytes)
+        for chunk in audio_chunks:
+            visemes = chunk.get("visemes", [])
+            audio_bytes = chunk.get("audio_bytes", b"")
+            if not isinstance(audio_bytes, (bytes, bytearray)) or not audio_bytes:
+                continue
+
+            await self._safe_send_json(
+                ws,
+                {
+                    "type": "avatar_visemes",
+                    "visemes": visemes,
+                },
+            )
+            await self._safe_send_bytes(ws, bytes(audio_bytes))
 
     async def _safe_send_json(self, ws: WebSocket, payload: Dict[str, Any]):
         try:
@@ -1076,6 +1088,20 @@ class InterviewSocket:
                 "max_difficulty_reached": round(item["max_difficulty_reached"], 0),
             }
         return result
+
+    @staticmethod
+    def _emotion_from_evaluation(evaluation: dict) -> str:
+        confidence = 0.0
+        try:
+            confidence = float(evaluation.get("confidence_score", 0.0))
+        except Exception:
+            confidence = 0.0
+
+        if confidence < 0.45:
+            return "supportive"
+        if confidence < 0.7:
+            return "thinking"
+        return "neutral"
 
     def _should_continue_interview(self, state: InterviewState) -> bool:
         under_target = state.current_index < state.target_question_count
@@ -1294,20 +1320,34 @@ class InterviewSocket:
                 pass
             await self._close_ws(ws, code=1001)
 
+    def _synthesize_tts_chunks(self, text: str) -> list[dict[str, Any]]:
+        chunks: list[dict[str, Any]] = []
+
+        for segment in self._split_sentences(text):
+            audio_bytes, visemes = synthesize_speech_with_visemes(segment)
+            if not visemes:
+                duration_ms = self._wav_duration_ms(audio_bytes)
+                visemes = viseme_service.generate_timeline(duration_ms)
+
+            chunks.append(
+                {
+                    "text": segment,
+                    "audio_bytes": audio_bytes,
+                    "visemes": visemes,
+                }
+            )
+
+        return chunks
+
     @staticmethod
-    def _synthesize_wav_bytes(text: str) -> bytes:
-        audio_url = synthesize_speech(text)
-        relative_path = audio_url.lstrip("/")
-        if os.path.exists("/app"):
-            file_path = os.path.join("/app", relative_path.replace("/", os.sep))
-        else:
-            file_path = os.path.join("backend", relative_path.replace("/", os.sep))
-        try:
-            with open(file_path, "rb") as f:
-                return f.read()
-        finally:
-            if os.path.exists(file_path):
-                os.remove(file_path)
+    def _split_sentences(text: str) -> list[str]:
+        clean = (text or "").strip()
+        if not clean:
+            return []
+
+        parts = re.split(r"(?<=[.!?])\s+", clean)
+        segments = [part.strip() for part in parts if part.strip()]
+        return segments or [clean]
 
     @staticmethod
     def _wav_duration_ms(audio_bytes: bytes) -> int:

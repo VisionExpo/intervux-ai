@@ -1,17 +1,17 @@
 import os
-import tempfile
-import wave
 import threading
 import uuid
-from typing import Optional
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
-import numpy as np
 import pyttsx3
 
+try:
+    import azure.cognitiveservices.speech as speechsdk
+except Exception:  # pragma: no cover - optional dependency
+    speechsdk = None
 
-# Define and create the static directory for audio files
-# Use /app/static for Docker, or ./static for local development
+# Use /app/static for Docker, or ./backend/static for local development
 if os.path.exists("/app"):
     STATIC_DIR = Path("/app/static/audio")
 else:
@@ -20,12 +20,9 @@ else:
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
 
-class TTSService:
+class LocalTTSService:
     """
-    Local Text-to-Speech service using pyttsx3.
-    NOTE:
-    This is synchronous and CPU-bound.
-    Suitable for demos and low concurrency.
+    Local fallback Text-to-Speech service using pyttsx3.
     """
 
     _engine_lock = threading.Lock()
@@ -35,56 +32,129 @@ class TTSService:
         if voice:
             self.engine.setProperty("voice", voice)
 
-    def synthesize(self, text: str) -> bytes:
-        """
-        Convert text to speech and return Float32 PCM bytes.
-        """
-
-        with tempfile.NamedTemporaryFile(
-            suffix=".wav", delete=False
-        ) as tmp:
-            wav_path = tmp.name
+    def synthesize_to_wav_bytes(self, text: str) -> bytes:
+        filename = f"{uuid.uuid4()}.wav"
+        filepath = str(STATIC_DIR / filename)
 
         try:
-            # pyttsx3 is NOT thread-safe
             with self._engine_lock:
-                self.engine.save_to_file(text, wav_path)
+                self.engine.save_to_file(text, filepath)
                 self.engine.runAndWait()
 
-            return self._wav_to_float32_pcm(wav_path)
-
+            with open(filepath, "rb") as file_handle:
+                return file_handle.read()
         finally:
-            if os.path.exists(wav_path):
-                os.remove(wav_path)
-
-    @staticmethod
-    def _wav_to_float32_pcm(wav_path: str) -> bytes:
-        """
-        Convert WAV file to Float32 PCM bytes (mono).
-        """
-        with wave.open(wav_path, "rb") as wf:
-            frames = wf.readframes(wf.getnframes())
-            audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32)
-            audio /= 32768.0  # normalize to [-1, 1]
-
-        return audio.tobytes()
+            if os.path.exists(filepath):
+                os.remove(filepath)
 
 
-# --- v1.0 Public Function ---
+class AzureNativeTTSService:
+    """
+    Azure Neural TTS that emits native viseme events.
+    """
 
-_tts_service_instance = TTSService()
+    def __init__(self):
+        self.subscription_key = os.getenv("AZURE_SPEECH_KEY", "").strip()
+        self.region = os.getenv("AZURE_SPEECH_REGION", "").strip()
+        self.voice = os.getenv("AZURE_SPEECH_VOICE", "en-US-JennyNeural").strip()
+
+    @property
+    def is_enabled(self) -> bool:
+        return bool(self.subscription_key and self.region and speechsdk is not None)
+
+    def synthesize_with_visemes(self, text: str) -> Tuple[bytes, List[Dict[str, int]]]:
+        if speechsdk is None:
+            raise RuntimeError("Azure speech SDK is not available")
+
+        speech_config = speechsdk.SpeechConfig(
+            subscription=self.subscription_key,
+            region=self.region,
+        )
+        speech_config.speech_synthesis_voice_name = self.voice
+        speech_config.set_speech_synthesis_output_format(
+            speechsdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm
+        )
+
+        synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
+
+        raw_events: List[Tuple[int, int]] = []
+
+        def on_viseme(evt):
+            viseme_id = int(getattr(evt, "viseme_id", 0))
+            audio_offset = int(getattr(evt, "audio_offset", 0))
+            raw_events.append((audio_offset, viseme_id))
+
+        synthesizer.viseme_received.connect(on_viseme)
+
+        result = synthesizer.speak_text_async(text).get()
+        if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
+            details = getattr(result, "cancellation_details", None)
+            message = getattr(details, "error_details", "Azure TTS failed") if details else "Azure TTS failed"
+            raise RuntimeError(message)
+
+        audio_bytes = bytes(result.audio_data)
+        visemes = _convert_azure_events_to_timeline(raw_events)
+        return audio_bytes, visemes
+
+
+_local_tts = LocalTTSService()
+_azure_tts = AzureNativeTTSService()
+
+
+def synthesize_speech_with_visemes(text: str) -> Tuple[bytes, List[Dict[str, int]]]:
+    """
+    Returns WAV audio bytes and viseme timeline.
+
+    If Azure is configured, use native viseme events.
+    Otherwise fallback to local TTS with an empty viseme timeline.
+    """
+    if _azure_tts.is_enabled:
+        try:
+            return _azure_tts.synthesize_with_visemes(text)
+        except Exception:
+            pass
+
+    return _local_tts.synthesize_to_wav_bytes(text), []
 
 
 def synthesize_speech(text: str) -> str:
     """
-    Synthesizes speech, saves it as a static WAV file,
-    and returns the URL path for the client to fetch.
+    Backward-compatible API that writes a WAV to static path.
     """
+    audio_bytes, _ = synthesize_speech_with_visemes(text)
+
     filename = f"{uuid.uuid4()}.wav"
     filepath = str(STATIC_DIR / filename)
 
-    with _tts_service_instance._engine_lock:
-        _tts_service_instance.engine.save_to_file(text, filepath)
-        _tts_service_instance.engine.runAndWait()
+    with open(filepath, "wb") as file_handle:
+        file_handle.write(audio_bytes)
 
     return f"/static/audio/{filename}"
+
+
+def _convert_azure_events_to_timeline(raw_events: List[Tuple[int, int]]) -> List[Dict[str, int]]:
+    """
+    Azure viseme audio_offset is in 100ns ticks.
+    """
+    if not raw_events:
+        return []
+
+    sorted_events = sorted(raw_events, key=lambda item: item[0])
+    timeline: List[Dict[str, int]] = []
+
+    for idx, (offset_ticks, viseme_id) in enumerate(sorted_events):
+        start_ms = max(0, int(offset_ticks / 10000))
+        if idx + 1 < len(sorted_events):
+            end_ms = max(start_ms + 16, int(sorted_events[idx + 1][0] / 10000))
+        else:
+            end_ms = start_ms + 120
+
+        timeline.append(
+            {
+                "start": start_ms,
+                "end": end_ms,
+                "viseme": int(viseme_id),
+            }
+        )
+
+    return timeline

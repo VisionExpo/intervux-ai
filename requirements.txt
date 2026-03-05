@@ -29,3 +29,4 @@ python-multipart
 
 # --- API Clients ---
 google-genai
+azure-cognitiveservices-speech
