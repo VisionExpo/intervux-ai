@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { VisemeCue } from "../avatar/LipSyncController";
 
 type InterviewStage =
   | "connecting"
@@ -8,11 +9,18 @@ type InterviewStage =
   | "processing"
   | "completed";
 
+type AvatarState = "speaking" | "listening" | "thinking";
+
 type EvaluationPayload = {
   question_index: number;
   question: string;
   transcript: string;
   evaluation: Record<string, unknown>;
+};
+
+type QueuedAudioChunk = {
+  audio: ArrayBuffer;
+  visemes: VisemeCue[];
 };
 
 const WS_URL = "ws://localhost:8000/ws/interview";
@@ -27,8 +35,16 @@ export function useInterview() {
   const reconnectAttemptRef = useRef(0);
   const shouldReconnectRef = useRef(true);
   const inFlightSendRef = useRef(false);
+  const stageRef = useRef<InterviewStage>("connecting");
+
+  const audioRef = useRef<HTMLAudioElement | null>(new Audio());
+  const activeObjectUrlRef = useRef<string | null>(null);
+  const audioQueueRef = useRef<QueuedAudioChunk[]>([]);
+  const pendingVisemesRef = useRef<VisemeCue[] | null>(null);
+  const isPlayingQueueRef = useRef(false);
 
   const [stage, setStage] = useState<InterviewStage>("connecting");
+  const [avatarState, setAvatarState] = useState<AvatarState>("thinking");
   const [avatarText, setAvatarText] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -43,6 +59,11 @@ export function useInterview() {
     null
   );
   const [lastError, setLastError] = useState<string>("");
+  const [visemes, setVisemes] = useState<VisemeCue[]>([]);
+
+  useEffect(() => {
+    stageRef.current = stage;
+  }, [stage]);
 
   useEffect(() => {
     connectSocket();
@@ -56,6 +77,7 @@ export function useInterview() {
         mediaRecorderRef.current.stop();
       }
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      clearAudioQueue();
       socketRef.current?.close(1000, "Component unmounted");
     };
   }, []);
@@ -64,6 +86,7 @@ export function useInterview() {
     connectIdRef.current += 1;
     const connectId = connectIdRef.current;
     setStage("connecting");
+    setAvatarState("thinking");
 
     const ws = new WebSocket(WS_URL);
     ws.binaryType = "arraybuffer";
@@ -80,7 +103,7 @@ export function useInterview() {
       if (connectId !== connectIdRef.current) return;
 
       if (event.data instanceof ArrayBuffer) {
-        playAudio(event.data, setIsSpeaking);
+        enqueueAudioChunk(event.data);
         return;
       }
 
@@ -103,17 +126,24 @@ export function useInterview() {
         return;
       }
 
+      if (type === "avatar_visemes") {
+        pendingVisemesRef.current = parseVisemes(msg.visemes);
+        return;
+      }
+
       if (type === "evaluation") {
         const data = (msg.data ?? null) as EvaluationPayload | null;
         setLastEvaluation(data);
         setPartialTranscript("");
         setStage("asking_question");
+        setAvatarState("thinking");
         return;
       }
 
       if (type === "interview_complete") {
         setFinalReport((msg.report ?? null) as Record<string, unknown> | null);
         setStage("completed");
+        setAvatarState("listening");
         shouldReconnectRef.current = false;
         return;
       }
@@ -126,6 +156,7 @@ export function useInterview() {
         const recoverable = Boolean(msg.recoverable);
         if (!recoverable) {
           setStage("connecting");
+          setAvatarState("thinking");
         }
         return;
       }
@@ -137,6 +168,7 @@ export function useInterview() {
             : "Server is restarting. Reconnecting...";
         setLastError(message);
         setStage("connecting");
+        setAvatarState("thinking");
         return;
       }
 
@@ -149,8 +181,10 @@ export function useInterview() {
         const value = typeof msg.value === "string" ? msg.value : "";
         if (value === "LISTENING") {
           setStage("listening");
+          if (!isPlayingQueueRef.current) setAvatarState("listening");
         } else if (value === "PROCESSING") {
           setStage("processing");
+          if (!isPlayingQueueRef.current) setAvatarState("thinking");
         }
         return;
       }
@@ -166,7 +200,7 @@ export function useInterview() {
       setIsConnected(false);
 
       if (!shouldReconnectRef.current) return;
-      if (stage === "completed") return;
+      if (stageRef.current === "completed") return;
 
       scheduleReconnect();
     };
@@ -186,12 +220,12 @@ export function useInterview() {
     const delayMs = backoffMs + jitterMs;
     setLastError(`Connection lost. Reconnecting (attempt ${attempt})...`);
     setStage("connecting");
+    setAvatarState("thinking");
 
     if (reconnectTimerRef.current !== null) {
       window.clearTimeout(reconnectTimerRef.current);
     }
     reconnectTimerRef.current = window.setTimeout(() => {
-      // New socket means new server-side isolated session by design.
       setQuestionIndex(0);
       setTotalQuestions(0);
       setLastEvaluation(null);
@@ -218,6 +252,7 @@ export function useInterview() {
         })
       );
       setStage("processing");
+      setAvatarState("thinking");
       setLastError("");
     } finally {
       inFlightSendRef.current = false;
@@ -234,9 +269,11 @@ export function useInterview() {
     inFlightSendRef.current = true;
     try {
       setStage("listening");
+      setAvatarState("listening");
       const buffer = await file.arrayBuffer();
       socketRef.current.send(buffer);
       setStage("processing");
+      setAvatarState("thinking");
       setLastError("");
     } finally {
       inFlightSendRef.current = false;
@@ -278,12 +315,14 @@ export function useInterview() {
       mediaRecorderRef.current = null;
       setIsRecording(false);
       setStage("processing");
+      if (!isPlayingQueueRef.current) setAvatarState("thinking");
     };
 
     recorder.start(300);
     setPartialTranscript("");
     setIsRecording(true);
     setStage("listening");
+    setAvatarState("listening");
     setLastError("");
   }
 
@@ -295,8 +334,96 @@ export function useInterview() {
     }
   }
 
+  function enqueueAudioChunk(audio: ArrayBuffer) {
+    const nextVisemes = pendingVisemesRef.current ?? [];
+    pendingVisemesRef.current = null;
+
+    audioQueueRef.current.push({ audio, visemes: nextVisemes });
+    void playNextQueuedAudio();
+  }
+
+  async function playNextQueuedAudio() {
+    if (isPlayingQueueRef.current) return;
+
+    const next = audioQueueRef.current.shift();
+    if (!next) {
+      setIsSpeaking(false);
+      setVisemes([]);
+      setAvatarState(stageRef.current === "processing" ? "thinking" : "listening");
+      return;
+    }
+
+    const audioEl = audioRef.current;
+    if (!audioEl) {
+      setIsSpeaking(false);
+      return;
+    }
+
+    isPlayingQueueRef.current = true;
+    setIsSpeaking(true);
+    setAvatarState("speaking");
+    setVisemes(next.visemes);
+
+    if (activeObjectUrlRef.current) {
+      URL.revokeObjectURL(activeObjectUrlRef.current);
+      activeObjectUrlRef.current = null;
+    }
+
+    const blob = new Blob([next.audio], { type: "audio/wav" });
+    const objectUrl = URL.createObjectURL(blob);
+    activeObjectUrlRef.current = objectUrl;
+
+    audioEl.src = objectUrl;
+    audioEl.currentTime = 0;
+
+    const continueQueue = () => {
+      audioEl.onended = null;
+      audioEl.onerror = null;
+      isPlayingQueueRef.current = false;
+      setIsSpeaking(false);
+      if (activeObjectUrlRef.current) {
+        URL.revokeObjectURL(activeObjectUrlRef.current);
+        activeObjectUrlRef.current = null;
+      }
+      void playNextQueuedAudio();
+    };
+
+    audioEl.onended = continueQueue;
+    audioEl.onerror = continueQueue;
+
+    try {
+      await audioEl.play();
+    } catch {
+      continueQueue();
+    }
+  }
+
+  function clearAudioQueue() {
+    audioQueueRef.current = [];
+    pendingVisemesRef.current = null;
+
+    const audioEl = audioRef.current;
+    if (audioEl) {
+      audioEl.pause();
+      audioEl.onended = null;
+      audioEl.onerror = null;
+      audioEl.removeAttribute("src");
+      audioEl.load();
+    }
+
+    if (activeObjectUrlRef.current) {
+      URL.revokeObjectURL(activeObjectUrlRef.current);
+      activeObjectUrlRef.current = null;
+    }
+
+    isPlayingQueueRef.current = false;
+    setIsSpeaking(false);
+    setVisemes([]);
+  }
+
   return {
     stage,
+    avatarState,
     avatarText,
     isSpeaking,
     isConnected,
@@ -307,6 +434,8 @@ export function useInterview() {
     lastEvaluation,
     finalReport,
     lastError,
+    audioRef,
+    visemes,
     uploadResume,
     sendAudioAnswer,
     startAudioStream,
@@ -326,15 +455,27 @@ async function fileToBase64(file: File): Promise<string> {
   return base64 ?? "";
 }
 
-function playAudio(buffer: ArrayBuffer, setIsSpeaking: (v: boolean) => void) {
-  const blob = new Blob([buffer], { type: "audio/wav" });
-  const url = URL.createObjectURL(blob);
-  const audio = new Audio(url);
+function parseVisemes(raw: unknown): VisemeCue[] {
+  if (!Array.isArray(raw)) return [];
 
-  setIsSpeaking(true);
-  audio.play().catch(() => setIsSpeaking(false));
-  audio.onended = () => {
-    setIsSpeaking(false);
-    URL.revokeObjectURL(url);
-  };
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+
+      const start = Number(record.start);
+      const end = Number(record.end);
+      const viseme = Number(record.viseme);
+
+      if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(viseme)) {
+        return null;
+      }
+
+      return {
+        start,
+        end,
+        viseme,
+      } satisfies VisemeCue;
+    })
+    .filter((item): item is VisemeCue => item !== null);
 }

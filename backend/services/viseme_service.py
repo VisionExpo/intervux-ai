@@ -9,33 +9,40 @@ class VisemeService:
     Designed for low-latency real-time avatars.
     """
 
-    def generate(
+    def generate_timeline(
         self,
         audio_duration_ms: int,
         frame_interval_ms: int = 120,
     ) -> List[Dict[str, int]]:
         """
-        Generate a simple viseme timeline.
+        Generate a lightweight viseme timeline for browser lip-sync.
 
         Returns a list of:
         {
-            "time_ms": int,
-            "mouth_open": int  # 0 or 1
+            "start": int,
+            "end": int,
+            "viseme": int
         }
         """
 
-        visemes = []
-        time_ms = 0
-        open_state = 1
+        if audio_duration_ms <= 0:
+            return []
 
-        while time_ms < audio_duration_ms:
-            visemes.append({
-                "time_ms": time_ms,
-                "mouth_open": open_state,
-            })
+        viseme_cycle = [1, 3, 2, 4, 0]
+        idx = 0
+        visemes: List[Dict[str, int]] = []
+        start = 0
 
-            # Alternate open / close
-            open_state = 1 - open_state
-            time_ms += frame_interval_ms
+        while start < audio_duration_ms:
+            end = min(start + frame_interval_ms, audio_duration_ms)
+            visemes.append(
+                {
+                    "start": start,
+                    "end": end,
+                    "viseme": viseme_cycle[idx % len(viseme_cycle)],
+                }
+            )
+            idx += 1
+            start = end
 
         return visemes

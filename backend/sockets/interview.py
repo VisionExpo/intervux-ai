@@ -1,9 +1,11 @@
 import asyncio
+import io
 import json
 import os
 import statistics
 import time
 import uuid
+import wave
 from functools import partial
 from typing import Any, Dict, Set
 
@@ -30,11 +32,13 @@ from backend.core.difficulty_engine import DifficultyCalibrationEngine
 from backend.models.interview import InterviewState, ResumeData
 from backend.services.stt_service import transcribe_audio_bytes
 from backend.services.tts_service import synthesize_speech
+from backend.services.viseme_service import VisemeService
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
 from backend.utils.research_logger import research_logger
 
 logger = get_logger(__name__)
+viseme_service = VisemeService()
 
 
 class InterviewSocket:
@@ -911,6 +915,16 @@ class InterviewSocket:
         else:
             audio_bytes = await asyncio.to_thread(self._synthesize_wav_bytes, text)
         metrics.record_latency("tts", time.time() - tts_start)
+
+        duration_ms = self._wav_duration_ms(audio_bytes)
+        visemes = viseme_service.generate_timeline(duration_ms)
+        await self._safe_send_json(
+            ws,
+            {
+                "type": "avatar_visemes",
+                "visemes": visemes,
+            },
+        )
         await self._safe_send_bytes(ws, audio_bytes)
 
     async def _safe_send_json(self, ws: WebSocket, payload: Dict[str, Any]):
@@ -1294,6 +1308,17 @@ class InterviewSocket:
         finally:
             if os.path.exists(file_path):
                 os.remove(file_path)
+
+    @staticmethod
+    def _wav_duration_ms(audio_bytes: bytes) -> int:
+        try:
+            with wave.open(io.BytesIO(audio_bytes), "rb") as wav_file:
+                frames = wav_file.getnframes()
+                frame_rate = wav_file.getframerate() or 1
+                duration_ms = int((frames / frame_rate) * 1000)
+                return max(duration_ms, 0)
+        except Exception:
+            return 0
 
     @staticmethod
     def _detect_audio_suffix(audio_bytes: bytes) -> str:

@@ -4,6 +4,7 @@ import { useInterview } from "../hooks/useInterview";
 export default function InterviewPage() {
   const {
     stage,
+    avatarState,
     avatarText,
     isSpeaking,
     isConnected,
@@ -14,6 +15,8 @@ export default function InterviewPage() {
     lastEvaluation,
     finalReport,
     lastError,
+    audioRef,
+    visemes,
     uploadResume,
     sendAudioAnswer,
     startAudioStream,
@@ -37,7 +40,12 @@ export default function InterviewPage() {
       </p>
       {lastError && <p style={{ color: "#b00020" }}>{lastError}</p>}
 
-      <Avatar3D isSpeacking={isSpeaking} />
+      <Avatar3D
+        isSpeacking={isSpeaking}
+        audioRef={audioRef}
+        visemes={visemes}
+        avatarState={avatarState}
+      />
 
       <p style={{ minHeight: "60px", maxWidth: "700px", textAlign: "center" }}>
         {avatarText}
@@ -48,6 +56,15 @@ export default function InterviewPage() {
           Question {questionIndex} / {totalQuestions}
         </p>
       )}
+
+      <p>
+        Mic: {isRecording ? "on" : "off"} | AI:{" "}
+        {avatarState === "thinking"
+          ? "thinking..."
+          : avatarState === "speaking"
+            ? "speaking..."
+            : "listening"}
+      </p>
 
       {stage === "waiting_resume" && (
         <label>
