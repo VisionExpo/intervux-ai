@@ -4,9 +4,11 @@ import asyncio
 import os
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import FastAPI, Request, WebSocket
+from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 
+from backend.db.database import Base, engine, get_db
 from backend.core.llm_brain import prewarm_llm
 from backend.models.recruiter_dashboard import (
     CandidateComparisonRow,
@@ -19,6 +21,7 @@ from backend.services.recruiter_dashboard_store import (
     get_skill_analytics,
     list_candidates,
 )
+from backend.models import recruiter_dashboard_models  # noqa: F401
 from backend.sockets.interview import InterviewSocket
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
@@ -84,23 +87,23 @@ def get_metrics():
 
 
 @app.get("/api/candidates")
-def get_candidates():
-    return list_candidates()
+def get_candidates(db: Session = Depends(get_db)):
+    return list_candidates(db)
 
 
 @app.get("/api/interview/{interview_id}", response_model=CandidateInterviewReport)
-def get_interview(interview_id: str):
-    return get_interview_report(interview_id)
+def get_interview(interview_id: str, db: Session = Depends(get_db)):
+    return get_interview_report(db, interview_id)
 
 
 @app.get("/api/interview/{interview_id}/analytics", response_model=SkillAnalytics)
-def get_interview_analytics(interview_id: str):
-    return get_skill_analytics(interview_id)
+def get_interview_analytics(interview_id: str, db: Session = Depends(get_db)):
+    return get_skill_analytics(db, interview_id)
 
 
 @app.get("/api/candidates/compare", response_model=list[CandidateComparisonRow])
-def get_candidate_comparison():
-    return compare_candidates()
+def get_candidate_comparison(db: Session = Depends(get_db)):
+    return compare_candidates(db)
 
 
 @app.websocket("/ws/interview")
@@ -112,6 +115,7 @@ async def websocket_interview(ws: WebSocket):
 async def on_startup():
     global thread_pool
     workers = int(os.getenv("RUNTIME_THREADPOOL_WORKERS", "4"))
+    Base.metadata.create_all(bind=engine)
     loop = asyncio.get_running_loop()
     thread_pool = ThreadPoolExecutor(max_workers=workers)
     loop.set_default_executor(thread_pool)
