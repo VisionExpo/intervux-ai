@@ -8,6 +8,17 @@ from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.llm_brain import prewarm_llm
+from backend.models.recruiter_dashboard import (
+    CandidateComparisonRow,
+    CandidateInterviewReport,
+    SkillAnalytics,
+)
+from backend.services.recruiter_dashboard_store import (
+    compare_candidates,
+    get_interview_report,
+    get_skill_analytics,
+    list_candidates,
+)
 from backend.sockets.interview import InterviewSocket
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
@@ -70,6 +81,26 @@ def health():
 @app.get("/metrics")
 def get_metrics():
     return metrics.snapshot()
+
+
+@app.get("/api/candidates")
+def get_candidates():
+    return list_candidates()
+
+
+@app.get("/api/interview/{interview_id}", response_model=CandidateInterviewReport)
+def get_interview(interview_id: str):
+    return get_interview_report(interview_id)
+
+
+@app.get("/api/interview/{interview_id}/analytics", response_model=SkillAnalytics)
+def get_interview_analytics(interview_id: str):
+    return get_skill_analytics(interview_id)
+
+
+@app.get("/api/candidates/compare", response_model=list[CandidateComparisonRow])
+def get_candidate_comparison():
+    return compare_candidates()
 
 
 @app.websocket("/ws/interview")
