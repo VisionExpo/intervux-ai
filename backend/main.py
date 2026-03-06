@@ -87,8 +87,14 @@ def get_metrics():
 
 
 @app.get("/api/candidates")
-def get_candidates(db: Session = Depends(get_db)):
-    return list_candidates(db)
+def get_candidates(
+    page: int = 1,
+    limit: int = 20,
+    role: str | None = None,
+    search: str | None = None,
+    db: Session = Depends(get_db),
+):
+    return list_candidates(db, page=page, limit=limit, role=role, search=search)
 
 
 @app.get("/api/interview/{interview_id}", response_model=CandidateInterviewReport)

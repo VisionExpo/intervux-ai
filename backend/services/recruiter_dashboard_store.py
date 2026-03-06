@@ -9,23 +9,45 @@ from backend.models.recruiter_dashboard import (
     CandidateInterviewReport,
     InterviewSummary,
     QuestionBreakdown,
+    ReplayEvaluation,
+    ReplaySegment,
     SkillAnalytics,
 )
 from backend.models.recruiter_dashboard_models import (
     Candidate,
     Interview,
     InterviewQuestion,
+    InterviewReplaySegment,
 )
 
 
-def list_candidates(db: Session) -> list[dict]:
+def list_candidates(
+    db: Session,
+    page: int = 1,
+    limit: int = 20,
+    role: str | None = None,
+    search: str | None = None,
+) -> list[dict]:
+    safe_page = max(page, 1)
+    safe_limit = max(1, min(limit, 100))
+    offset = (safe_page - 1) * safe_limit
+
     interview_rows = db.query(Interview.candidate_id, Interview.id).all()
     interview_ids = {candidate_id: interview_id for candidate_id, interview_id in interview_rows}
-    candidates = (
-        db.query(Candidate)
-        .order_by(Candidate.created_at.desc())
-        .all()
-    )
+    query = db.query(Candidate)
+
+    if role:
+        query = query.filter(Candidate.role == role)
+
+    if search:
+        like_pattern = f"%{search.strip()}%"
+        query = query.filter(
+            Candidate.name.ilike(like_pattern)
+            | Candidate.email.ilike(like_pattern)
+            | Candidate.role.ilike(like_pattern)
+        )
+
+    candidates = query.order_by(Candidate.created_at.desc()).offset(offset).limit(safe_limit).all()
     return [
         {
             "id": candidate.id,
@@ -40,8 +62,14 @@ def list_candidates(db: Session) -> list[dict]:
     ]
 
 
-def get_candidates(db: Session) -> list[dict]:
-    return list_candidates(db)
+def get_candidates(
+    db: Session,
+    page: int = 1,
+    limit: int = 20,
+    role: str | None = None,
+    search: str | None = None,
+) -> list[dict]:
+    return list_candidates(db, page=page, limit=limit, role=role, search=search)
 
 
 def get_interview_report(db: Session, interview_id: str) -> CandidateInterviewReport:
@@ -57,6 +85,12 @@ def get_interview_report(db: Session, interview_id: str) -> CandidateInterviewRe
         db.query(InterviewQuestion)
         .filter(InterviewQuestion.interview_id == interview_id)
         .order_by(InterviewQuestion.id.asc())
+        .all()
+    )
+    replay_segments = (
+        db.query(InterviewReplaySegment)
+        .filter(InterviewReplaySegment.interview_id == interview_id)
+        .order_by(InterviewReplaySegment.created_at.asc())
         .all()
     )
 
@@ -91,7 +125,19 @@ def get_interview_report(db: Session, interview_id: str) -> CandidateInterviewRe
             )
             for question in questions
         ],
-        replay_segments=[],
+        replay_segments=[
+            ReplaySegment(
+                question=segment.question,
+                candidate_audio=segment.audio_url or "",
+                transcript=segment.transcript or "",
+                evaluation=ReplayEvaluation(
+                    technical=segment.score or 0.0,
+                    clarity=segment.score or 0.0,
+                    reasoning=segment.score or 0.0,
+                ),
+            )
+            for segment in replay_segments
+        ],
     )
 
 
@@ -108,6 +154,8 @@ def get_skill_analytics(db: Session, interview_id: str) -> SkillAnalytics:
         db.query(
             func.avg(InterviewQuestion.score).label("avg_score"),
             func.count(InterviewQuestion.id).label("questions"),
+            func.max(InterviewQuestion.score).label("best_score"),
+            func.min(InterviewQuestion.score).label("lowest_score"),
         )
         .filter(InterviewQuestion.interview_id == interview_id)
         .first()
@@ -115,12 +163,16 @@ def get_skill_analytics(db: Session, interview_id: str) -> SkillAnalytics:
 
     avg_score = float(analytics.avg_score) if analytics and analytics.avg_score is not None else 0.0
     question_count = int(analytics.questions) if analytics else 0
+    best_score = float(analytics.best_score) if analytics and analytics.best_score is not None else 0.0
+    lowest_score = float(analytics.lowest_score) if analytics and analytics.lowest_score is not None else 0.0
 
     return SkillAnalytics(
         interview_id=interview_id,
         skills={
             "avg_score": avg_score,
             "questions": float(question_count),
+            "best_question": best_score,
+            "lowest_question": lowest_score,
             "technical": interview.technical_score or 0.0,
             "communication": interview.communication_score or 0.0,
             "problem_solving": interview.problem_solving_score or 0.0,

@@ -42,3 +42,15 @@ class InterviewQuestion(Base):
     answer = Column(Text, nullable=True)
     score = Column(Float, nullable=True)
     feedback = Column(Text, nullable=True)
+
+
+class InterviewReplaySegment(Base):
+    __tablename__ = "interview_replay_segments"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    interview_id = Column(String, ForeignKey("interviews.id"), nullable=False)
+    question = Column(Text, nullable=False)
+    transcript = Column(Text, nullable=True)
+    audio_url = Column(String, nullable=True)
+    score = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
