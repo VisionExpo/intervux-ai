@@ -215,3 +215,131 @@
 .comparison-table th {
   color: #1a2940;
 }
+
+.evaluation-stack {
+  display: grid;
+  gap: 1rem;
+  grid-column: 1 / -1;
+}
+
+.evaluation-panel {
+  text-align: left;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.summary-callout {
+  margin-top: 1rem;
+  background: linear-gradient(135deg, #fff6ed 0%, #fff 100%);
+  border: 1px solid #f0c9b4;
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.summary-callout p {
+  margin: 0.4rem 0 0;
+  color: #3c4b60;
+}
+
+.stat-grid {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.stat-card {
+  background: #fff;
+  border: 1px solid #d2dde9;
+  border-radius: 12px;
+  padding: 0.9rem;
+  text-align: left;
+}
+
+.stat-card span {
+  color: #556174;
+  font-size: 0.9rem;
+}
+
+.stat-card strong {
+  display: block;
+  margin-top: 0.35rem;
+  color: #1a2940;
+  font-size: 1.4rem;
+}
+
+.stat-card p {
+  margin: 0.3rem 0 0;
+  color: #5c6879;
+  font-size: 0.88rem;
+}
+
+.evaluation-two-col {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.legend-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #3c4b60;
+}
+
+.legend-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.alert-list {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.alert-card {
+  border-radius: 12px;
+  padding: 0.9rem;
+  text-align: left;
+  border: 1px solid #d2dde9;
+  background: #fff;
+}
+
+.alert-card strong {
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+}
+
+.alert-card p {
+  margin: 0.35rem 0 0;
+  color: #4c596b;
+}
+
+.alert-high {
+  border-color: #f0b1a8;
+  background: #fff4f1;
+}
+
+.alert-medium {
+  border-color: #f1dc9d;
+  background: #fff9e8;
+}
+
+.alert-info {
+  border-color: #b8cce3;
+  background: #f4f8fc;
+}

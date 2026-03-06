@@ -1,4 +1,4 @@
-export type DashboardTab = "candidates" | "interviews" | "analytics";
+export type DashboardTab = "candidates" | "interviews" | "analytics" | "evaluation";
 
 export interface CandidateListItem {
   id: string;
@@ -60,4 +60,88 @@ export interface CandidateComparisonRow {
   technical: number;
   communication: number;
   overall: number;
+}
+
+export interface LatencyMetrics {
+  p50: number;
+  p95: number;
+  p99: number;
+}
+
+export interface ThroughputMetrics {
+  requests_per_second: number;
+  tokens_per_second: number;
+}
+
+export interface ModelQualityMetrics {
+  accuracy: number;
+  hallucination_rate: number;
+  consistency_score: number;
+  reasoning_score: number;
+}
+
+export interface PerformanceMetrics {
+  latency: LatencyMetrics;
+  throughput: ThroughputMetrics;
+  error_rate: number;
+}
+
+export interface CostByModel {
+  model: string;
+  cost: number;
+}
+
+export interface CostMetrics {
+  average_cost_per_request: number;
+  daily_ai_spend: number;
+  cost_by_model: CostByModel[];
+}
+
+export interface TokenUsageMetrics {
+  average_prompt_tokens: number;
+  average_completion_tokens: number;
+  total_tokens_today: number;
+}
+
+export interface ModelUsageMetric {
+  model: string;
+  percentage: number;
+  requests: number;
+}
+
+export interface SkillMetric {
+  skill: string;
+  score: number;
+}
+
+export interface InterviewMetrics {
+  candidate_success_rate: number;
+  average_interview_duration_minutes: number;
+  skill_evaluation_distribution: SkillMetric[];
+}
+
+export interface SystemHealthMetrics {
+  active_interview_sessions: number;
+  queue_length: number;
+  gpu_memory_allocated_mb: number;
+  gpu_memory_reserved_mb: number;
+  max_concurrent_sessions: number;
+}
+
+export interface AlertItem {
+  severity: string;
+  message: string;
+}
+
+export interface EvaluationDashboardResponse {
+  generated_at: string;
+  model_quality: ModelQualityMetrics;
+  performance: PerformanceMetrics;
+  cost: CostMetrics;
+  token_usage: TokenUsageMetrics;
+  model_usage: ModelUsageMetric[];
+  interview_metrics: InterviewMetrics;
+  system_health: SystemHealthMetrics;
+  alerts: AlertItem[];
+  ai_hiring_summary: string;
 }

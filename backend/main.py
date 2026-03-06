@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
+from backend.models.evaluation_dashboard import EvaluationDashboardResponse
 from backend.db.database import Base, engine, get_db
 from backend.core.llm_brain import prewarm_llm
 from backend.models.recruiter_dashboard import (
@@ -21,6 +22,7 @@ from backend.services.recruiter_dashboard_store import (
     get_skill_analytics,
     list_candidates,
 )
+from backend.services.evaluation_dashboard_store import get_evaluation_dashboard
 from backend.models import recruiter_dashboard_models  # noqa: F401
 from backend.sockets.interview import InterviewSocket
 from backend.utils.logger import get_logger
@@ -84,6 +86,11 @@ def health():
 @app.get("/metrics")
 def get_metrics():
     return metrics.snapshot()
+
+
+@app.get("/api/evaluation-dashboard", response_model=EvaluationDashboardResponse)
+def get_ai_evaluation_dashboard(db: Session = Depends(get_db)):
+    return get_evaluation_dashboard(db)
 
 
 @app.get("/api/candidates")
