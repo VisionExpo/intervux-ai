@@ -1,0 +1,62 @@
+# Auth module
+from backend.auth.jwt_service import (
+    Token,
+    TokenData,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    create_access_token,
+    create_refresh_token,
+    create_token_pair,
+    get_current_user,
+    get_current_active_user,
+    hash_password,
+    verify_password,
+    verify_token,
+    Role,
+    Permission,
+    require_role,
+    require_permission,
+    has_permission,
+)
+
+from backend.auth.routes import router as auth_router
+from backend.auth.rbac import (
+    role_manager,
+    require_admin,
+    require_recruiter,
+    require_viewer,
+    check_role,
+    check_permission,
+    PermissionGroup,
+)
+
+__all__ = [
+    "Token",
+    "TokenData",
+    "UserCreate",
+    "UserLogin",
+    "UserResponse",
+    "create_access_token",
+    "create_refresh_token",
+    "create_token_pair",
+    "get_current_user",
+    "get_current_active_user",
+    "hash_password",
+    "verify_password",
+    "verify_token",
+    "Role",
+    "Permission",
+    "require_role",
+    "require_permission",
+    "has_permission",
+    "auth_router",
+    "role_manager",
+    "require_admin",
+    "require_recruiter",
+    "require_viewer",
+    "check_role",
+    "check_permission",
+    "PermissionGroup",
+]
+

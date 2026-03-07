@@ -21,6 +21,12 @@ torch
 torchvision
 torchaudio
 
+# --- Security & Auth ---
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+bcrypt
+
 # --- Utils ---
 python-dotenv==1.0.1
 pydantic>=2.9.0
