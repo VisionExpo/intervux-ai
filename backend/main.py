@@ -202,10 +202,23 @@ def get_interview_decision(
     if not interview:
         return {"error": "Interview not found"}
     
+    if hasattr(interview, "model_dump"):
+        interview_data = interview.model_dump()
+    elif isinstance(interview, dict):
+        interview_data = interview
+    else:
+        interview_data = {}
+
+    answers = interview_data.get("answers")
+    if not isinstance(answers, list):
+        answers = interview_data.get("questions", [])
+
+    profile = interview_data.get("profile") or interview_data.get("candidate")
+
     # Generate decision support report
     report = generate_full_report(
-        answers=interview.get("answers", []),
-        profile=interview.get("profile"),
+        answers=answers,
+        profile=profile,
     )
     
     return report
