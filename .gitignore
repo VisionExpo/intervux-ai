@@ -74,3 +74,5 @@ htmlcov/
 # Audio temp files
 *.mp3
 *.wav
+
+alembic.ini
