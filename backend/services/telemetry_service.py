@@ -43,7 +43,9 @@ class EvaluationJSONLLogger:
             "TELEMETRY_LOG_PATH", "logs/evaluations.jsonl"
         )
         self._lock = threading.Lock()
-        os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
+        directory = os.path.dirname(self.file_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
     
     def write(self, payload: Dict[str, Any]):
         """Write evaluation metrics to JSONL file."""
@@ -190,7 +192,7 @@ class TelemetryService:
         
         payload = {
             "model": model,
-            "latency_ms": int(latency_ms * 1000),  # Convert to ms
+            "latency_ms": int(latency_ms),
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "cost_usd": round(cost_usd, 6),
