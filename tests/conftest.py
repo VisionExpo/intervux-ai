@@ -16,16 +16,15 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+# Configure deterministic test env before importing backend modules.
+TEST_DB_PATH = ROOT_DIR / "tests" / "test.db"
+os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
+os.environ.setdefault("TELEMETRY_DB_ENABLED", "false")
+os.environ.setdefault("TELEMETRY_JSONL_ENABLED", "false")
+
 from backend.db.database import SessionLocal
 from backend.models.recruiter_dashboard_models import Interview
 from backend.scripts.seed_dashboard import seed_dashboard
-
-
-@pytest.fixture(scope="session", autouse=True)
-def test_env():
-    # Keep startup lightweight and deterministic in tests.
-    os.environ.setdefault("TELEMETRY_DB_ENABLED", "false")
-    os.environ.setdefault("TELEMETRY_JSONL_ENABLED", "false")
 
 
 @pytest.fixture(scope="session")
@@ -89,11 +88,16 @@ def client():
             str(port),
         ],
         cwd=str(ROOT_DIR),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
     )
 
     base_url = f"http://127.0.0.1:{port}"
     ready = False
-    for _ in range(120):
+    for _ in range(180):
+        if proc.poll() is not None:
+            break
         try:
             with urllib.request.urlopen(f"{base_url}/health", timeout=2) as resp:
                 if resp.status == 200:
@@ -104,7 +108,17 @@ def client():
 
     if not ready:
         proc.terminate()
-        raise RuntimeError("Test server did not start in time")
+        stdout = ""
+        stderr = ""
+        try:
+            stdout, stderr = proc.communicate(timeout=5)
+        except Exception:
+            pass
+        raise RuntimeError(
+            "Test server did not start in time.\n"
+            f"stdout:\n{stdout}\n"
+            f"stderr:\n{stderr}"
+        )
 
     try:
         yield HttpClient(base_url=base_url)
