@@ -18,7 +18,9 @@ class ResearchLogger:
             "RESEARCH_LOG_PATH", "logs/research/evaluator_dataset.jsonl"
         )
         self._lock = threading.Lock()
-        os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
+        directory = os.path.dirname(self.file_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
 
     @staticmethod
     def _hash_answer(answer: str) -> str:
