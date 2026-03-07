@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LatencyMetrics(BaseModel):
@@ -93,3 +93,7 @@ class ExperimentCreateRequest(BaseModel):
     prompt_template: str
     accuracy: float | None = None
     latency_ms: int | None = None
+
+
+class ExperimentCompareRequest(BaseModel):
+    experiment_names: list[str] = Field(min_length=1)

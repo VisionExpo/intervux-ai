@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from backend.models.evaluation_dashboard import (
     EvaluationDashboardResponse,
+    ExperimentCompareRequest,
     ExperimentCreateRequest,
 )
 from backend.db.database import Base, engine, get_db
@@ -280,12 +281,12 @@ def create_experiment(
 
 @app.post("/api/experiments/compare")
 def compare_experiment_results(
+    payload: ExperimentCompareRequest,
     user=Depends(require_admin),
-    experiment_names: list[str] = None,
     db: Session = Depends(get_db),
 ):
     """Compare multiple experiments."""
-    return compare_experiments(db, experiment_names)
+    return compare_experiments(db, payload.experiment_names)
 
 
 @app.post("/api/interview/{interview_id}/decision")
