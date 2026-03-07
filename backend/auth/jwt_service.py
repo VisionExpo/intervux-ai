@@ -610,6 +610,7 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
         "email": user["email"],
         "name": user["name"],
         "role": user["role"],
+        "password_hash": user.get("password_hash", ""),
     }
 
 
