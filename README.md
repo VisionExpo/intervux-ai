@@ -1,4 +1,4 @@
-# 🎙️ Intervux AI
+﻿# ðŸŽ™ï¸ Intervux AI
 
 <div align="center">
 
@@ -24,7 +24,7 @@
 
 ---
 
-# 🧠 The Problem
+# ðŸ§  The Problem
 
 Hiring and interview preparation workflows today are still:
 
@@ -36,43 +36,47 @@ Modern hiring requires **structured evaluation, adaptive questioning, and reliab
 
 ---
 
-# 💡 The Solution: Intervux AI
+# ðŸ’¡ The Solution: Intervux AI
 
 Intervux introduces a **real-time AI interview runtime combined with recruiter intelligence tools**.
 
-1️⃣ **Context Awareness**
+1ï¸âƒ£ **Context Awareness**
 
 Resume parsing builds interview context and skill profiles.
 
-2️⃣ **Adaptive Interview Engine**
+2ï¸âƒ£ **Adaptive Interview Engine**
 
 Dynamic questioning adjusts based on candidate responses.
 
-3️⃣ **Evaluation Pipeline**
+3ï¸âƒ£ **Evaluation Pipeline**
 
 Answers are scored using structured evaluation signals.
 
-4️⃣ **Recruiter Intelligence**
+4ï¸âƒ£ **Recruiter Intelligence**
 
 Dashboards provide experiment tracking, analytics, and decision support.
 
 ---
 
-# ✨ Core Features
+# ? Core Features
 
 | Feature                     | Description                                                               |
 | :-------------------------- | :------------------------------------------------------------------------ |
-| 🔐 **Auth + RBAC**          | JWT authentication with role protection (`admin`, `recruiter`, `viewer`). |
-| 🎙 **Interview Runtime**    | Real-time WebSocket interview sessions with adaptive questioning.         |
-| 🧠 **Decision Support**     | `/api/interview/{id}/decision` generates recruiter recommendations.       |
-| 📊 **Evaluation Dashboard** | Aggregated performance, cost, quality, and health metrics.                |
-| 🧪 **Experiment Tracking**  | Compare prompt templates, models, and evaluation outcomes.                |
-| 📡 **Observability**        | Latency, throughput, token usage, and cost tracking.                      |
-| ✅ **Testing + CI**          | Pytest suite with GitHub Actions automation.                              |
+| ?? **Auth + RBAC**          | JWT authentication with role protection (`admin`, `recruiter`, `viewer`). |
+| ?? **Interview Runtime**    | Real-time WebSocket interview sessions with adaptive questioning.         |
+| ?? **Decision Support**     | `/api/interview/{id}/decision` generates recruiter recommendations.       |
+| ?? **Evaluation Dashboard** | Aggregated performance, cost, quality, and health metrics.                |
+| ?? **Experiment Tracking**  | Compare prompt templates, models, and evaluation outcomes.                |
+---
+
+| ?? **Observability**        | Latency, throughput, token usage, and cost tracking.                      |
+| ? **Testing + CI**          | Pytest suite with GitHub Actions automation.                              |
 
 ---
 
-# 🧩 System Architecture
+---
+
+# ðŸ§© System Architecture
 
 ## High-Level System Flow
 
@@ -112,7 +116,7 @@ flowchart LR
 
 ---
 
-# 🏗️ Production Architecture
+# ðŸ—ï¸ Production Architecture
 
 The production architecture introduces asynchronous workers, telemetry, and scalable inference.
 
@@ -181,7 +185,7 @@ Metrics --> Alerts
 
 ---
 
-# 🔁 API Interaction Loop
+# ðŸ” API Interaction Loop
 
 ```mermaid
 sequenceDiagram
@@ -200,7 +204,7 @@ sequenceDiagram
 
 ---
 
-# 🧠 Interview Evaluation Pipeline
+# ðŸ§  Interview Evaluation Pipeline
 
 ```mermaid
 flowchart LR
@@ -229,7 +233,7 @@ flowchart LR
 
 ---
 
-# 🛠️ Tech Stack
+# ðŸ› ï¸ Tech Stack
 
 ## Frontend
 
@@ -262,7 +266,7 @@ flowchart LR
 
 ---
 
-# 🚀 Getting Started
+# ðŸš€ Getting Started
 
 ## Prerequisites
 
@@ -324,7 +328,7 @@ docker-compose up --build
 
 ---
 
-# 🔐 Authentication
+# ðŸ” Authentication
 
 Login endpoint
 
@@ -348,7 +352,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-# 📊 Example API Usage
+# ðŸ“Š Example API Usage
 
 Create experiment
 
@@ -365,7 +369,38 @@ curl -X POST http://localhost:8000/api/experiments \
 
 ---
 
-# 🧪 Testing
+# Project Structure
+
+```text
+intervux-ai/                    # Repository root
+|- backend/                     # FastAPI backend runtime
+|  |- main.py                   # App entrypoint + route wiring
+|  |- auth/                     # JWT, RBAC, auth routes
+|  |- background/               # Async/background task orchestration
+|  |- core/                     # Interview engine + LLM logic
+|  |- db/                       # SQLAlchemy engine/session/base
+|  |- middleware/               # Rate limiter and HTTP middleware
+|  |- models/                   # Pydantic and domain models
+|  |- scripts/                  # Seed/utility scripts
+|  |- services/                 # Decision, telemetry, dashboard services
+|  |- sockets/                  # WebSocket interview/metrics handlers
+|  |- static/                   # Static/audio artifacts
+|  `- utils/                    # Logging and runtime helpers
+|- frontend/                    # React client app
+|- tests/                       # Pytest suite and fixtures
+|- alembic/                     # Database migrations
+|- docs/                        # Project docs
+|- evaluation/                  # Evaluation assets/reports
+|- logs/                        # Runtime/research logs
+|- .github/workflows/           # CI workflows
+|- docker-compose.yaml          # Local orchestration
+|- Dockerfile                   # Container build file
+|- requirements.txt             # Python dependencies
+`- README.md                    # Project overview
+```
+
+---
+# ðŸ§ª Testing
 
 Run the full suite
 
@@ -389,28 +424,7 @@ CI runs automatically on push via:
 
 ---
 
-# 📁 Project Structure
-
-```text
-intervux-ai/
-├── backend/
-│   ├── main.py
-│   ├── auth/
-│   ├── services/
-│   ├── sockets/
-│   ├── models/
-│   ├── middleware/
-│   └── db/
-├── frontend/
-├── tests/
-├── .github/workflows/
-├── docker-compose.yaml
-└── README.md
-```
-
----
-
-# 📊 Observability
+# ðŸ“Š Observability
 
 Intervux tracks system metrics including:
 
@@ -424,7 +438,7 @@ These metrics power the **evaluation dashboard and alerting system**.
 
 ---
 
-# 🧭 Advanced System Diagrams
+# ðŸ§­ Advanced System Diagrams
 
 ## 1) LLM Evaluation Pipeline (Detailed)
 
@@ -456,7 +470,7 @@ flowchart LR
     T1 --> DB1[(llm_metrics Table)]
 
     M1 --> SNAP[Metrics Snapshot]
-    SNAP --> WSM[/ws/metrics Stream]
+    SNAP --> WSM["WS metrics stream (/ws/metrics)"]
     SNAP --> DASH[Evaluation Dashboard API]
 
     DB1 --> AGG[Aggregates + Trends]
@@ -488,7 +502,7 @@ flowchart TD
 
 ---
 
-# 🛣️ Roadmap
+# ðŸ›£ï¸ Roadmap
 
 * [x] Core interview + dashboard APIs
 * [x] JWT auth + RBAC
@@ -499,9 +513,8 @@ flowchart TD
 * [ ] Load testing for interview runtime
 * [ ] Multi-model routing
 
----
 
-# 🤝 Contributing
+# ðŸ¤ Contributing
 
 Pull requests are welcome.
 
@@ -509,12 +522,12 @@ For major changes, please open an issue to discuss what you would like to improv
 
 ---
 
-# 📜 License
+# ðŸ“œ License
 
 Distributed under the MIT License.
 
 ---
 
 <div align="center">
-<sub>Built with ❤️ by Vishal Gorule</sub>
+<sub>Built with â¤ï¸ by Vishal Gorule</sub>
 </div>
