@@ -1,4 +1,3 @@
-
 # 🎙️ Intervux AI
 
 <div align="center">
@@ -11,50 +10,50 @@
 ![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/Frontend-React-61DAFB?style=flat-square&logo=react&logoColor=black)
 ![Three.js](https://img.shields.io/badge/3D-Three.js-black?style=flat-square&logo=three.js&logoColor=white)
-![Gemini](https://img.shields.io/badge/AI-Gemini%201.5%20Pro-4285F4?style=flat-square&logo=google&logoColor=white)
+![Gemini](https://img.shields.io/badge/AI-Gemini-4285F4?style=flat-square&logo=google&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)
 
 </div>
 
 <div align="center">
-  <h3>The World's First "Double-Sided" AI Interviewer</h3>
+  <h3>The AI Interview and Evaluation Platform</h3>
   <p>
-    <strong>Intervux AI</strong> is a real-time platform that sees your face, hears your voice, evaluates your code, and reacts through a responsive 3D avatar.
+    <strong>Intervux AI</strong> runs resume-aware interviews, evaluates answers, tracks model experiments, and provides recruiter decision support.
   </p>
 </div>
 
 ---
 
 ## 🧠 The Problem
-Hiring and interview preparation today is **fundamentally broken**:
-* **Static & unrealistic:** Mock interviews don’t simulate real pressure.
-* **Text-only:** Chatbots don’t observe non-verbal signals or interruptions.
-* **Incomplete Data:** Candidates are evaluated only on answers, not delivery, hesitation, or behavior.
+Hiring and interview prep workflows are still:
+* **Static & unrealistic:** weak simulation of real interview pressure.
+* **Text-only:** limited signal beyond plain Q&A.
+* **Hard to compare:** poor experiment tracking and reporting consistency.
 
-**Real interviews are multimodal. Most tools are not.**
+**Real interview evaluation is multimodal, iterative, and data-driven.**
 
 ## 💡 The Solution: Intervux AI
-Intervux is a **real-time simulation platform** that replicates how **human interviewers actually evaluate candidates**. It goes beyond simple Q&A by acting as a **"Double-Sided" Partner**:
+Intervux is a practical **interview runtime + recruiter intelligence** stack:
 
-1.  👁️ **It Sees:** Parses resumes visually using Vision-Language Models (Agent OCR-RAG).
-2.  🎧 **It Hears:** Supports full-duplex audio, allowing you to interrupt the AI naturally.
-3.  😰 **It Feels:** Detects micro-expressions (nervousness, confidence) via Computer Vision.
-4.  💻 **It Judges:** Reviews code logic, syntax, and time complexity in real-time.
+1. 👁️ **It Sees Context:** Parses resume data and builds interview context.
+2. 🎧 **It Runs Interviews:** Real-time WebSocket interview flow with adaptive questioning.
+3. 💻 **It Evaluates:** Structured answer scoring and report generation.
+4. 📊 **It Supports Recruiters:** Dashboard metrics, experiment tracking, and decision reports.
 
 ---
 
-> **Note on v1.0:** The features described below represent the full vision of Intervux AI. The current `v1.0` release implements the core, resume-aware interview flow via a RESTful API. Real-time features like WebSockets, 3D avatar streaming, and emotion detection are part of the future roadmap.
+> **Note on current version:** The project includes REST + WebSocket runtime, auth/RBAC, dashboard APIs, experiment APIs, and a dedicated pytest suite with CI.
 
 ## ✨ Core Features
 
 | Feature | Description |
 | :--- | :--- |
-| **🗣️ Real-Time Audio** | Streaming audio pipeline with **Voice Activity Detection (VAD)** for natural, interruptible conversation. |
-| **🎭 3D Avatar** | High-fidelity **Three.js / React Three Fiber** avatar with real-time lip-sync (viseme) animation. |
-| **😰 Emotion AI** | **OpenCV + FER** based facial analysis to detect stress and dynamically adjust interview difficulty. |
-| **💻 Live Sandbox** | Embedded **Monaco Editor** for coding interviews. The AI runs code safely and checks Big-O complexity. |
-| **📄 Agent OCR** | Intelligent resume parsing using Vision Models to extract structure without raw text bloat. |
-| **⚡ Low Latency** | Built on **WebSockets** and **FastAPI** for an event-driven architecture targeting <500ms response times. |
+| **🔐 Auth + RBAC** | JWT auth with role-protected routes (`admin`, `recruiter`, `viewer`). |
+| **🗣️ Interview Runtime** | Resume-aware question flow and answer evaluation over WebSockets. |
+| **🧾 Decision Endpoint** | `POST /api/interview/{interview_id}/decision` for recruiter-facing summaries/recommendations. |
+| **📈 Evaluation Dashboard** | Aggregated performance, quality, cost, and system health APIs. |
+| **🧪 Experiment Tracking** | Validated create/compare experiment endpoints. |
+| **✅ Testing + CI** | `tests/` suite + GitHub Actions workflow. |
 
 ---
 
@@ -63,36 +62,27 @@ Intervux is a **real-time simulation platform** that replicates how **human inte
 ### High-Level Flow
 ```mermaid
 flowchart TD
-    User -->|Audio / Video / Code| Frontend
-    Frontend -->|WebSockets| Backend
-    Backend -->|LLM Reasoning| Gemini
-    Backend -->|Emotion Analysis| OpenCV
-    Backend -->|Code Execution| Sandbox
-    Backend -->|Audio + Visemes| Frontend
-
+    User -->|UI + Audio| Frontend
+    Frontend -->|HTTP/WebSocket| Backend
+    Backend -->|LLM Tasks| Provider
+    Backend -->|ORM| PostgreSQL
+    Backend -->|Metrics + Reports| Recruiter Dashboard
 ```
 
-### Real-Time Interaction Loop
-
+### API Interaction Loop
 ```mermaid
 sequenceDiagram
-    participant User
+    participant U as User
     participant FE as React Frontend
     participant BE as FastAPI Backend
-    participant AI as Gemini / STT / TTS
-    participant CV as Emotion AI
+    participant DB as PostgreSQL
+    participant LLM as LLM Provider
 
-    User->>FE: Speak / Code / Facial cues
-    FE->>BE: audio_stream (PCM)
-    BE->>AI: STT → Reasoning → TTS
-    AI-->>BE: Audio + Visemes
-    BE-->>FE: avatar_sync
-
-    FE->>BE: video_frame
-    BE->>CV: Emotion Detection
-    CV-->>BE: Stress Score
-    BE-->>FE: stress_update
-
+    U->>FE: Resume + Interview interaction
+    FE->>BE: REST / WebSocket requests
+    BE->>LLM: Evaluation / summary tasks
+    BE->>DB: Persist interview + experiment data
+    BE-->>FE: Scores, reports, metrics
 ```
 
 ---
@@ -100,80 +90,83 @@ sequenceDiagram
 ## 🛠️ Tech Stack
 
 ### Frontend (Client)
-
 * **Framework:** React + TypeScript (Vite)
-* **3D Engine:** React Three Fiber (R3F) / Drei
-* **Editor:** Monaco Editor (VS Code core)
-* **Comms:** WebSockets (Socket.io-client), Web Audio API
+* **3D:** Three.js / React Three Fiber
+* **Comms:** WebSockets
 
 ### Backend (Server)
-
 * **Framework:** FastAPI (Python 3.10+)
-* **Concurrency:** AsyncIO
-* **Comms:** Python-SocketIO
-* **Processing:** OpenCV (Vision), PyDub (Audio)
+* **DB Layer:** SQLAlchemy
+* **Validation:** Pydantic v2
+* **Lifecycle:** FastAPI lifespan handlers
 
 ### AI & Logic
-
-* **Brain:** Google Gemini 1.5 Pro
-* **Speech:** Google STT / TTS (or Deepgram for lower latency)
-* **Resume:** Vision-based OCR
+* **Provider:** Gemini / local fallback (env configurable)
+* **Pipelines:** STT / evaluation / reporting
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-
 * Python 3.10+
 * Node.js 18+
-* Docker (Optional)
-* Google Gemini API Key
+* PostgreSQL
+* API key for configured LLM provider
 
 ### 1. Clone the Repository
-
 ```bash
-git clone [https://github.com/YourUsername/intervux-ai.git](https://github.com/YourUsername/intervux-ai.git)
+git clone https://github.com/YourUsername/intervux-ai.git
 cd intervux-ai
-
 ```
 
 ### 2. Backend Setup
-
-```bash
-cd backend
-python -m venv venv
-# Windows: .\venv\Scripts\activate
-# Mac/Linux: source venv/bin/activate
-
+```powershell
+python -m venv myenv
+.\myenv\Scripts\activate
 pip install -r requirements.txt
+```
 
-# Create .env file
-echo "GOOGLE_API_KEY=your_key_here" > .env
-echo "GROQ_API_KEY=your_key_here" >> .env
+Create `.env`:
+```env
+GOOGLE_API_KEY=your_key_here
+DATABASE_URL=postgresql://postgres:password@localhost:5432/intervux
+LLM_PROVIDER=gemini
+```
 
-# Run Server
-uvicorn main:app --reload
-
+Run backend:
+```powershell
+uvicorn backend.main:app --reload
 ```
 
 ### 3. Frontend Setup
-
-```bash
+```powershell
 cd frontend
 npm install
 npm run dev
-
 ```
 
-### 4. Running via Docker (Recommended)
-
+### 4. Docker (Optional)
 ```bash
 docker-compose up --build
-
 ```
 
-Access the application at `http://localhost:5173`.
+---
+
+## 🔐 Authentication
+
+Use:
+* `POST /api/auth/login/json`
+
+Demo users:
+* `admin@intervux.ai` / `admin123`
+* `recruiter@intervux.ai` / `recruiter123`
+* `viewer@intervux.ai` / `viewer123`
+
+Header format:
+```http
+Authorization: Bearer <access_token>
+```
 
 ---
 
@@ -181,52 +174,64 @@ Access the application at `http://localhost:5173`.
 
 ```text
 intervux-ai/
-├── backend/                # Python FastAPI Server
-│   ├── main.py             # Entry point
-│   ├── sockets/            # WebSocket event handlers
-│   ├── core/               # LLM & Logic Engine
-│   ├── services/           # Audio, Vision, Code Execution services
-│   └── config/             # Environment variables
-├── frontend/               # React Application
-│   ├── src/
-│   │   ├── components/     # 3D Avatar, Code Editor, Video Feed
-│   │   ├── hooks/          # useSocket, useAudio
-│   │   └── pages/          # Interview Room
-├── Dockerfile              # Container definition
-├── docker-compose.yaml     # Orchestration
+├── backend/                # FastAPI backend
+│   ├── main.py             # App entrypoint + routes
+│   ├── auth/               # JWT, RBAC, auth routes
+│   ├── services/           # Decision, telemetry, dashboard services
+│   ├── sockets/            # Interview + metrics WebSocket handlers
+│   ├── models/             # Pydantic + ORM-related models
+│   ├── middleware/         # Rate limiter and HTTP middleware
+│   └── db/                 # SQLAlchemy setup
+├── frontend/               # React app
+├── tests/                  # Pytest suite
+│   ├── conftest.py
+│   ├── test_auth.py
+│   ├── test_experiments.py
+│   ├── test_decision.py
+│   ├── test_metrics.py
+│   └── test_health.py
+├── .github/workflows/
+│   └── tests.yml           # CI test workflow
+├── docker-compose.yaml
 └── README.md
-
 ```
+
+---
+
+## ✅ Testing
+
+Run full suite:
+```powershell
+pytest -q
+```
+
+Useful commands:
+```powershell
+pytest -x
+pytest -vv
+pytest --cov=backend
+```
+
+CI runs on push/PR via:
+* `.github/workflows/tests.yml`
 
 ---
 
 ## 🛣️ Roadmap
 
-* [x] **Core:** Real-time WebSocket architecture
-* [x] **Architecture:** Decoupled Frontend/Backend
-* [x] **Integration:** Audio, Vision, and Coding pipelines active
-* [ ] **Avatar:** Advanced facial micro-expressions
-* [ ] **Performance:** Latency tuning (<300ms)
-* [ ] **Features:** Post-interview feedback reports
-* [ ] **Scale:** Multi-language support
-
----
-
-## 🧠 Vision
-
-**Intervux AI** aims to bridge the gap between human intuition and AI scalability.
-
-1. **For Candidates:** A stress-free training ground to fail safely and improve.
-2. **For Companies:** A preliminary screening tool that removes bias.
-3. **For Research:** A platform to study human-AI interaction dynamics.
+* [x] Core interview + dashboard APIs
+* [x] Auth + RBAC route protection
+* [x] Validated experiment create/compare payloads
+* [x] Decision endpoint schema normalization
+* [x] Dedicated pytest suite + CI
+* [ ] Broader WebSocket integration tests
+* [ ] Extended rate-limit and revocation test coverage
 
 ---
 
 ## 📜 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
-
-> If you like this project, ⭐ star the repo and join the journey.
 
 <div align="center">
 <sub>Built with ❤️ by Vishal Gorule</sub>
