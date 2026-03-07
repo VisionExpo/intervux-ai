@@ -1,4 +1,4 @@
-﻿# ðŸŽ™ï¸ Intervux AI
+# Intervux AI 🚀
 
 <div align="center">
 
@@ -24,59 +24,55 @@
 
 ---
 
-# ðŸ§  The Problem
+# The Problem 💼
 
 Hiring and interview preparation workflows today are still:
 
-* **Static & unrealistic** - weak simulation of real interview pressure
-* **Text-only** - missing multimodal signals
-* **Hard to compare** - inconsistent evaluation across candidates
+* ⚡️ **Static & unrealistic** - weak simulation of real interview pressure
+* 📝 **Text-only** - missing multimodal signals
+* 📊 **Hard to compare** - inconsistent evaluation across candidates
 
 Modern hiring requires **structured evaluation, adaptive questioning, and reliable analytics**.
 
 ---
 
-# ðŸ’¡ The Solution: Intervux AI
+# The Solution: Intervux AI 💡
 
 Intervux introduces a **real-time AI interview runtime combined with recruiter intelligence tools**.
 
-1ï¸âƒ£ **Context Awareness**
+1. 🧠 **Context Awareness**
 
 Resume parsing builds interview context and skill profiles.
 
-2ï¸âƒ£ **Adaptive Interview Engine**
+2. 🎯 **Adaptive Interview Engine**
 
 Dynamic questioning adjusts based on candidate responses.
 
-3ï¸âƒ£ **Evaluation Pipeline**
+3. 📈 **Evaluation Pipeline**
 
 Answers are scored using structured evaluation signals.
 
-4ï¸âƒ£ **Recruiter Intelligence**
+4. 📋 **Recruiter Intelligence**
 
 Dashboards provide experiment tracking, analytics, and decision support.
 
 ---
 
-# ? Core Features
+# Core Features ✨
 
 | Feature                     | Description                                                               |
 | :-------------------------- | :------------------------------------------------------------------------ |
-| ?? **Auth + RBAC**          | JWT authentication with role protection (`admin`, `recruiter`, `viewer`). |
-| ?? **Interview Runtime**    | Real-time WebSocket interview sessions with adaptive questioning.         |
-| ?? **Decision Support**     | `/api/interview/{id}/decision` generates recruiter recommendations.       |
-| ?? **Evaluation Dashboard** | Aggregated performance, cost, quality, and health metrics.                |
-| ?? **Experiment Tracking**  | Compare prompt templates, models, and evaluation outcomes.                |
----
-
-| ?? **Observability**        | Latency, throughput, token usage, and cost tracking.                      |
-| ? **Testing + CI**          | Pytest suite with GitHub Actions automation.                              |
+| 🔐 **Auth + RBAC**          | JWT authentication with role protection (`admin`, `recruiter`, `viewer`). |
+| 🎤 **Interview Runtime**    | Real-time WebSocket interview sessions with adaptive questioning.         |
+| 🤖 **Decision Support**     | `/api/interview/{id}/decision` generates recruiter recommendations.       |
+| 📊 **Evaluation Dashboard** | Aggregated performance, cost, quality, and health metrics.                |
+| 🧪 **Experiment Tracking**  | Compare prompt templates, models, and evaluation outcomes.                |
+| 👁️ **Observability**        | Latency, throughput, token usage, and cost tracking.                      |
+| ✅ **Testing + CI**         | Pytest suite with GitHub Actions automation.                              |
 
 ---
 
----
-
-# ðŸ§© System Architecture
+# System Architecture 🏗️
 
 ## High-Level System Flow
 
@@ -116,7 +112,7 @@ flowchart LR
 
 ---
 
-# ðŸ—ï¸ Production Architecture
+# Production Architecture 🌍
 
 The production architecture introduces asynchronous workers, telemetry, and scalable inference.
 
@@ -185,7 +181,7 @@ Metrics --> Alerts
 
 ---
 
-# ðŸ” API Interaction Loop
+# API Interaction Loop 🔄
 
 ```mermaid
 sequenceDiagram
@@ -204,7 +200,7 @@ sequenceDiagram
 
 ---
 
-# ðŸ§  Interview Evaluation Pipeline
+# Interview Evaluation Pipeline 📥
 
 ```mermaid
 flowchart LR
@@ -233,7 +229,7 @@ flowchart LR
 
 ---
 
-# ðŸ› ï¸ Tech Stack
+# Tech Stack 🛠️
 
 ## Frontend
 
@@ -266,14 +262,14 @@ flowchart LR
 
 ---
 
-# ðŸš€ Getting Started
+# Getting Started 🏁
 
 ## Prerequisites
 
-* Python 3.10+
-* Node.js 18+
-* PostgreSQL
-* LLM API key
+* 🐍 Python 3.10+
+* 📦 Node.js 18+
+* 🗄️ PostgreSQL
+* 🔑 LLM API key
 
 ---
 
@@ -320,7 +316,7 @@ npm run dev
 
 ---
 
-## Docker
+## Docker 🐳
 
 ```bash
 docker-compose up --build
@@ -328,7 +324,7 @@ docker-compose up --build
 
 ---
 
-# ðŸ” Authentication
+# Authentication 🔒
 
 Login endpoint
 
@@ -352,7 +348,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-# ðŸ“Š Example API Usage
+# Example API Usage 💻
 
 Create experiment
 
@@ -369,7 +365,7 @@ curl -X POST http://localhost:8000/api/experiments \
 
 ---
 
-# Project Structure
+# Project Structure 📁
 
 ```text
 intervux-ai/                    # Repository root
@@ -400,7 +396,8 @@ intervux-ai/                    # Repository root
 ```
 
 ---
-# ðŸ§ª Testing
+
+# Testing 🧪
 
 Run the full suite
 
@@ -424,21 +421,21 @@ CI runs automatically on push via:
 
 ---
 
-# ðŸ“Š Observability
+# Observability 📊
 
 Intervux tracks system metrics including:
 
-* request latency
-* token usage
-* cost estimation
-* throughput
-* error rate
+* ⏱️ request latency
+* 🪙 token usage
+* 💰 cost estimation
+* 🚀 throughput
+* ❌ error rate
 
 These metrics power the **evaluation dashboard and alerting system**.
 
 ---
 
-# ðŸ§­ Advanced System Diagrams
+# Advanced System Diagrams 📐
 
 ## 1) LLM Evaluation Pipeline (Detailed)
 
@@ -502,19 +499,19 @@ flowchart TD
 
 ---
 
-# ðŸ›£ï¸ Roadmap
+# Roadmap 🗺️
 
-* [x] Core interview + dashboard APIs
-* [x] JWT auth + RBAC
-* [x] Experiment tracking
-* [x] Decision endpoint
-* [x] Automated testing + CI
-* [ ] WebSocket integration tests
-* [ ] Load testing for interview runtime
-* [ ] Multi-model routing
+* [x] ✅ Core interview + dashboard APIs
+* [x] ✅ JWT auth + RBAC
+* [x] ✅ Experiment tracking
+* [x] ✅ Decision endpoint
+* [x] ✅ Automated testing + CI
+* [ ] ⏳ WebSocket integration tests
+* [ ] ⏳ Load testing for interview runtime
+* [ ] ⏳ Multi-model routing
 
 
-# ðŸ¤ Contributing
+# Contributing 🤝
 
 Pull requests are welcome.
 
@@ -522,12 +519,13 @@ For major changes, please open an issue to discuss what you would like to improv
 
 ---
 
-# ðŸ“œ License
+# License 📄
 
 Distributed under the MIT License.
 
 ---
 
 <div align="center">
-<sub>Built with â¤ï¸ by Vishal Gorule</sub>
+<sub>Built with ❤️ by Vishal Gorule</sub>
 </div>
+
