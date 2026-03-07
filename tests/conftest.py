@@ -1,10 +1,14 @@
 import os
+import json
 import sys
+import time
+import socket
+import urllib.request
+import urllib.error
+import subprocess
 from pathlib import Path
 
 import pytest
-import httpx
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 # Ensure repo root is importable when pytest runs from different working dirs.
@@ -13,7 +17,6 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from backend.db.database import SessionLocal
-from backend.main import app
 from backend.models.recruiter_dashboard_models import Interview
 from backend.scripts.seed_dashboard import seed_dashboard
 
@@ -27,17 +30,90 @@ def test_env():
 
 @pytest.fixture(scope="session")
 def client():
-    try:
-        with TestClient(app) as test_client:
-            yield test_client
-            return
-    except TypeError:
-        pass
+    def _find_free_port() -> int:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            return int(sock.getsockname()[1])
 
-    # Fallback for httpx/starlette version mismatch in some environments.
-    transport = httpx.ASGITransport(app=app)
-    with httpx.Client(transport=transport, base_url="http://testserver") as test_client:
-        yield test_client
+    class Response:
+        def __init__(self, status_code: int, body_text: str):
+            self.status_code = status_code
+            self.text = body_text
+
+        def json(self):
+            return json.loads(self.text) if self.text else {}
+
+    class HttpClient:
+        def __init__(self, base_url: str):
+            self.base_url = base_url.rstrip("/")
+
+        def _request(self, method: str, path: str, json_payload=None, headers=None):
+            data = None
+            req_headers = {}
+            if headers:
+                req_headers.update(headers)
+            if json_payload is not None:
+                data = json.dumps(json_payload).encode("utf-8")
+                req_headers.setdefault("Content-Type", "application/json")
+            url = f"{self.base_url}{path}"
+            request = urllib.request.Request(
+                url=url,
+                data=data,
+                headers=req_headers,
+                method=method,
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=30) as resp:
+                    body = resp.read().decode("utf-8")
+                    return Response(resp.status, body)
+            except urllib.error.HTTPError as err:
+                body = err.read().decode("utf-8")
+                return Response(err.code, body)
+
+        def get(self, path: str, headers=None):
+            return self._request("GET", path, headers=headers)
+
+        def post(self, path: str, json=None, headers=None):
+            return self._request("POST", path, json_payload=json, headers=headers)
+
+    port = _find_free_port()
+    proc = subprocess.Popen(
+        [
+            str(ROOT_DIR / "myenv" / "Scripts" / "python.exe"),
+            "-m",
+            "uvicorn",
+            "backend.main:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+        ],
+        cwd=str(ROOT_DIR),
+    )
+
+    base_url = f"http://127.0.0.1:{port}"
+    ready = False
+    for _ in range(120):
+        try:
+            with urllib.request.urlopen(f"{base_url}/health", timeout=2) as resp:
+                if resp.status == 200:
+                    ready = True
+                    break
+        except Exception:
+            time.sleep(0.5)
+
+    if not ready:
+        proc.terminate()
+        raise RuntimeError("Test server did not start in time")
+
+    try:
+        yield HttpClient(base_url=base_url)
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except Exception:
+            proc.kill()
 
 
 @pytest.fixture(scope="session")
