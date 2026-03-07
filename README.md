@@ -4,19 +4,19 @@
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue?style=flat-square)
 ![Status](https://img.shields.io/badge/status-active-success?style=flat-square)
-![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-<br />
+![License](https://img.shields.io/badge/license-MIT-green?style=flat-square) <br />
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/Frontend-React-61DAFB?style=flat-square&logo=react&logoColor=black)
 ![Three.js](https://img.shields.io/badge/3D-Three.js-black?style=flat-square&logo=three.js&logoColor=white)
 ![Gemini](https://img.shields.io/badge/AI-Gemini-4285F4?style=flat-square&logo=google&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)
+![CI](https://github.com/YourUsername/intervux-ai/actions/workflows/tests.yml/badge.svg)
 
 </div>
 
 <div align="center">
-  <h3>The AI Interview and Evaluation Platform</h3>
+  <h3>The AI Interview Runtime and Recruiter Intelligence Platform</h3>
   <p>
     <strong>Intervux AI</strong> runs resume-aware interviews, evaluates answers, tracks model experiments, and provides recruiter decision support.
   </p>
@@ -24,214 +24,496 @@
 
 ---
 
-## 🧠 The Problem
-Hiring and interview prep workflows are still:
-* **Static & unrealistic:** weak simulation of real interview pressure.
-* **Text-only:** limited signal beyond plain Q&A.
-* **Hard to compare:** poor experiment tracking and reporting consistency.
+# 🧠 The Problem
 
-**Real interview evaluation is multimodal, iterative, and data-driven.**
+Hiring and interview preparation workflows today are still:
 
-## 💡 The Solution: Intervux AI
-Intervux is a practical **interview runtime + recruiter intelligence** stack:
+* **Static & unrealistic** - weak simulation of real interview pressure
+* **Text-only** - missing multimodal signals
+* **Hard to compare** - inconsistent evaluation across candidates
 
-1. 👁️ **It Sees Context:** Parses resume data and builds interview context.
-2. 🎧 **It Runs Interviews:** Real-time WebSocket interview flow with adaptive questioning.
-3. 💻 **It Evaluates:** Structured answer scoring and report generation.
-4. 📊 **It Supports Recruiters:** Dashboard metrics, experiment tracking, and decision reports.
+Modern hiring requires **structured evaluation, adaptive questioning, and reliable analytics**.
 
 ---
 
-> **Note on current version:** The project includes REST + WebSocket runtime, auth/RBAC, dashboard APIs, experiment APIs, and a dedicated pytest suite with CI.
+# 💡 The Solution: Intervux AI
 
-## ✨ Core Features
+Intervux introduces a **real-time AI interview runtime combined with recruiter intelligence tools**.
 
-| Feature | Description |
-| :--- | :--- |
-| **🔐 Auth + RBAC** | JWT auth with role-protected routes (`admin`, `recruiter`, `viewer`). |
-| **🗣️ Interview Runtime** | Resume-aware question flow and answer evaluation over WebSockets. |
-| **🧾 Decision Endpoint** | `POST /api/interview/{interview_id}/decision` for recruiter-facing summaries/recommendations. |
-| **📈 Evaluation Dashboard** | Aggregated performance, quality, cost, and system health APIs. |
-| **🧪 Experiment Tracking** | Validated create/compare experiment endpoints. |
-| **✅ Testing + CI** | `tests/` suite + GitHub Actions workflow. |
+1️⃣ **Context Awareness**
+
+Resume parsing builds interview context and skill profiles.
+
+2️⃣ **Adaptive Interview Engine**
+
+Dynamic questioning adjusts based on candidate responses.
+
+3️⃣ **Evaluation Pipeline**
+
+Answers are scored using structured evaluation signals.
+
+4️⃣ **Recruiter Intelligence**
+
+Dashboards provide experiment tracking, analytics, and decision support.
 
 ---
 
-## 🧩 System Architecture
+# ✨ Core Features
 
-### High-Level Flow
+| Feature                     | Description                                                               |
+| :-------------------------- | :------------------------------------------------------------------------ |
+| 🔐 **Auth + RBAC**          | JWT authentication with role protection (`admin`, `recruiter`, `viewer`). |
+| 🎙 **Interview Runtime**    | Real-time WebSocket interview sessions with adaptive questioning.         |
+| 🧠 **Decision Support**     | `/api/interview/{id}/decision` generates recruiter recommendations.       |
+| 📊 **Evaluation Dashboard** | Aggregated performance, cost, quality, and health metrics.                |
+| 🧪 **Experiment Tracking**  | Compare prompt templates, models, and evaluation outcomes.                |
+| 📡 **Observability**        | Latency, throughput, token usage, and cost tracking.                      |
+| ✅ **Testing + CI**          | Pytest suite with GitHub Actions automation.                              |
+
+---
+
+# 🧩 System Architecture
+
+## High-Level System Flow
+
 ```mermaid
 flowchart TD
-    User -->|UI + Audio| Frontend
-    Frontend -->|HTTP/WebSocket| Backend
-    Backend -->|LLM Tasks| Provider
-    Backend -->|ORM| PostgreSQL
-    Backend -->|Metrics + Reports| Recruiter Dashboard
+    User[Candidate User] -->|UI + Audio| Frontend[React Frontend]
+    Frontend -->|HTTP / WebSocket| Backend[FastAPI Backend]
+    Backend -->|LLM Tasks| Provider[LLM Provider]
+    Backend -->|ORM Queries| PostgreSQL[(PostgreSQL)]
+    Backend -->|Metrics + Reports| Dashboard[Recruiter Dashboard]
 ```
 
-### API Interaction Loop
+---
+
+## Core Platform Architecture
+
+```mermaid
+flowchart LR
+    Candidate[Candidate Browser] --> UI[React + Avatar UI]
+
+    UI -->|WebSocket| InterviewRuntime[Interview Runtime]
+    UI -->|REST API| API[FastAPI Gateway]
+
+    API --> Auth[Auth Layer<br/>JWT + RBAC]
+    API --> Experiments[Experiment Service]
+    API --> Metrics[Telemetry Service]
+
+    InterviewRuntime --> LLM[LLM Provider]
+    InterviewRuntime --> STT[Speech-to-Text]
+    InterviewRuntime --> TTS[Text-to-Speech]
+
+    API --> DB[(PostgreSQL Database)]
+
+    Metrics --> Dashboard[Recruiter Dashboard]
+    Experiments --> Dashboard
+```
+
+---
+
+# 🏗️ Production Architecture
+
+The production architecture introduces asynchronous workers, telemetry, and scalable inference.
+
+```mermaid
+flowchart LR
+
+subgraph Client
+    Candidate[Candidate Browser]
+    Recruiter[Recruiter Dashboard]
+end
+
+subgraph Edge
+    CDN[CDN / Static Hosting]
+    Gateway[API Gateway]
+end
+
+subgraph Backend
+    API[FastAPI Services]
+    Auth[Auth Service<br/>JWT + RBAC]
+end
+
+subgraph Workers
+    Queue[(Redis Task Queue)]
+    EvalWorker[Evaluation Worker]
+    ReportWorker[Report Generator]
+end
+
+subgraph AI
+    STT[Speech-to-Text]
+    LLM[LLM Provider]
+    TTS[Text-to-Speech]
+end
+
+subgraph Data
+    DB[(PostgreSQL)]
+    Cache[(Redis Cache)]
+end
+
+subgraph Observability
+    Metrics[Telemetry + Metrics]
+    Alerts[Alerting System]
+end
+
+Candidate --> CDN
+Recruiter --> CDN
+
+CDN --> API
+API --> Auth
+API --> DB
+API --> Cache
+
+API --> Queue
+Queue --> EvalWorker
+Queue --> ReportWorker
+
+EvalWorker --> STT
+EvalWorker --> LLM
+EvalWorker --> TTS
+
+EvalWorker --> DB
+ReportWorker --> DB
+
+API --> Metrics
+Metrics --> Alerts
+```
+
+---
+
+# 🔁 API Interaction Loop
+
 ```mermaid
 sequenceDiagram
-    participant U as User
+    participant U as Candidate
     participant FE as React Frontend
     participant BE as FastAPI Backend
     participant DB as PostgreSQL
     participant LLM as LLM Provider
 
-    U->>FE: Resume + Interview interaction
-    FE->>BE: REST / WebSocket requests
+    U->>FE: Resume upload + interview interaction
+    FE->>BE: REST / WebSocket request
     BE->>LLM: Evaluation / summary tasks
-    BE->>DB: Persist interview + experiment data
-    BE-->>FE: Scores, reports, metrics
+    BE->>DB: Persist interview results
+    BE-->>FE: Scores, reports, analytics
 ```
 
 ---
 
-## 🛠️ Tech Stack
+# 🧠 Interview Evaluation Pipeline
 
-### Frontend (Client)
-* **Framework:** React + TypeScript (Vite)
-* **3D:** Three.js / React Three Fiber
-* **Comms:** WebSockets
+```mermaid
+flowchart LR
+    Resume --> Parser[Resume Parser]
+    Parser --> Context[Candidate Context Builder]
 
-### Backend (Server)
-* **Framework:** FastAPI (Python 3.10+)
-* **DB Layer:** SQLAlchemy
-* **Validation:** Pydantic v2
-* **Lifecycle:** FastAPI lifespan handlers
+    Context --> QuestionEngine[Adaptive Question Engine]
 
-### AI & Logic
-* **Provider:** Gemini / local fallback (env configurable)
-* **Pipelines:** STT / evaluation / reporting
+    QuestionEngine --> InterviewRuntime
+
+    InterviewRuntime --> STT
+    STT --> Transcript
+
+    Transcript --> Evaluation[Evaluation Engine]
+
+    Evaluation --> TechnicalScore
+    Evaluation --> BehavioralScore
+    Evaluation --> ReasoningScore
+
+    TechnicalScore --> FinalScore
+    BehavioralScore --> FinalScore
+    ReasoningScore --> FinalScore
+
+    FinalScore --> Report[Recruiter Report]
+```
 
 ---
 
-## 🚀 Getting Started
+# 🛠️ Tech Stack
 
-### Prerequisites
+## Frontend
+
+| Technology         | Purpose                  |
+| ------------------ | ------------------------ |
+| React + TypeScript | Interview UI             |
+| Three.js / R3F     | Avatar rendering         |
+| WebSockets         | Real-time interview flow |
+
+---
+
+## Backend
+
+| Technology  | Purpose       |
+| ----------- | ------------- |
+| FastAPI     | API server    |
+| SQLAlchemy  | ORM           |
+| Pydantic v2 | Validation    |
+| Alembic     | DB migrations |
+
+---
+
+## AI & Speech
+
+| Component     | Role                 |
+| ------------- | -------------------- |
+| Gemini        | LLM reasoning        |
+| Whisper / STT | Speech transcription |
+| Azure TTS     | Avatar speech        |
+
+---
+
+# 🚀 Getting Started
+
+## Prerequisites
+
 * Python 3.10+
 * Node.js 18+
 * PostgreSQL
-* API key for configured LLM provider
+* LLM API key
 
-### 1. Clone the Repository
+---
+
+## Clone the Repository
+
 ```bash
 git clone https://github.com/YourUsername/intervux-ai.git
 cd intervux-ai
 ```
 
-### 2. Backend Setup
+---
+
+## Backend Setup
+
 ```powershell
 python -m venv myenv
 .\myenv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Create `.env`:
+Create `.env`
+
 ```env
 GOOGLE_API_KEY=your_key_here
 DATABASE_URL=postgresql://postgres:password@localhost:5432/intervux
 LLM_PROVIDER=gemini
 ```
 
-Run backend:
+Run backend
+
 ```powershell
 uvicorn backend.main:app --reload
 ```
 
-### 3. Frontend Setup
+---
+
+## Frontend Setup
+
 ```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
-### 4. Docker (Optional)
+---
+
+## Docker
+
 ```bash
 docker-compose up --build
 ```
 
 ---
 
-## 🔐 Authentication
+# 🔐 Authentication
 
-Use:
-* `POST /api/auth/login/json`
+Login endpoint
 
-Demo users:
-* `admin@intervux.ai` / `admin123`
-* `recruiter@intervux.ai` / `recruiter123`
-* `viewer@intervux.ai` / `viewer123`
+```
+POST /api/auth/login/json
+```
 
-Header format:
-```http
+Demo users
+
+```
+admin@intervux.ai / admin123
+recruiter@intervux.ai / recruiter123
+viewer@intervux.ai / viewer123
+```
+
+Header
+
+```
 Authorization: Bearer <access_token>
 ```
 
 ---
 
-## 📁 Project Structure
+# 📊 Example API Usage
 
-```text
-intervux-ai/
-├── backend/                # FastAPI backend
-│   ├── main.py             # App entrypoint + routes
-│   ├── auth/               # JWT, RBAC, auth routes
-│   ├── services/           # Decision, telemetry, dashboard services
-│   ├── sockets/            # Interview + metrics WebSocket handlers
-│   ├── models/             # Pydantic + ORM-related models
-│   ├── middleware/         # Rate limiter and HTTP middleware
-│   └── db/                 # SQLAlchemy setup
-├── frontend/               # React app
-├── tests/                  # Pytest suite
-│   ├── conftest.py
-│   ├── test_auth.py
-│   ├── test_experiments.py
-│   ├── test_decision.py
-│   ├── test_metrics.py
-│   └── test_health.py
-├── .github/workflows/
-│   └── tests.yml           # CI test workflow
-├── docker-compose.yaml
-└── README.md
+Create experiment
+
+```bash
+curl -X POST http://localhost:8000/api/experiments \
+-H "Authorization: Bearer <token>" \
+-H "Content-Type: application/json" \
+-d '{
+  "experiment_name": "prompt_experiment",
+  "model_version": "gemini",
+  "prompt_template": "Explain {topic}"
+}'
 ```
 
 ---
 
-## ✅ Testing
+# 🧪 Testing
 
-Run full suite:
+Run the full suite
+
 ```powershell
 pytest -q
 ```
 
-Useful commands:
+Useful commands
+
 ```powershell
 pytest -x
 pytest -vv
 pytest --cov=backend
 ```
 
-CI runs on push/PR via:
-* `.github/workflows/tests.yml`
+CI runs automatically on push via:
+
+```
+.github/workflows/tests.yml
+```
 
 ---
 
-## 🛣️ Roadmap
+# 📁 Project Structure
+
+```text
+intervux-ai/
+├── backend/
+│   ├── main.py
+│   ├── auth/
+│   ├── services/
+│   ├── sockets/
+│   ├── models/
+│   ├── middleware/
+│   └── db/
+├── frontend/
+├── tests/
+├── .github/workflows/
+├── docker-compose.yaml
+└── README.md
+```
+
+---
+
+# 📊 Observability
+
+Intervux tracks system metrics including:
+
+* request latency
+* token usage
+* cost estimation
+* throughput
+* error rate
+
+These metrics power the **evaluation dashboard and alerting system**.
+
+---
+
+# 🧭 Advanced System Diagrams
+
+## 1) LLM Evaluation Pipeline (Detailed)
+
+```mermaid
+flowchart TD
+    A[Question + Candidate Answer] --> B[Preprocessing Layer]
+    B --> C[Prompt Builder]
+    C --> D[Primary Evaluator LLM]
+    D --> E[Structured Scores JSON]
+    E --> F[Consistency / Sanity Checks]
+    F --> G[Critique Pass LLM]
+    G --> H[Final Evaluation]
+    H --> I[Normalization + Session Calibration]
+    I --> J[Decision Support Report]
+    J --> K[Recruiter Dashboard + APIs]
+```
+
+---
+
+## 2) Telemetry + Metrics Architecture
+
+```mermaid
+flowchart LR
+    API[FastAPI Routes] --> M1[In-Memory Metrics]
+    WS[WebSocket Runtime] --> M1
+    Eval[Evaluation Service] --> T1[Telemetry Service]
+
+    T1 --> J1[JSONL Logs]
+    T1 --> DB1[(llm_metrics Table)]
+
+    M1 --> SNAP[Metrics Snapshot]
+    SNAP --> WSM[/ws/metrics Stream]
+    SNAP --> DASH[Evaluation Dashboard API]
+
+    DB1 --> AGG[Aggregates + Trends]
+    J1 --> AGG
+    AGG --> DASH
+```
+
+---
+
+## 3) Experiment Tracking Architecture
+
+```mermaid
+flowchart TD
+    UI[Recruiter / Admin UI] --> E1[POST /api/experiments]
+    UI --> E2[POST /api/experiments/compare]
+    UI --> E3[GET /api/experiments]
+
+    E1 --> V1[Pydantic Validation]
+    E2 --> V2[Pydantic Validation]
+
+    V1 --> S1[Experiment Service]
+    V2 --> S1
+    E3 --> S1
+
+    S1 --> DB[(experiments Table)]
+    DB --> C1[Comparison Builder]
+    C1 --> RESP[Structured Comparison Response]
+```
+
+---
+
+# 🛣️ Roadmap
 
 * [x] Core interview + dashboard APIs
-* [x] Auth + RBAC route protection
-* [x] Validated experiment create/compare payloads
-* [x] Decision endpoint schema normalization
-* [x] Dedicated pytest suite + CI
-* [ ] Broader WebSocket integration tests
-* [ ] Extended rate-limit and revocation test coverage
+* [x] JWT auth + RBAC
+* [x] Experiment tracking
+* [x] Decision endpoint
+* [x] Automated testing + CI
+* [ ] WebSocket integration tests
+* [ ] Load testing for interview runtime
+* [ ] Multi-model routing
 
 ---
 
-## 📜 License
+# 🤝 Contributing
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Pull requests are welcome.
+
+For major changes, please open an issue to discuss what you would like to improve.
+
+---
+
+# 📜 License
+
+Distributed under the MIT License.
+
+---
 
 <div align="center">
 <sub>Built with ❤️ by Vishal Gorule</sub>
