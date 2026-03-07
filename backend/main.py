@@ -298,10 +298,7 @@ def get_interview_decision(
     """Get decision support for an interview."""
     # Get interview report
     interview = get_interview_report(db, interview_id)
-    
-    if not interview:
-        return {"error": "Interview not found"}
-    
+
     if hasattr(interview, "model_dump"):
         interview_data = interview.model_dump()
     elif isinstance(interview, dict):
@@ -311,7 +308,28 @@ def get_interview_decision(
 
     answers = interview_data.get("answers")
     if not isinstance(answers, list):
-        answers = interview_data.get("questions", [])
+        questions = interview_data.get("questions", [])
+        answers = []
+        if isinstance(questions, list):
+            for question_item in questions:
+                if not isinstance(question_item, dict):
+                    continue
+                score = float(question_item.get("score", 0) or 0)
+                answers.append(
+                    {
+                        "question": question_item.get("question", ""),
+                        "answer": question_item.get("answer", ""),
+                        "score": score,
+                        "evaluation": {
+                            "scores": {
+                                "Overall": score,
+                                "Technical": score,
+                                "Behavioral": score,
+                                "Reasoning": score,
+                            }
+                        },
+                    }
+                )
 
     profile = interview_data.get("profile") or interview_data.get("candidate")
 
