@@ -79,7 +79,7 @@ def client():
     port = _find_free_port()
     proc = subprocess.Popen(
         [
-            str(ROOT_DIR / "myenv" / "Scripts" / "python.exe"),
+            sys.executable,
             "-m",
             "uvicorn",
             "backend.main:app",
