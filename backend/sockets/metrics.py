@@ -186,7 +186,7 @@ def get_latest_metrics() -> Dict[str, Any]:
     Returns:
         Dictionary containing latest metrics
     """
-    return metrics_socket._get_metrics_metrics()
+    return metrics_socket._get_metrics_snapshot()
 
 
 async def start_metrics_broadcast():
