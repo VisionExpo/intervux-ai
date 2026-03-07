@@ -3,13 +3,15 @@ from __future__ import annotations
 import json
 import os
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from statistics import mean
-from typing import Any
+from typing import Any, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from backend.db.database import LLMMetrics, Experiment
 from backend.models.evaluation_dashboard import (
     AlertItem,
     CostByModel,
@@ -295,3 +297,235 @@ def get_evaluation_dashboard(db: Session) -> EvaluationDashboardResponse:
         alerts=alerts,
         ai_hiring_summary=" ".join(summary_bits),
     )
+
+
+# =========================================================
+# PostgreSQL Metrics Query Functions
+# =========================================================
+
+def get_llm_metrics_from_db(
+    db: Session,
+    days: Optional[int] = None,
+    model: Optional[str] = None
+) -> list[LLMMetrics]:
+    """
+    Query llm_metrics from PostgreSQL.
+    
+    Args:
+        db: Database session
+        days: Optional number of days to look back
+        model: Optional model name filter
+        
+    Returns:
+        List of LLMMetrics records
+    """
+    query = db.query(LLMMetrics)
+    
+    if days is not None:
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        query = query.filter(LLMMetrics.created_at >= cutoff)
+    
+    if model:
+        query = query.filter(LLMMetrics.model == model)
+    
+    return query.order_by(LLMMetrics.created_at.desc()).all()
+
+
+def get_db_metrics_aggregates(db: Session) -> dict[str, Any]:
+    """
+    Get aggregated metrics from PostgreSQL llm_metrics table.
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        Dictionary containing aggregated metrics
+    """
+    # Get last 24 hours of metrics
+    cutoff_24h = datetime.utcnow() - timedelta(hours=24)
+    cutoff_7d = datetime.utcnow() - timedelta(days=7)
+    cutoff_30d = datetime.utcnow() - timedelta(days=30)
+    
+    # Query metrics
+    metrics_24h = db.query(LLMMetrics).filter(
+        LLMMetrics.created_at >= cutoff_24h
+    ).all()
+    
+    metrics_7d = db.query(LLMMetrics).filter(
+        LLMMetrics.created_at >= cutoff_7d
+    ).all()
+    
+    metrics_30d = db.query(LLMMetrics).filter(
+        LLMMetrics.created_at >= cutoff_30d
+    ).all()
+    
+    # Aggregate by model
+    def aggregate_metrics(metrics_list: list[LLMMetrics]) -> dict[str, Any]:
+        if not metrics_list:
+            return {
+                "count": 0,
+                "avg_latency_ms": 0,
+                "total_tokens": 0,
+                "total_cost_usd": 0,
+                "avg_accuracy": 0,
+                "avg_hallucination": 0,
+            }
+        
+        total_latency = sum(m.latency_ms for m in metrics_list)
+        total_prompt = sum(m.prompt_tokens for m in metrics_list)
+        total_completion = sum(m.completion_tokens for m in metrics_list)
+        total_cost = sum(m.cost_usd for m in metrics_list)
+        accuracies = [m.accuracy_score for m in metrics_list if m.accuracy_score]
+        hallucinations = [m.hallucination_score for m in metrics_list if m.hallucination_score]
+        
+        return {
+            "count": len(metrics_list),
+            "avg_latency_ms": total_latency / len(metrics_list) if metrics_list else 0,
+            "total_tokens": total_prompt + total_completion,
+            "total_cost_usd": total_cost,
+            "avg_accuracy": mean(accuracies) if accuracies else 0,
+            "avg_hallucination": mean(hallucinations) if hallucinations else 0,
+        }
+    
+    # Model breakdown
+    model_breakdown = defaultdict(lambda: {"count": 0, "total_cost": 0.0})
+    for m in metrics_24h:
+        model_breakdown[m.model]["count"] += 1
+        model_breakdown[m.model]["total_cost"] += m.cost_usd
+    
+    return {
+        "last_24h": aggregate_metrics(metrics_24h),
+        "last_7d": aggregate_metrics(metrics_7d),
+        "last_30d": aggregate_metrics(metrics_30d),
+        "model_breakdown_24h": dict(model_breakdown),
+    }
+
+
+def get_historical_trends(db: Session, days: int = 30) -> dict[str, Any]:
+    """
+    Get historical trend data for charts.
+    
+    Args:
+        db: Database session
+        days: Number of days to look back
+        
+    Returns:
+        Dictionary containing trend data
+    """
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    
+    # Get daily aggregates
+    daily_metrics = db.query(
+        func.date(LLMMetrics.created_at).label("date"),
+        func.avg(LLMMetrics.latency_ms).label("avg_latency"),
+        func.avg(LLMMetrics.accuracy_score).label("avg_accuracy"),
+        func.avg(LLMMetrics.hallucination_score).label("avg_hallucination"),
+        func.sum(LLMMetrics.cost_usd).label("total_cost"),
+        func.count(LLMMetrics.id).label("request_count"),
+    ).filter(
+        LLMMetrics.created_at >= cutoff
+    ).group_by(
+        func.date(LLMMetrics.created_at)
+    ).order_by(
+        func.date(LLMMetrics.created_at)
+    ).all()
+    
+    trends = {
+        "dates": [],
+        "latency": [],
+        "accuracy": [],
+        "hallucination": [],
+        "cost": [],
+        "requests": [],
+    }
+    
+    for row in daily_metrics:
+        trends["dates"].append(str(row.date))
+        trends["latency"].append(round(row.avg_latency or 0, 2))
+        trends["accuracy"].append(round(row.avg_accuracy or 0, 3))
+        trends["hallucination"].append(round(row.avg_hallucination or 0, 3))
+        trends["cost"].append(round(row.total_cost or 0, 4))
+        trends["requests"].append(row.request_count)
+    
+    return trends
+
+
+# =========================================================
+# Experiment Tracking Functions
+# =========================================================
+
+def log_experiment(
+    db: Session,
+    experiment_name: str,
+    model_version: str,
+    prompt_template: str,
+    accuracy: Optional[float] = None,
+    latency_ms: Optional[int] = None
+) -> Experiment:
+    """
+    Log an experiment result.
+    
+    Args:
+        db: Database session
+        experiment_name: Name of the experiment
+        model_version: Model version used
+        prompt_template: Prompt template used
+        accuracy: Optional accuracy score
+        latency_ms: Optional latency in ms
+        
+    Returns:
+        Created Experiment record
+    """
+    experiment = Experiment(
+        experiment_name=experiment_name,
+        model_version=model_version,
+        prompt_template=prompt_template,
+        accuracy=accuracy,
+        latency_ms=latency_ms,
+    )
+    db.add(experiment)
+    db.commit()
+    return experiment
+
+
+def get_experiments(db: Session, limit: int = 100) -> list[Experiment]:
+    """
+    Get experiment results.
+    
+    Args:
+        db: Database session
+        limit: Maximum number of results
+        
+    Returns:
+        List of Experiment records
+    """
+    return db.query(Experiment).order_by(
+        Experiment.created_at.desc()
+    ).limit(limit).all()
+
+
+def compare_experiments(db: Session, experiment_names: list[str]) -> dict[str, Any]:
+    """
+    Compare multiple experiments.
+    
+    Args:
+        db: Database session
+        experiment_names: List of experiment names to compare
+        
+    Returns:
+        Dictionary containing comparison data
+    """
+    experiments = db.query(Experiment).filter(
+        Experiment.experiment_name.in_(experiment_names)
+    ).all()
+    
+    comparison = {}
+    for exp in experiments:
+        comparison[exp.experiment_name] = {
+            "model_version": exp.model_version,
+            "accuracy": exp.accuracy,
+            "latency_ms": exp.latency_ms,
+            "created_at": exp.created_at.isoformat() if exp.created_at else None,
+        }
+    
+    return comparison

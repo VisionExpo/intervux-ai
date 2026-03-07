@@ -34,6 +34,7 @@ from backend.models.interview import InterviewState, ResumeData
 from backend.services.stt_service import transcribe_audio_bytes
 from backend.services.tts_service import synthesize_speech_with_visemes
 from backend.services.viseme_service import VisemeService
+from backend.services.telemetry_service import log_evaluation_metrics, get_cost_per_1k_tokens
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
 from backend.utils.research_logger import research_logger
@@ -642,9 +643,25 @@ class InterviewSocket:
 
         evaluation.setdefault("meta", {})["eval_mode"] = eval_mode
         eval_duration = time.time() - eval_start
+
         metrics.record_latency("final_eval_latency", eval_duration)
         metrics.record_latency("evaluation", eval_duration)
         metrics.record_latency("phase_evaluation", eval_duration)
+        
+        # Log evaluation metrics to telemetry (JSONL + PostgreSQL)
+        try:
+            provider = evaluation.get("meta", {}).get("provider", "unknown")
+            log_evaluation_metrics(
+                model=provider,
+                latency_seconds=eval_duration,
+                question=question,
+                answer=transcript,
+                evaluation_result=evaluation,
+                provider=provider
+            )
+        except Exception:
+            pass  # Silently fail to avoid interrupting interview
+        
         evaluation = self._normalize_scores_for_session(
             evaluation=evaluation,
             previous_answers=state.answers,

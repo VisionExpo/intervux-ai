@@ -22,9 +22,18 @@ from backend.services.recruiter_dashboard_store import (
     get_skill_analytics,
     list_candidates,
 )
-from backend.services.evaluation_dashboard_store import get_evaluation_dashboard
+from backend.services.evaluation_dashboard_store import (
+    get_evaluation_dashboard,
+    get_db_metrics_aggregates,
+    get_historical_trends,
+    get_experiments,
+    log_experiment,
+    compare_experiments,
+)
+from backend.services.decision_support_service import generate_full_report
 from backend.models import recruiter_dashboard_models  # noqa: F401
 from backend.sockets.interview import InterviewSocket
+from backend.sockets.metrics import metrics_socket
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
 from backend.utils.runtime_monitor import RuntimeMonitor
@@ -122,6 +131,84 @@ def get_candidate_comparison(db: Session = Depends(get_db)):
 @app.websocket("/ws/interview")
 async def websocket_interview(ws: WebSocket):
     await interview_socket.handle(ws)
+
+
+@app.websocket("/ws/metrics")
+async def websocket_metrics(ws: WebSocket):
+    """WebSocket endpoint for real-time metrics streaming."""
+    await metrics_socket.handle(ws)
+
+
+# =========================================================
+# New API Endpoints for Dashboard Enhancements
+# =========================================================
+
+@app.get("/api/metrics/aggregates")
+def get_metrics_aggregates(db: Session = Depends(get_db)):
+    """Get aggregated metrics from PostgreSQL (last 24h, 7d, 30d)."""
+    return get_db_metrics_aggregates(db)
+
+
+@app.get("/api/metrics/trends")
+def get_metrics_trends(days: int = 30, db: Session = Depends(get_db)):
+    """Get historical trend data for charts."""
+    return get_historical_trends(db, days=days)
+
+
+@app.get("/api/experiments")
+def get_experiment_list(db: Session = Depends(get_db), limit: int = 100):
+    """Get list of experiments."""
+    return get_experiments(db, limit=limit)
+
+
+@app.post("/api/experiments")
+def create_experiment(
+    experiment_name: str,
+    model_version: str,
+    prompt_template: str,
+    accuracy: float = None,
+    latency_ms: int = None,
+    db: Session = Depends(get_db),
+):
+    """Log a new experiment result."""
+    return log_experiment(
+        db,
+        experiment_name=experiment_name,
+        model_version=model_version,
+        prompt_template=prompt_template,
+        accuracy=accuracy,
+        latency_ms=latency_ms,
+    )
+
+
+@app.post("/api/experiments/compare")
+def compare_experiment_results(
+    experiment_names: list[str],
+    db: Session = Depends(get_db),
+):
+    """Compare multiple experiments."""
+    return compare_experiments(db, experiment_names)
+
+
+@app.post("/api/interview/{interview_id}/decision")
+def get_interview_decision(
+    interview_id: str,
+    db: Session = Depends(get_db),
+):
+    """Get decision support for an interview."""
+    # Get interview report
+    interview = get_interview_report(db, interview_id)
+    
+    if not interview:
+        return {"error": "Interview not found"}
+    
+    # Generate decision support report
+    report = generate_full_report(
+        answers=interview.get("answers", []),
+        profile=interview.get("profile"),
+    )
+    
+    return report
 
 
 @app.on_event("startup")
