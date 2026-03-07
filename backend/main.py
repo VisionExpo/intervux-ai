@@ -8,7 +8,10 @@ from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from backend.models.evaluation_dashboard import EvaluationDashboardResponse
+from backend.models.evaluation_dashboard import (
+    EvaluationDashboardResponse,
+    ExperimentCreateRequest,
+)
 from backend.db.database import Base, engine, get_db
 from backend.core.llm_brain import prewarm_llm
 from backend.models.recruiter_dashboard import (
@@ -260,22 +263,18 @@ def get_experiment_list(
 
 @app.post("/api/experiments")
 def create_experiment(
+    payload: ExperimentCreateRequest,
     user=Depends(require_admin),
-    experiment_name: str = None,
-    model_version: str = None,
-    prompt_template: str = None,
-    accuracy: float = None,
-    latency_ms: int = None,
     db: Session = Depends(get_db),
 ):
     """Log a new experiment result."""
     return log_experiment(
         db,
-        experiment_name=experiment_name,
-        model_version=model_version,
-        prompt_template=prompt_template,
-        accuracy=accuracy,
-        latency_ms=latency_ms,
+        experiment_name=payload.experiment_name,
+        model_version=payload.model_version,
+        prompt_template=payload.prompt_template,
+        accuracy=payload.accuracy,
+        latency_ms=payload.latency_ms,
     )
 
 

@@ -85,3 +85,11 @@ class EvaluationDashboardResponse(BaseModel):
     system_health: SystemHealthMetrics
     alerts: list[AlertItem]
     ai_hiring_summary: str
+
+
+class ExperimentCreateRequest(BaseModel):
+    experiment_name: str
+    model_version: str
+    prompt_template: str
+    accuracy: float | None = None
+    latency_ms: int | None = None
