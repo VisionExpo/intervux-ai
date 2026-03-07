@@ -6,6 +6,7 @@ This module provides JWT token-based authentication:
 - Token verification
 - User dependency injection
 - Role-based access control
+- Token rotation and revocation
 
 Example usage:
     from backend.auth.jwt_service import get_current_user, create_access_token
@@ -16,8 +17,9 @@ Example usage:
 """
 
 import os
+import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -605,4 +607,282 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
         "name": user["name"],
         "role": user["role"],
     }
+
+
+# =========================================================
+# Token Revocation (Session Management)
+# =========================================================
+
+# In-memory storage for revoked tokens (use Redis in production)
+_revoked_tokens: Set[str] = set()
+_revoked_refresh_tokens: Set[str] = set()
+
+
+def revoke_token(token: str) -> bool:
+    """
+    Revoke an access token (logout).
+    
+    Args:
+        token: JWT token to revoke
+        
+    Returns:
+        True if token was revoked
+    """
+    try:
+        payload = jwt.decode(
+            token, 
+            SECRET_KEY, 
+            algorithms=[ALGORITHM],
+            options={"verify_signature": False}
+        )
+        jti = payload.get("jti") or payload.get("user_id")
+        if jti:
+            _revoked_tokens.add(jti)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def revoke_refresh_token(token: str) -> bool:
+    """
+    Revoke a refresh token (logout/rotation).
+    
+    Args:
+        token: Refresh token to revoke
+        
+    Returns:
+        True if token was revoked
+    """
+    try:
+        payload = jwt.decode(
+            token, 
+            SECRET_KEY, 
+            algorithms=[ALGORITHM],
+            options={"verify_signature": False}
+        )
+        jti = payload.get("jti") or payload.get("user_id")
+        if jti:
+            _revoked_refresh_tokens.add(jti)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def is_token_revoked(token: str) -> bool:
+    """
+    Check if a token has been revoked.
+    
+    Args:
+        token: JWT token to check
+        
+    Returns:
+        True if token is revoked
+    """
+    try:
+        payload = jwt.decode(
+            token, 
+            SECRET_KEY, 
+            algorithms=[ALGORITHM],
+            options={"verify_signature": False}
+        )
+        jti = payload.get("jti") or payload.get("user_id")
+        return jti in _revoked_tokens
+    except Exception:
+        return False
+
+
+def is_refresh_token_revoked(token: str) -> bool:
+    """
+    Check if a refresh token has been revoked.
+    
+    Args:
+        token: Refresh token to check
+        
+    Returns:
+        True if token is revoked
+    """
+    try:
+        payload = jwt.decode(
+            token, 
+            SECRET_KEY, 
+            algorithms=[ALGORITHM],
+            options={"verify_signature": False}
+        )
+        jti = payload.get("jti") or payload.get("user_id")
+        return jti in _revoked_refresh_tokens
+    except Exception:
+        return False
+
+
+def create_token_pair_with_rotation(user_data: Dict[str, Any]) -> Token:
+    """
+    Create both access and refresh tokens with rotation.
+    
+    Each token gets a unique JWT ID (jti) for revocation tracking.
+    
+    Args:
+        user_data: User data to encode in tokens
+        
+    Returns:
+        Token object with both tokens
+    """
+    # Add unique JWT ID for each token
+    access_data = user_data.copy()
+    access_data["jti"] = str(uuid.uuid4())
+    
+    refresh_data = user_data.copy()
+    refresh_data["jti"] = str(uuid.uuid4())
+    
+    access_token = create_access_token(access_data)
+    refresh_token = create_refresh_token(refresh_data)
+    
+    return Token(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        expires_in=ACCESS_TOKEN_EXPIRE_HOURS * 3600,
+    )
+
+
+def refresh_access_token_with_rotation(refresh_token: str) -> Token:
+    """
+    Refresh an access token using a refresh token with rotation.
+    
+    Flow:
+    - Validates the refresh token
+    - Revokes the old refresh token
+    - Issues new access and refresh tokens
+    
+    Args:
+        refresh_token: Valid refresh token
+        
+    Returns:
+        New token pair
+        
+    Raises:
+        HTTPException: If refresh token is invalid or revoked
+    """
+    # Check if refresh token is revoked
+    if is_refresh_token_revoked(refresh_token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    token_data = verify_token(refresh_token)
+    
+    # Verify it's a refresh token
+    payload = jwt.decode(
+        refresh_token, 
+        SECRET_KEY, 
+        algorithms=[ALGORITHM],
+        options={"verify_type": False}
+    )
+    
+    if payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token type. Expected refresh token."
+        )
+    
+    # Revoke the old refresh token (rotation)
+    revoke_refresh_token(refresh_token)
+    
+    # Create new token pair with rotation
+    user_data = {
+        "user_id": token_data.user_id,
+        "email": token_data.email,
+        "role": token_data.role,
+    }
+    
+    return create_token_pair_with_rotation(user_data)
+
+
+# =========================================================
+# API Key Authentication
+# =========================================================
+
+# In-memory API key storage (use database in production)
+_api_keys: Dict[str, Dict[str, Any]] = {}
+
+
+def create_api_key(name: str, user_id: str, role: str, expires_days: int = 365) -> str:
+    """
+    Create an API key for service-to-service authentication.
+    
+    Args:
+        name: Name/description for the API key
+        user_id: ID of the user owning this key
+        role: Role to associate with this key
+        expires_days: Days until key expires
+        
+    Returns:
+        The API key string
+    """
+    import secrets
+    api_key = f"ik_{secrets.token_urlsafe(32)}"
+    
+    _api_keys[api_key] = {
+        "name": name,
+        "user_id": user_id,
+        "role": role,
+        "created_at": datetime.utcnow(),
+        "expires_at": datetime.utcnow() + timedelta(days=expires_days),
+    }
+    
+    return api_key
+
+
+def verify_api_key(api_key: str) -> Optional[TokenData]:
+    """
+    Verify an API key and return user data.
+    
+    Args:
+        api_key: API key to verify
+        
+    Returns:
+        TokenData if valid, None otherwise
+    """
+    key_data = _api_keys.get(api_key)
+    
+    if not key_data:
+        return None
+    
+    # Check expiration
+    if key_data["expires_at"] < datetime.utcnow():
+        return None
+    
+    return TokenData(
+        user_id=key_data["user_id"],
+        email=f"api-{key_data['user_id']}@intervux.ai",
+        role=key_data["role"],
+    )
+
+
+def revoke_api_key(api_key: str) -> bool:
+    """
+    Revoke an API key.
+    
+    Args:
+        api_key: API key to revoke
+        
+    Returns:
+        True if key was revoked
+    """
+    if api_key in _api_keys:
+        del _api_keys[api_key]
+        return True
+    return False
+
+
+# Initialize demo API key for testing
+_demo_api_key = create_api_key(
+    name="Demo API Key",
+    user_id="demo-api-user",
+    role="recruiter",
+    expires_days=365
+)
 

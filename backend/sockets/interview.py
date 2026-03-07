@@ -38,6 +38,8 @@ from backend.services.telemetry_service import log_evaluation_metrics, get_cost_
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
 from backend.utils.research_logger import research_logger
+# Import JWT service for token validation
+from backend.auth.jwt_service import verify_token, TokenData
 
 logger = get_logger(__name__)
 viseme_service = VisemeService()
@@ -76,6 +78,40 @@ class InterviewSocket:
         self._ip_hits: Dict[str, list[float]] = {}
 
     async def handle(self, ws: WebSocket):
+        # Validate JWT token during handshake
+        token = ws.query_params.get("token")
+        if not token:
+            await ws.accept()
+            await self._safe_send_json(
+                ws,
+                {
+                    "type": "error",
+                    "code": "UNAUTHORIZED",
+                    "message": "Missing authentication token",
+                    "recoverable": True,
+                },
+            )
+            await self._close_ws(ws, code=1008)
+            return
+        
+        try:
+            user_data: TokenData = verify_token(token)
+            # Store user data in connection state for later use
+            ws.state.user = user_data
+        except Exception as e:
+            await ws.accept()
+            await self._safe_send_json(
+                ws,
+                {
+                    "type": "error",
+                    "code": "UNAUTHORIZED",
+                    "message": "Invalid authentication token",
+                    "recoverable": True,
+                },
+            )
+            await self._close_ws(ws, code=1008)
+            return
+
         client_ip = self._client_ip(ws)
 
         if not await self._allow_ip(client_ip):

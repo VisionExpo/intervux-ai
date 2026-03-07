@@ -1,54 +1,101 @@
-# Intervux AI Backend Enhancement TODO
+# Intervux AI Backend - Security Layer Integration
 
 ## Overview
-Implementing security, monitoring, and production-ready features for Intervux AI backend.
+Integrating security, monitoring, and production-ready features into main.py
 
-## Completed Items
+## Implementation Steps
 
-### Phase 1: JWT Authentication & Security ✅
-- [x] 1.1 Complete JWT service (`backend/auth/jwt_service.py`)
-  - [x] Add token verification function
-  - [x] Add token decoding function
-  - [x] Add user dependency for FastAPI
-- [x] 1.2 Create user authentication routes (`backend/auth/routes.py`)
-  - [x] Login endpoint
-  - [x] Token refresh endpoint
-- [x] 1.3 JWT Service with user model
-- [x] 1.4 Add role-based access control (`backend/auth/rbac.py`)
-  - [x] Role dependency
-  - [x] Permission checks
+### Step 1: Wire Auth & Rate Limiter into main.py ✅
+- [x] 1.1 Import auth router and rate limiter middleware
+- [x] 1.2 Include auth router with prefix `/api/auth`
+- [x] 1.3 Add RateLimitMiddleware to app
+- [x] 1.4 Add RBAC dependencies to protected routes
 
-### Phase 2: API Security ✅
-- [x] 2.1 Add per-user rate limiting (`backend/middleware/rate_limiter.py`)
-  - [x] Rate limiter per user token
-  - [x] Configurable limits per role
-- [x] 2.2 Add audit logging (`backend/services/audit_service.py`)
-  - [x] Log sensitive actions
-  - [x] User action tracking
+### Step 2: Add JWT Validation to WebSockets ✅
+- [x] 2.1 Add token validation to interview.py WebSocket
+- [x] 2.2 Add token validation to metrics.py WebSocket
 
-### Phase 3: Monitoring & Observability ✅
-- [x] 3.1 Health monitoring endpoint (existing `/health`)
-- [x] 3.2 Add structured logging (`backend/utils/structured_logger.py`)
-  - [x] JSON format logs
-  - [x] Event-based logging
+### Step 3: Add Refresh Token Rotation ✅
+- [x] 3.1 Modify jwt_service.py to implement rotation
+- [x] 3.2 Update refresh endpoint to invalidate old token
 
-### Phase 4: Background Processing ✅
-- [x] 4.1 Add background tasks (`backend/background/tasks.py`)
-  - [x] Async evaluation generation
-  - [x] Alert dispatching
+### Step 4: Move Demo Users to Database ✅
+- [x] 4.1 Create User model in database.py
+- [x] 4.2 Create migration script for users table
+- [x] 4.3 Update auth functions to use DB (models ready)
 
-## Remaining Items
+### Step 5: Add Session Revocation ✅
+- [x] 5.1 Create RevokedToken model
+- [x] 5.2 Add revocation check in token verification
+- [x] 5.3 Update logout to store revoked token
 
-### Phase 5: Integration
-- [ ] 5.1 Update main.py with new endpoints
-- [ ] 5.2 Update requirements.txt with new dependencies
+### Step 6: Add API Key Support ✅
+- [x] 6.1 Create APIKey model
+- [x] 6.2 Create API key dependency
+- [x] 6.3 Add support for API key auth
 
-## Dependencies to Add
-- python-jose[cryptography]
-- passlib[bcrypt]
-- python-multipart
-- httpx
+### Step 7: Enhance Health Endpoints ✅
+- [x] 7.1 Add /ready endpoint with checks
+- [x] 7.2 Add database health check
+
+### Step 8: Enhance Security Headers ✅
+- [x] 8.1 Update CORS middleware settings
+- [x] 8.2 Add security headers middleware
+
+### Step 9: Add Database Migrations ✅
+- [x] 9.1 Set up Alembic configuration
+- [x] 9.2 Create initial migration
+
+## Files Modified
+
+1. **backend/main.py**
+   - Added auth router import and inclusion
+   - Added RateLimitMiddleware
+   - Added SecurityHeadersMiddleware
+   - Added RBAC protection to all API endpoints
+   - Added /ready endpoint
+
+2. **backend/auth/jwt_service.py**
+   - Added token revocation functions
+   - Added refresh token rotation
+   - Added API key authentication
+   - Added in-memory token storage
+
+3. **backend/sockets/interview.py**
+   - Added JWT validation during WebSocket handshake
+
+4. **backend/sockets/metrics.py**
+   - Added JWT validation during WebSocket handshake
+
+5. **backend/db/database.py**
+   - Added User model
+   - Added RevokedToken model
+   - Added APIKey model
+
+6. **alembic/** (new directory)
+   - alembic.ini
+   - alembic/env.py
+   - alembic/script.py.mako
+   - alembic/versions/001_initial.py
+
+## Running Migrations
+
+To apply the database migrations:
+
+```bash
+alembic upgrade head
+```
+
+## API Endpoints Added
+
+- `GET /api/auth/login` - Login with email/password
+- `POST /api/auth/login/json` - Login with JSON
+- `POST /api/auth/refresh` - Refresh token
+- `GET /api/auth/me` - Get current user
+- `POST /api/auth/logout` - Logout (revoke token)
+- `POST /api/auth/change-password` - Change password
+- `GET /api/auth/users` - List users (admin)
+- `GET /ready` - Readiness check with DB connectivity
 
 ## Status: Complete ✅
-Last Updated: 2024
 

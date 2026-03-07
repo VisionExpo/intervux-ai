@@ -20,6 +20,8 @@ from typing import Any, Dict, Set
 from fastapi import WebSocket, WebSocketDisconnect
 
 from backend.utils.metrics import metrics
+# Import JWT service for token validation
+from backend.auth.jwt_service import verify_token, TokenData
 
 
 class MetricsSocket:
@@ -52,6 +54,34 @@ class MetricsSocket:
         Args:
             websocket: The WebSocket connection
         """
+        # Validate JWT token during handshake
+        token = websocket.query_params.get("token")
+        if not token:
+            await websocket.accept()
+            await websocket.send_json({
+                "type": "error",
+                "code": "UNAUTHORIZED",
+                "message": "Missing authentication token",
+                "recoverable": True,
+            })
+            await websocket.close(code=1008)
+            return
+        
+        try:
+            user_data: TokenData = verify_token(token)
+            # Store user data in connection state for later use
+            websocket.state.user = user_data
+        except Exception:
+            await websocket.accept()
+            await websocket.send_json({
+                "type": "error",
+                "code": "UNAUTHORIZED",
+                "message": "Invalid authentication token",
+                "recoverable": True,
+            })
+            await websocket.close(code=1008)
+            return
+        
         await websocket.accept()
         self._connections.add(websocket)
         
