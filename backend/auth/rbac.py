@@ -24,6 +24,7 @@ from backend.auth.jwt_service import (
     TokenData,
     get_current_user,
     has_permission,
+    require_permission,
     require_any_role,
     require_role,
     Role,

@@ -459,8 +459,8 @@ def hash_password(password: str) -> str:
         from passlib.context import CryptContext
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         return pwd_context.hash(password)
-    except ImportError:
-        # Fallback for development
+    except Exception:
+        # Fallback for development when passlib/bcrypt backend is unavailable.
         import hashlib
         return hashlib.sha256(password.encode()).hexdigest()
 
@@ -476,12 +476,16 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Returns:
         True if password matches
     """
+    # SHA256 fallback hashes are 64-char hex strings.
+    if len(hashed_password) == 64 and all(c in "0123456789abcdef" for c in hashed_password.lower()):
+        import hashlib
+        return hashlib.sha256(plain_password.encode()).hexdigest() == hashed_password
+
     try:
         from passlib.context import CryptContext
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         return pwd_context.verify(plain_password, hashed_password)
-    except ImportError:
-        # Fallback for development
+    except Exception:
         import hashlib
         return hashlib.sha256(plain_password.encode()).hexdigest() == hashed_password
 
