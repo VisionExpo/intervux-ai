@@ -24,7 +24,7 @@ from typing import Any, Dict, Optional, Set
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 # Configuration - should be set via environment variables
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "intervux-secret-key-change-in-production")
@@ -76,8 +76,7 @@ class UserResponse(UserBase):
     is_active: bool = True
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserLogin(BaseModel):
