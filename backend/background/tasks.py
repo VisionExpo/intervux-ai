@@ -292,12 +292,12 @@ def run_task(
         logger.error(f"Unknown task type: {task_type}")
         return
     
-    # Run synchronous tasks
-    if task_type in [BackgroundTask.DISPATCH_ALERT, BackgroundTask.EXPORT_DATA]:
-        asyncio.run(task_func(*args, **kwargs))
-    else:
-        # Run async tasks
-        asyncio.create_task(task_func(*args, **kwargs))
+    coro = task_func(*args, **kwargs)
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(coro)
+    except RuntimeError:
+        asyncio.run(coro)
 
 
 # =========================================================

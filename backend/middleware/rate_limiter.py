@@ -27,6 +27,7 @@ from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.auth.jwt_service import Role
+from backend.auth.jwt_service import verify_token
 
 
 # =========================================================
@@ -280,6 +281,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Skip rate limiting for health checks
         if request.url.path in ["/health", "/metrics"]:
             return await call_next(request)
+
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+            if token:
+                try:
+                    token_data = verify_token(token)
+                    request.state.user_id = token_data.user_id
+                    request.state.user_role = token_data.role
+                except Exception:
+                    pass
         
         # Get identifier
         user_id = getattr(request.state, "user_id", None)
