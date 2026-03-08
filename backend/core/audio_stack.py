@@ -21,11 +21,25 @@ class AudioEngine:
         print(f"[INFO] Initializing AudioEngine on {DEVICE}")
 
         # Load Whisper once (heavy model)
-        self.stt_model = WhisperModel(
-            whisper_model,
-            device="cuda",
-            compute_type="float16",
-        )
+        # Use DEVICE from settings (automatically falls back to CPU if CUDA unavailable)
+        compute_type = "float16" if DEVICE == "cuda" else "int8"
+        try:
+            self.stt_model = WhisperModel(
+                whisper_model,
+                device=DEVICE,
+                compute_type=compute_type,
+            )
+        except RuntimeError as e:
+            if "CUDA" in str(e):
+                print(f"[WARN] CUDA initialization failed: {e}")
+                print("[INFO] Falling back to CPU for Whisper")
+                self.stt_model = WhisperModel(
+                    whisper_model,
+                    device="cpu",
+                    compute_type="int8",
+                )
+            else:
+                raise
 
     # ---------------------------
     # Text → Speech

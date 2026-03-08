@@ -7,9 +7,15 @@ def get_device() -> str:
         import torch
 
         if torch.cuda.is_available():
-            device_name = torch.cuda.get_device_name(0)
-            print(f"[INFO] GPU detected: {device_name}")
-            return "cuda"
+            # Test if CUDA actually works (handles driver/runtime mismatch)
+            try:
+                test_tensor = torch.zeros(1).cuda()
+                device_name = torch.cuda.get_device_name(0)
+                print(f"[INFO] GPU detected: {device_name}")
+                return "cuda"
+            except Exception as cuda_err:
+                print(f"[WARN] CUDA available but not functional: {cuda_err}")
+                print("[INFO] Falling back to CPU")
 
     except ImportError:
         print("[INFO] PyTorch not installed. Using CPU.")
