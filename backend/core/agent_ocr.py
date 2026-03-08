@@ -3,22 +3,33 @@ import json
 import base64
 import tempfile
 from typing import Tuple
+from pathlib import Path
 
 from google import genai
 from dotenv import load_dotenv
 from backend.config.prompt_loader import PromptManager
 from fastapi import UploadFile
 
-load_dotenv()
+# Load .env from project root
+project_root = Path(__file__).parent.parent.parent
+load_dotenv(project_root / ".env")
 
 
 # --- Gemini Client Setup ---
-API_KEY = os.getenv("GOOGLE_API_KEY")
-if not API_KEY:
-    raise RuntimeError("GOOGLE_API_KEY not set")
-# NOTE: Using the Gemini 2.5 Flash model.
+# Lazy initialization - only create client when needed
 MODEL_NAME = "gemini-2.5-flash"
-client = genai.Client(api_key=API_KEY)
+_client = None
+
+
+def get_gemini_client():
+    """Lazy initialization of Gemini client."""
+    global _client
+    if _client is None:
+        API_KEY = os.getenv("GOOGLE_API_KEY")
+        if not API_KEY:
+            raise RuntimeError("GOOGLE_API_KEY not set. Please add GOOGLE_API_KEY to your .env file.")
+        _client = genai.Client(api_key=API_KEY)
+    return _client
 
 
 class ResumeParser:
@@ -34,6 +45,8 @@ class ResumeParser:
         """
         Parses a resume PDF/image into structured JSON.
         """
+        client = get_gemini_client()
+        
         print(f"[INFO] Uploading resume to Gemini: {file_path}")
 
         uploaded_file = client.files.upload(file=file_path)
