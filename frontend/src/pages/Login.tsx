@@ -68,8 +68,8 @@ export default function Login() {
           <p><strong>Candidate:</strong> Sign up for a new account</p>
         </div>
 
-        <div className="auth-switch">
-          Don't have an account? <a href="/signup">Sign Up as Candidate</a>
+<div className="auth-switch">
+          Don't have an account? <a href="#/signup">Sign Up as Candidate</a>
         </div>
       </div>
     </div>

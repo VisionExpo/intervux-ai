@@ -532,7 +532,75 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* Dashboard Styles */
+/* Dashboard Status Cards */
+.dashboard-status-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.status-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 1.5rem;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.status-card h3 {
+  margin: 0 0 1rem;
+  color: #556174;
+  font-size: 1rem;
+}
+
+.status-card.highlight {
+  background: linear-gradient(135deg, #c84630 0%, #e86850 100%);
+}
+
+.status-card.highlight h3 {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.status-indicator {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.status-yes {
+  color: #2d8a4e;
+}
+
+.status-no {
+  color: #c84630;
+}
+
+.status-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #1a2940;
+}
+
+.status-card.highlight .status-value {
+  color: #fff;
+}
+
+.upload-hint {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: #c84630;
+  font-size: 0.9rem;
+}
+
+.limit-message {
+  background: #fff3cd;
+  color: #856404;
+  padding: 1rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+/* Dashboard Header Styles */
 .dashboard-header, .profile-header, .interview-header, .history-header, .notifications-header {
   color: #fff;
   margin-bottom: 2rem;
@@ -1129,4 +1197,231 @@
   font-weight: 600;
   cursor: pointer;
   margin-top: 1.5rem;
+}
+
+/* Resume Upload Styles */
+.resume-upload-section {
+  margin-top: 1rem;
+}
+
+.upload-button {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: #c84630;
+  color: #fff;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.upload-button:hover {
+  background: #a83825;
+}
+
+.upload-hint {
+  margin-top: 0.5rem;
+  color: #8a96a3;
+  font-size: 0.85rem;
+}
+
+.upload-message {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+}
+
+.upload-message.success {
+  background: #d4edda;
+  color: #155724;
+}
+
+.upload-message.error {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Interview Report Styles */
+.report-header {
+  color: #fff;
+  margin-bottom: 2rem;
+}
+
+.report-header h1 {
+  color: #fff;
+  margin: 0;
+}
+
+.report-content {
+  background: #fff;
+  border-radius: 14px;
+  padding: 2rem;
+}
+
+.report-title {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.report-title h2 {
+  margin: 0 0 0.5rem;
+  color: #1a2940;
+}
+
+.report-title p {
+  color: #556174;
+  margin: 0;
+}
+
+.overall-score-card {
+  background: linear-gradient(135deg, #1a2940 0%, #2d4a6f 100%);
+  border-radius: 14px;
+  padding: 2rem;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.overall-score-card .score-label {
+  display: block;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.overall-score-card .score-value {
+  font-size: 4rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.score-breakdown {
+  margin-bottom: 2rem;
+}
+
+.score-breakdown h3 {
+  margin: 0 0 1rem;
+  color: #1a2940;
+}
+
+.score-breakdown .score-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.score-breakdown .score-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.score-breakdown .score-label {
+  width: 120px;
+  color: #556174;
+}
+
+.score-breakdown .score-number {
+  width: 50px;
+  font-weight: 700;
+  color: #1a2940;
+}
+
+.score-breakdown .score-bar {
+  flex: 1;
+  height: 10px;
+  background: #e3ebf3;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.score-breakdown .score-fill {
+  height: 100%;
+  background: #c84630;
+  border-radius: 5px;
+}
+
+.feedback-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.feedback-column h3 {
+  margin: 0 0 1rem;
+  color: #1a2940;
+}
+
+.feedback-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.feedback-list li {
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.strength-item {
+  background: #d4edda;
+  color: #155724;
+}
+
+.weakness-item {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.feedback-icon {
+  font-weight: 700;
+}
+
+.report-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* Mock Interview Page Styles */
+.interviews-remaining {
+  color: #556174;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.limit-reached {
+  background: #fff3cd;
+  border: 1px solid #f1dc9d;
+  border-radius: 10px;
+  padding: 1.5rem;
+  text-align: center;
+  color: #856404;
+}
+
+.limit-reached p {
+  margin: 0 0 0.5rem;
+}
+
+.upgrade-hint {
+  font-size: 0.9rem;
+  color: #6c5a3d;
+}
+
+.resume-button {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #c84630;
+  color: #fff;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.resume-button:hover {
+  background: #a83825;
 }

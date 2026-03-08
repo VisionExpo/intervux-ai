@@ -9,6 +9,7 @@ import MockInterview from "./pages/MockInterview";
 import InterviewHistory from "./pages/InterviewHistory";
 import CandidateNotifications from "./pages/CandidateNotifications";
 import InterviewPage from "./pages/InterviewPage";
+import CandidateInterviewReport from "./pages/CandidateInterviewReport";
 import "./App.css";
 
 function App() {
@@ -59,6 +60,8 @@ function App() {
         return <MockInterview />;
       case "/interview-session":
         return <InterviewPage />;
+      case "/report":
+        return <CandidateInterviewReport />;
       case "/interview-history":
         return <InterviewHistory />;
       case "/notifications":

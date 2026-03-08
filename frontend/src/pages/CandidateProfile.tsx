@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { authFetch } from "../hooks/useAuth";
 
 interface ProfileData {
@@ -18,11 +18,22 @@ interface ProfileData {
   created_at: string;
 }
 
+interface ResumeUploadResponse {
+  resume_url: string;
+  resume_score: number;
+  skills: string[];
+  strengths: string[];
+  weaknesses: string[];
+}
+
 export default function CandidateProfile() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: "",
     skills: "",
@@ -79,6 +90,58 @@ export default function CandidateProfile() {
       setIsEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update profile");
+    }
+  };
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadMessage(null);
+
+    try {
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", file);
+
+      const response = await fetch("http://localhost:8000/api/candidate/resume", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+        },
+        body: uploadFormData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "Upload failed" }));
+        throw new Error(error.detail || "Failed to upload resume");
+      }
+
+      const result: ResumeUploadResponse = await response.json();
+      
+      setUploadMessage({
+        type: "success",
+        text: `Resume uploaded! Score: ${result.resume_score.toFixed(0)}% - Skills detected: ${result.skills.join(", ")}`,
+      });
+
+      // Refresh profile to get updated data
+      const updatedProfile = await authFetch<ProfileData>("/api/candidate/profile");
+      setProfile(updatedProfile);
+      setFormData((prev) => ({
+        ...prev,
+        skills: updatedProfile.skills?.join(", ") || "",
+      }));
+    } catch (err) {
+      setUploadMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to upload resume",
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -156,10 +219,39 @@ export default function CandidateProfile() {
             </div>
 
             <div className="profile-section">
+              <h3>Resume</h3>
+              {profile?.resume_url ? (
+                <p><strong>Resume:</strong> <a href={profile.resume_url} target="_blank" rel="noopener noreferrer">View Resume</a></p>
+              ) : (
+                <p>No resume uploaded yet.</p>
+              )}
+              
+              <div className="resume-upload-section">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  id="resume-upload"
+                  accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"
+                  onChange={handleResumeUpload}
+                  style={{ display: "none" }}
+                />
+                <label htmlFor="resume-upload" className="upload-button">
+                  {isUploading ? "Uploading..." : profile?.resume_url ? "Upload New Resume" : "Upload Resume"}
+                </label>
+                <p className="upload-hint">Supported: PDF, DOCX, DOC, PNG, JPG (max 10MB)</p>
+              </div>
+
+              {uploadMessage && (
+                <div className={`upload-message ${uploadMessage.type}`}>
+                  {uploadMessage.text}
+                </div>
+              )}
+            </div>
+
+            <div className="profile-section">
               <h3>Links</h3>
               <p><strong>GitHub:</strong> {profile?.github_url || "Not provided"}</p>
               <p><strong>LinkedIn:</strong> {profile?.linkedin_url || "Not provided"}</p>
-              <p><strong>Resume:</strong> {profile?.resume_url ? <a href={profile.resume_url} target="_blank" rel="noopener noreferrer">View Resume</a> : "Not uploaded"}</p>
             </div>
 
             <button onClick={() => setIsEditing(true)} className="edit-button">

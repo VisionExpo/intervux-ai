@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { authFetch } from "../hooks/useAuth";
 
+interface DashboardData {
+  mock_interviews_remaining: number;
+}
+
 interface InterviewHistory {
   id: number;
   session_id: string;
@@ -16,20 +20,25 @@ interface InterviewHistory {
 
 export default function MockInterview() {
   const [interviewHistory, setInterviewHistory] = useState<InterviewHistory[]>([]);
+  const [interviewsRemaining, setInterviewsRemaining] = useState(3);
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchHistory();
+    fetchData();
   }, []);
 
-  const fetchHistory = async () => {
+  const fetchData = async () => {
     try {
-      const data = await authFetch<InterviewHistory[]>("/api/candidate/mock-interview/history");
-      setInterviewHistory(data);
+      const [dashboardData, historyData] = await Promise.all([
+        authFetch<DashboardData>("/api/candidate/dashboard"),
+        authFetch<InterviewHistory[]>("/api/candidate/mock-interview/history"),
+      ]);
+      setInterviewsRemaining(dashboardData.mock_interviews_remaining);
+      setInterviewHistory(historyData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load history");
+      setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
       setIsLoading(false);
     }
@@ -64,6 +73,8 @@ export default function MockInterview() {
     );
   }
 
+  const canStartInterview = interviewsRemaining > 0 && !isStarting;
+
   return (
     <div className="page-container">
       <div className="interview-header">
@@ -82,13 +93,25 @@ export default function MockInterview() {
         <h2>Start Your Practice Interview</h2>
         <p>Practice with our AI-powered mock interviewer. You'll get 3 free interviews to improve your skills.</p>
         
-        <button 
-          onClick={startInterview} 
-          disabled={isStarting}
-          className="start-interview-button"
-        >
-          {isStarting ? "Starting..." : "Start Mock Interview"}
-        </button>
+        {interviewsRemaining > 0 ? (
+          <>
+            <p className="interviews-remaining">
+              You have <strong>{interviewsRemaining}</strong> mock interview{interviewsRemaining !== 1 ? 's' : ''} remaining.
+            </p>
+            <button 
+              onClick={startInterview} 
+              disabled={!canStartInterview}
+              className="start-interview-button"
+            >
+              {isStarting ? "Starting..." : "Start Mock Interview"}
+            </button>
+          </>
+        ) : (
+          <div className="limit-reached">
+            <p>You have completed your free mock interviews.</p>
+            <p className="upgrade-hint">Upgrade to get more practice interviews.</p>
+          </div>
+        )}
       </div>
 
       <div className="interview-history-section">
@@ -129,9 +152,14 @@ export default function MockInterview() {
                       <span className="score-value">{interview.reasoning_score?.toFixed(0) || "N/A"}</span>
                     </div>
                   </div>
+                ) : interview.status === "in_progress" ? (
+                  <div className="interview-pending">
+                    <p>Interview in progress...</p>
+                    <a href="/interview-session" className="resume-button">Resume Interview</a>
+                  </div>
                 ) : (
                   <div className="interview-pending">
-                    <p>Interview in progress or not completed...</p>
+                    <p>Interview not completed</p>
                   </div>
                 )}
               </div>
