@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from backend.models.evaluation_dashboard import (
@@ -500,4 +501,16 @@ def change_candidate_status(
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Candidate not found")
     return candidate
+
+
+# =========================================================
+# Static Files (Uploads)
+# =========================================================
+
+# Create uploads directory if it doesn't exist
+uploads_dir = os.path.join(os.path.dirname(__file__), "..", "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
+
+# Mount static files for uploaded resumes
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 

@@ -14,12 +14,12 @@ import "./App.css";
 
 function App() {
   const { user, isAuthenticated, isLoading } = useAuth();
-  const [hash, setHash] = useState(() => window.location.hash.replace("#", "") || "/dashboard");
+  const [hash, setHash] = useState(() => window.location.hash.replace("#", "") || "/profile");
 
   // Listen for hash changes
   useEffect(() => {
     const handleHashChange = () => {
-      const newHash = window.location.hash.replace("#", "") || "/dashboard";
+      const newHash = window.location.hash.replace("#", "") || "/profile";
       setHash(newHash);
     };
 
@@ -73,7 +73,7 @@ function App() {
         window.location.reload();
         return <Login />;
       default:
-        return <CandidateDashboard />;
+        return <CandidateProfile />;
     }
   }
 

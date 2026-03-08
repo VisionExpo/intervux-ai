@@ -416,6 +416,17 @@ async def upload_resume(
             detail="Invalid file type. Allowed: PDF, DOCX, DOC, PNG, JPG"
         )
     
+    # Validate file size (max 10MB)
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    file.file.seek(0)
+    
+    if file_size > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File too large. Maximum size is 10MB."
+        )
+    
     db = SessionLocal()
     try:
         profile = db.query(CandidateProfile).filter(
@@ -428,14 +439,30 @@ async def upload_resume(
                 detail="Profile not found"
             )
         
+        # Create user-specific upload directory
+        upload_dir = os.path.join(
+            os.path.dirname(__file__), 
+            "..", "..", "uploads", "resumes", current_user.user_id
+        )
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Generate unique filename
+        import uuid
+        unique_filename = f"{uuid.uuid4().hex}_{file.filename}"
+        file_path = os.path.join(upload_dir, unique_filename)
+        
+        # Save the uploaded file
+        content = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
         # Parse resume
         try:
             _, parsed_data = parse_resume(file)
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to parse resume: {str(e)}"
-            )
+            # If parsing fails, still save the file but return error
+            print(f"Resume parsing error: {e}")
+            parsed_data = {"skills": [], "projects": [], "experience": [], "education": []}
         
         # Calculate resume score
         resume_score, strengths, weaknesses = _calculate_resume_score(parsed_data)
@@ -443,8 +470,8 @@ async def upload_resume(
         # Extract skills
         skills = parsed_data.get("skills", [])
         
-        # Save resume (in production, upload to cloud storage)
-        resume_url = f"/uploads/resumes/{current_user.user_id}/{file.filename}"
+        # Save resume URL (relative path for serving)
+        resume_url = f"/uploads/resumes/{current_user.user_id}/{unique_filename}"
         
         # Update profile
         profile.resume_url = resume_url

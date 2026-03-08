@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { useInterview } from "../hooks/useInterview";
 import { audioFeedback } from "../utils/audioFeedback";
 import {
@@ -11,6 +11,7 @@ import {
 import type { AvatarState } from "../hooks/useInterview";
 
 export default function InterviewPage() {
+  const [isPageLoading, setIsPageLoading] = useState(true);
   const {
     stage,
     avatarState,
@@ -26,13 +27,22 @@ export default function InterviewPage() {
     emotion,
     transcriptMessages,
     startAudioStream,
+    lastError,
   } = useInterview();
 
   const prevStageRef = useRef(stage);
   const prevAvatarStateRef = useRef(avatarState);
 
-  // Determine connection status
+  // Show loading while initial connection is being established
+  useEffect(() => {
+    if (isConnected || lastError) {
+      // Give a small delay to show the connection status
+      const timer = setTimeout(() => setIsPageLoading(false), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, lastError]);
 
+  // Determine connection status
   const connectionStatus = isConnected
     ? "connected"
     : stage === "connecting"
@@ -103,6 +113,28 @@ export default function InterviewPage() {
       audioFeedback.dispose();
     };
   }, []);
+
+  // Show loading screen while connecting
+  if (isPageLoading) {
+    return (
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100vh",
+        background: "linear-gradient(135deg, #1a2940 0%, #2d4a6f 100%)",
+        color: "#fff"
+      }}>
+        <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>🎙️</div>
+        <h2>Connecting to Interview...</h2>
+        <p style={{ color: "#94a3b8" }}>Please wait while we establish a connection</p>
+        {lastError && (
+          <p style={{ color: "#ef4444", marginTop: "1rem" }}>{lastError}</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <InterviewLayout

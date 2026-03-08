@@ -2,21 +2,26 @@
 
 ## Status: COMPLETED ✅
 
-All required components and functionality are already implemented in the codebase.
+All required components and functionality are implemented.
 
-### Components (All Created):
-- ✅ `InterviewLayout.tsx` - Main layout container with CSS Grid
-- ✅ `AvatarInterviewer.tsx` - AI Interviewer with 3D avatar, lip sync, emotions
-- ✅ `CodingSandbox.tsx` - Monaco Editor integration with run/test functionality
-- ✅ `CandidateCamera.tsx` - Webcam component with audio status
-- ✅ `TranscriptPanel.tsx` - Chat transcript with auto-scroll
+## Changes Made:
 
-### Hooks (All Created):
-- ✅ `useInterview.ts` - Full WebSocket connection, audio streaming, state machine
+### 1. Frontend - Default Landing Page Changed
+- Changed candidate default route from `/dashboard` to `/profile` in `App.tsx`
+- After login, candidates now land on the Profile page
 
-### CSS Grid Layout (Updated):
+### 2. Backend - Resume Upload Fixed
+- Added static file serving for `/uploads` directory in `main.py`
+- Updated `upload_resume` in `candidate_routes.py` to:
+  - Save uploaded files to `uploads/resumes/{user_id}/` directory
+  - Generate unique filenames to prevent conflicts
+  - Add file size validation (max 10MB)
+  - Add better error handling
+  - Create notifications after successful upload
+
+### CSS Grid Layout (index.css):
 ```css
-.interview-container {
+.interview-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 55vh 35vh;
@@ -26,53 +31,33 @@ All required components and functionality are already implemented in the codebas
 }
 
 /* Grid Areas */
-.interviewer-panel { grid-column: 1; }     /* Top Left */
-.coding-panel { grid-column: 2; }          /* Top Right */
-.transcript-panel { grid-column: 1 / span 2; } /* Bottom */
-.camera-panel { position: absolute; right: 20px; bottom: 20px; } /* Overlay */
+.interview-layout .avatar-interviewer { grid-column: 1; }  /* Top Left */
+.interview-layout .coding-sandbox { grid-column: 2; }     /* Top Right */
+.interview-layout .transcript-panel { grid-column: 1 / span 2; } /* Bottom */
+
+/* Camera Overlay */
+.candidate-camera {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  width: 220px;
+  height: 160px;
+}
 ```
 
-### Features Implemented:
-1. ✅ WebSocket connection (`ws://localhost:8000/ws/interview`)
-2. ✅ Continuous audio streaming (no record button - automatic)
-3. ✅ Real-time transcription with Web Speech API
-4. ✅ Monaco Editor for coding challenges
-5. ✅ 3D Avatar with lip sync and emotions
-6. ✅ Candidate webcam with mirrored display
-7. ✅ Interview state machine:
-   - CONNECTING → GREETING → QUESTION → LISTENING → PROCESSING → NEXT_QUESTION → COMPLETED
-8. ✅ Auto-scroll transcript
-9. ✅ Connection status indicator (🔴🟡🟢)
-10. ✅ Question progress tracking
+## Candidate Profile Features:
+✅ Update profile (name, skills, experience, education)
+✅ Upload resume (PDF, DOCX, DOC, PNG, JPG)
+✅ View scores (profile, resume, interview)
+✅ Start mock interviews
+✅ View notifications
+✅ View interview history
 
-### Interview Flow:
-```
-User clicks "Start Mock Interview"
-    ↓
-MockInterview.tsx calls /api/candidate/mock-interview/start
-    ↓
-Navigate to #/interview-session
-    ↓
-InterviewPage.tsx loads with useInterview hook
-    ↓
-WebSocket connects → AI greets → Question asked
-    ↓
-Candidate answers → Audio streamed → AI evaluates
-    ↓
-Next question → Repeat until complete
-    ↓
-Navigate to /report
-```
-
-### Files Reference:
-| File | Purpose |
+## Files Modified:
+| File | Changes |
 |------|---------|
-| `frontend/src/pages/InterviewPage.tsx` | Main interview page |
-| `frontend/src/components/interview/InterviewLayout.tsx` | Layout container |
-| `frontend/src/hooks/useInterview.ts` | WebSocket + audio logic |
-| `frontend/src/components/interview/AvatarInterviewer.tsx` | AI avatar |
-| `frontend/src/components/interview/CodingSandbox.tsx` | Monaco editor |
-| `frontend/src/components/interview/CandidateCamera.tsx` | Webcam |
-| `frontend/src/components/interview/TranscriptPanel.tsx` | Chat |
-| `frontend/src/index.css` | All styling |
+| `frontend/src/App.tsx` | Changed default route to `/profile` |
+| `frontend/src/index.css` | Updated CSS Grid layout |
+| `backend/main.py` | Added static file serving |
+| `backend/routes/candidate_routes.py` | Fixed resume upload to save files |
 

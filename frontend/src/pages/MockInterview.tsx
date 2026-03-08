@@ -50,15 +50,18 @@ export default function MockInterview() {
 
     try {
       // Start the interview session
-      await authFetch<{ session_id: string; mock_interview_id: number; message: string }>(
+      const response = await authFetch<{ session_id: string; mock_interview_id: number; message: string }>(
         "/api/candidate/mock-interview/start",
         { method: "POST" }
       );
 
+      console.log("Interview started:", response);
+      
       // Navigate to the interview session page
       window.location.hash = "#/interview-session";
       
     } catch (err) {
+      console.error("Failed to start interview:", err);
       setError(err instanceof Error ? err.message : "Failed to start interview");
     } finally {
       setIsStarting(false);
