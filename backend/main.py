@@ -18,14 +18,26 @@ from backend.db.database import Base, engine, get_db
 from backend.core.llm_brain import prewarm_llm
 from backend.models.recruiter_dashboard import (
     CandidateComparisonRow,
+    CandidateCreate,
     CandidateInterviewReport,
+    JobPost,
+    JobPostCreate,
+    JobPostUpdate,
     SkillAnalytics,
 )
 from backend.services.recruiter_dashboard_store import (
     compare_candidates,
+    create_job_post,
     get_interview_report,
+    get_job_post,
     get_skill_analytics,
     list_candidates,
+    list_job_posts,
+    update_job_post,
+    delete_job_post,
+    generate_interview_link,
+    invite_candidate,
+    update_candidate_status,
 )
 from backend.services.evaluation_dashboard_store import (
     get_evaluation_dashboard,
@@ -362,4 +374,126 @@ def get_interview_decision(
     )
     
     return report
+
+
+# =========================================================
+# Job Post API Endpoints
+# =========================================================
+
+
+@app.get("/api/job-posts", response_model=list[JobPost])
+def get_job_posts(
+    user=Depends(require_recruiter),
+    db: Session = Depends(get_db),
+    page: int = 1,
+    limit: int = 20,
+    status: str | None = None,
+):
+    """Get list of job posts."""
+    return list_job_posts(db, page=page, limit=limit, status=status)
+
+
+@app.post("/api/job-posts", response_model=JobPost)
+def create_new_job_post(
+    job_data: JobPostCreate,
+    user=Depends(require_recruiter),
+    db: Session = Depends(get_db),
+):
+    """Create a new job post."""
+    return create_job_post(db, job_data, created_by=user.user_id)
+
+
+@app.get("/api/job-posts/{job_post_id}", response_model=JobPost)
+def get_job(
+    job_post_id: str,
+    user=Depends(require_recruiter),
+    db: Session = Depends(get_db),
+):
+    """Get a single job post."""
+    job = get_job_post(db, job_post_id)
+    if not job:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Job post not found")
+    return job
+
+
+@app.put("/api/job-posts/{job_post_id}", response_model=JobPost)
+def update_job(
+    job_post_id: str,
+    job_data: JobPostUpdate,
+    user=Depends(require_recruiter),
+    db: Session = Depends(get_db),
+):
+    """Update a job post."""
+    job = update_job_post(db, job_post_id, job_data)
+    if not job:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Job post not found")
+    return job
+
+
+@app.delete("/api/job-posts/{job_post_id}")
+def delete_job(
+    job_post_id: str,
+    user=Depends(require_recruiter),
+    db: Session = Depends(get_db),
+):
+    """Delete a job post."""
+    success = delete_job_post(db, job_post_id)
+    if not success:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Job post not found")
+    return {"message": "Job post deleted successfully"}
+
+
+# =========================================================
+# Candidate API Endpoints
+# =========================================================
+
+
+@app.post("/api/candidates/invite", response_model=dict)
+def invite_new_candidate(
+    candidate_data: CandidateCreate,
+    user=Depends(require_recruiter),
+    db: Session = Depends(get_db),
+):
+    """Invite a candidate to a job."""
+    candidate = invite_candidate(db, candidate_data)
+    return {
+        "id": candidate.id,
+        "name": candidate.name,
+        "email": candidate.email,
+        "role": candidate.role,
+        "status": candidate.status,
+    }
+
+
+@app.post("/api/candidates/{candidate_id}/generate-link")
+def create_interview_link(
+    candidate_id: str,
+    user=Depends(require_recruiter),
+    db: Session = Depends(get_db),
+    expires_days: int = 7,
+):
+    """Generate an interview link for a candidate."""
+    interview_link, expires_at = generate_interview_link(db, candidate_id, expires_days)
+    return {
+        "interview_link": interview_link,
+        "expires_at": expires_at.isoformat(),
+    }
+
+
+@app.patch("/api/candidates/{candidate_id}/status")
+def change_candidate_status(
+    candidate_id: str,
+    status: str,
+    user=Depends(require_recruiter),
+    db: Session = Depends(get_db),
+):
+    """Update candidate status."""
+    candidate = update_candidate_status(db, candidate_id, status)
+    if not candidate:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    return candidate
 
