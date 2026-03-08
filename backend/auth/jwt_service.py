@@ -274,11 +274,13 @@ class Role:
     """Role constants."""
     ADMIN = "admin"
     RECRUITER = "recruiter"
+    CANDIDATE = "candidate"
     
     # Role hierarchy (higher index = more permissions)
     HIERARCHY = {
         ADMIN: 3,
         RECRUITER: 2,
+        CANDIDATE: 1,
     }
 
 
@@ -389,6 +391,9 @@ ROLE_PERMISSIONS = {
         Permission.GENERATE_REPORTS,
         Permission.VIEW_DASHBOARD,
         Permission.VIEW_METRICS,
+    ],
+    Role.CANDIDATE: [
+        Permission.VIEW_DASHBOARD,
     ],
 }
 

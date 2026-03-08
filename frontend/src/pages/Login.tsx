@@ -65,6 +65,11 @@ export default function Login() {
           <h3>Demo Credentials</h3>
           <p><strong>Admin:</strong> admin@intervux.ai / admin123</p>
           <p><strong>Recruiter:</strong> recruiter@intervux.ai / recruiter123</p>
+          <p><strong>Candidate:</strong> Sign up for a new account</p>
+        </div>
+
+        <div className="auth-switch">
+          Don't have an account? <a href="/signup">Sign Up as Candidate</a>
         </div>
       </div>
     </div>

@@ -480,3 +480,653 @@
 .header-actions .logout-btn:hover {
   background: #d2dde9;
 }
+
+/* Auth Switch */
+.auth-switch {
+  margin-top: 1.5rem;
+  text-align: center;
+  color: #556174;
+}
+
+.auth-switch a {
+  color: #c84630;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.auth-switch a:hover {
+  text-decoration: underline;
+}
+
+/* Page Container */
+.page-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a2940 0%, #2d4a6f 100%);
+  padding: 2rem;
+}
+
+.page-container .loading {
+  color: #fff;
+  text-align: center;
+  padding: 3rem;
+  font-size: 1.2rem;
+}
+
+/* Navigation Links */
+.nav-links {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.nav-links a {
+  color: #e3ebf3;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  transition: background 0.2s;
+}
+
+.nav-links a:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Dashboard Styles */
+.dashboard-header, .profile-header, .interview-header, .history-header, .notifications-header {
+  color: #fff;
+  margin-bottom: 2rem;
+}
+
+.dashboard-header h1, .profile-header h1, .interview-header h1, .history-header h1, .notifications-header h1 {
+  color: #fff;
+  margin: 0;
+}
+
+.dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.score-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 1.5rem;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.score-card h3 {
+  margin: 0 0 0.5rem;
+  color: #556174;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.score-card .score-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #1a2940;
+}
+
+.score-card.highlight {
+  background: linear-gradient(135deg, #c84630 0%, #e86850 100%);
+}
+
+.score-card.highlight h3,
+.score-card.highlight .score-value {
+  color: #fff;
+}
+
+.dashboard-section {
+  background: #fff;
+  border-radius: 14px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.dashboard-section h2 {
+  margin: 0 0 1rem;
+  color: #1a2940;
+}
+
+.activity-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.activity-list li {
+  padding: 0.75rem;
+  border-bottom: 1px solid #d2dde9;
+  color: #556174;
+}
+
+.activity-list li:last-child {
+  border-bottom: none;
+}
+
+.no-activity {
+  color: #8a96a3;
+  font-style: italic;
+}
+
+.dashboard-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.action-button {
+  padding: 0.85rem 1.5rem;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.action-button.primary {
+  background: #c84630;
+  color: #fff;
+}
+
+.action-button.primary:hover {
+  background: #a83825;
+}
+
+.action-button {
+  background: #e3ebf3;
+  color: #1a2940;
+}
+
+/* Profile Styles */
+.profile-content {
+  background: #fff;
+  border-radius: 14px;
+  padding: 2rem;
+}
+
+.profile-scores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid #d2dde9;
+}
+
+.score-box {
+  background: #f8fbff;
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.score-box .score-label {
+  display: block;
+  color: #556174;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.score-box .score-number {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #1a2940;
+}
+
+.profile-section {
+  margin-bottom: 1.5rem;
+}
+
+.profile-section h3 {
+  margin: 0 0 0.75rem;
+  color: #1a2940;
+}
+
+.profile-section p {
+  margin: 0.5rem 0;
+  color: #556174;
+}
+
+.skills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.skill-tag {
+  background: #e3ebf3;
+  color: #1a2940;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+}
+
+.edit-button {
+  padding: 0.75rem 1.5rem;
+  background: #c84630;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.profile-edit .form-group {
+  margin-bottom: 1rem;
+}
+
+.profile-edit label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #1a2940;
+  font-weight: 600;
+}
+
+.profile-edit input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d2dde9;
+  border-radius: 10px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.save-button {
+  padding: 0.75rem 1.5rem;
+  background: #c84630;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.cancel-button {
+  padding: 0.75rem 1.5rem;
+  background: #e3ebf3;
+  color: #1a2940;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Mock Interview Styles */
+.interview-start-section {
+  background: #fff;
+  border-radius: 14px;
+  padding: 2rem;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.interview-start-section h2 {
+  margin: 0 0 1rem;
+  color: #1a2940;
+}
+
+.interview-start-section p {
+  color: #556174;
+  margin-bottom: 1.5rem;
+}
+
+.start-interview-button {
+  padding: 1rem 2rem;
+  background: #c84630;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.start-interview-button:hover:not(:disabled) {
+  background: #a83825;
+}
+
+.start-interview-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.interview-history-section {
+  background: #fff;
+  border-radius: 14px;
+  padding: 2rem;
+}
+
+.interview-history-section h2 {
+  margin: 0 0 1.5rem;
+  color: #1a2940;
+}
+
+.no-history {
+  color: #8a96a3;
+  font-style: italic;
+}
+
+.interview-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.interview-card {
+  background: #f8fbff;
+  border: 1px solid #d2dde9;
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.interview-info h3 {
+  margin: 0 0 0.5rem;
+  color: #1a2940;
+}
+
+.interview-info p {
+  margin: 0.25rem 0;
+  color: #556174;
+  font-size: 0.9rem;
+}
+
+.status-completed {
+  color: #2d8a4e;
+  font-weight: 600;
+}
+
+.status-in_progress {
+  color: #c84630;
+  font-weight: 600;
+}
+
+.interview-scores {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+.score-item {
+  text-align: center;
+}
+
+.score-item .score-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #556174;
+  margin-bottom: 0.25rem;
+}
+
+.score-item .score-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1a2940;
+}
+
+/* Interview History Table */
+.history-content {
+  background: #fff;
+  border-radius: 14px;
+  padding: 2rem;
+}
+
+.history-content h2 {
+  margin: 0 0 1.5rem;
+  color: #1a2940;
+}
+
+.no-interviews {
+  text-align: center;
+  padding: 3rem;
+  color: #556174;
+}
+
+.interview-table {
+  overflow-x: auto;
+}
+
+.interview-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.interview-table th,
+.interview-table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid #d2dde9;
+}
+
+.interview-table th {
+  color: #1a2940;
+  font-weight: 600;
+}
+
+.interview-table tr {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.interview-table tr:hover {
+  background: #f8fbff;
+}
+
+.interview-table tr.selected {
+  background: #e3ebf3;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.status-badge.status-completed {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.status-in_progress {
+  background: #fff3cd;
+  color: #856404;
+}
+
+/* Notifications Styles */
+.notifications-content {
+  background: #fff;
+  border-radius: 14px;
+  padding: 2rem;
+}
+
+.notifications-summary {
+  margin-bottom: 1.5rem;
+}
+
+.notification-count {
+  color: #556174;
+  font-size: 1.1rem;
+}
+
+.no-notifications {
+  text-align: center;
+  padding: 3rem;
+  color: #556174;
+}
+
+.no-notifications .hint {
+  color: #8a96a3;
+  font-size: 0.9rem;
+}
+
+.notifications-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.notification-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.notification-card.unread {
+  background: #f8fbff;
+}
+
+.notification-card.read {
+  background: #fff;
+  opacity: 0.7;
+}
+
+.notification-card:hover {
+  background: #e3ebf3;
+}
+
+.notification-icon {
+  font-size: 1.5rem;
+}
+
+.notification-body {
+  flex: 1;
+}
+
+.notification-message {
+  margin: 0 0 0.25rem;
+  color: #1a2940;
+}
+
+.notification-time {
+  font-size: 0.85rem;
+  color: #8a96a3;
+}
+
+.unread-indicator {
+  display: flex;
+  align-items: center;
+}
+
+.unread-dot {
+  width: 10px;
+  height: 10px;
+  background: #c84630;
+  border-radius: 50%;
+}
+
+/* Interview Details Modal */
+.interview-details-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 14px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 90%;
+}
+
+.modal-content h3 {
+  margin: 0 0 1.5rem;
+  color: #1a2940;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+}
+
+.detail-item label {
+  color: #556174;
+}
+
+.detail-item span {
+  color: #1a2940;
+  font-weight: 600;
+}
+
+.score-breakdown h4 {
+  margin: 0 0 1rem;
+  color: #1a2940;
+}
+
+.score-bars {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.score-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.score-bar-item .score-label {
+  width: 100px;
+  color: #556174;
+}
+
+.score-bar {
+  flex: 1;
+  height: 8px;
+  background: #e3ebf3;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.score-fill {
+  height: 100%;
+  background: #c84630;
+  border-radius: 4px;
+}
+
+.score-bar-item .score-number {
+  width: 40px;
+  text-align: right;
+  font-weight: 600;
+  color: #1a2940;
+}
+
+.close-button {
+  width: 100%;
+  padding: 0.85rem;
+  background: #e3ebf3;
+  color: #1a2940;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 1.5rem;
+}
