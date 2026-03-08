@@ -6,6 +6,7 @@ import CandidateList from "./CandidateList";
 import InterviewReplay from "./InterviewReplay";
 import InterviewReport from "./InterviewReport";
 import SkillAnalytics from "./SkillAnalytics";
+import { authFetch, useAuth } from "../hooks/useAuth";
 import type {
   CandidateComparisonRow,
   CandidateInterviewReport,
@@ -15,17 +16,8 @@ import type {
   SkillAnalyticsResponse,
 } from "./types";
 
-const API_BASE_URL = "http://localhost:8000";
-
-async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`);
-  if (!response.ok) {
-    throw new Error(`Request failed (${response.status}) for ${path}`);
-  }
-  return (await response.json()) as T;
-}
-
 export default function RecruiterDashboard() {
+  const { logout, user } = useAuth();
   const [tab, setTab] = useState<DashboardTab>("candidates");
   const [candidates, setCandidates] = useState<CandidateListItem[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
@@ -40,12 +32,12 @@ export default function RecruiterDashboard() {
     void (async () => {
       try {
         const [candidateRows, compareRows] = await Promise.all([
-          fetchJson<CandidateListItem[]>("/api/candidates"),
-          fetchJson<CandidateComparisonRow[]>("/api/candidates/compare"),
+          authFetch<CandidateListItem[]>("/api/candidates"),
+          authFetch<CandidateComparisonRow[]>("/api/candidates/compare"),
         ]);
         setCandidates(candidateRows);
         setComparisonRows(compareRows);
-        const dashboardMetrics = await fetchJson<EvaluationDashboardResponse>("/api/evaluation-dashboard");
+        const dashboardMetrics = await authFetch<EvaluationDashboardResponse>("/api/evaluation-dashboard");
         setEvaluationData(dashboardMetrics);
         if (candidateRows.length > 0) {
           setSelectedCandidateId(candidateRows[0].id);
@@ -72,8 +64,8 @@ export default function RecruiterDashboard() {
     void (async () => {
       try {
         const [interviewReport, skillAnalytics] = await Promise.all([
-          fetchJson<CandidateInterviewReport>(`/api/interview/${selectedCandidate.interview_id}`),
-          fetchJson<SkillAnalyticsResponse>(`/api/interview/${selectedCandidate.interview_id}/analytics`),
+          authFetch<CandidateInterviewReport>(`/api/interview/${selectedCandidate.interview_id}`),
+          authFetch<SkillAnalyticsResponse>(`/api/interview/${selectedCandidate.interview_id}/analytics`),
         ]);
         setReport(interviewReport);
         setAnalytics(skillAnalytics);
@@ -98,6 +90,16 @@ export default function RecruiterDashboard() {
     <main className="dashboard-shell">
       <header>
         <h1>Recruiter Dashboard</h1>
+        <div className="header-actions">
+          {user && (
+            <span className="user-info">
+              {user.name} ({user.role})
+            </span>
+          )}
+          <button type="button" className="logout-btn" onClick={logout}>
+            Logout
+          </button>
+        </div>
         {error && <p className="error">{error}</p>}
       </header>
 

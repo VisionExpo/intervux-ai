@@ -343,3 +343,140 @@
   border-color: #b8cce3;
   background: #f4f8fc;
 }
+
+/* Login Page Styles */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a2940 0%, #2d4a6f 100%);
+}
+
+.login-container {
+  background: #fff;
+  border-radius: 20px;
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.login-container h1 {
+  margin: 0 0 0.5rem;
+  color: #c84630;
+  font-size: 2rem;
+}
+
+.login-container h2 {
+  margin: 0 0 1.5rem;
+  color: #1a2940;
+  font-size: 1.5rem;
+}
+
+.login-container .form-group {
+  margin-bottom: 1rem;
+  text-align: left;
+}
+
+.login-container label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #1a2940;
+  font-weight: 600;
+}
+
+.login-container input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d2dde9;
+  border-radius: 10px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.login-container input:focus {
+  outline: none;
+  border-color: #c84630;
+  box-shadow: 0 0 0 2px rgba(200, 70, 48, 0.2);
+}
+
+.login-container button {
+  width: 100%;
+  padding: 0.85rem;
+  background: #c84630;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: background 0.2s;
+}
+
+.login-container button:hover:not(:disabled) {
+  background: #a83825;
+}
+
+.login-container button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-container .error-message {
+  background: #fff4f1;
+  border: 1px solid #f0b1a8;
+  color: #8f1f0f;
+  padding: 0.75rem;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  text-align: left;
+}
+
+.demo-credentials {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #d2dde9;
+  text-align: left;
+}
+
+.demo-credentials h3 {
+  margin: 0 0 0.75rem;
+  color: #1a2940;
+  font-size: 0.9rem;
+}
+
+.demo-credentials p {
+  margin: 0.35rem 0;
+  color: #556174;
+  font-size: 0.85rem;
+}
+
+/* Header Actions */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.header-actions .user-info {
+  color: #556174;
+  font-size: 0.9rem;
+}
+
+.header-actions .logout-btn {
+  padding: 0.4rem 0.8rem;
+  background: #e3ebf3;
+  color: #1a2940;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.header-actions .logout-btn:hover {
+  background: #d2dde9;
+}
