@@ -83,10 +83,10 @@ export default function MockInterview() {
       <div className="interview-header">
         <h1>Mock Interviews</h1>
         <div className="nav-links">
-          <a href="/dashboard">Dashboard</a>
-          <a href="/profile">Profile</a>
-          <a href="/interview-history">History</a>
-          <a href="/notifications">Notifications</a>
+          <a href="#/dashboard">Dashboard</a>
+          <a href="#/profile">Profile</a>
+          <a href="#/interview-history">History</a>
+          <a href="#/notifications">Notifications</a>
         </div>
       </div>
 

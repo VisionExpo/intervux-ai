@@ -50,7 +50,7 @@ export default function InterviewHistory() {
         <div className="nav-links">
           <a href="/dashboard">Dashboard</a>
           <a href="/profile">Profile</a>
-          <a href="/mock-interview">Mock Interview</a>
+          <a href="#/mock-interview">Mock Interview</a>
           <a href="/notifications">Notifications</a>
         </div>
       </div>
@@ -63,7 +63,7 @@ export default function InterviewHistory() {
         {interviews.length === 0 ? (
           <div className="no-interviews">
             <p>You haven't taken any mock interviews yet.</p>
-            <a href="/mock-interview" className="action-button primary">
+            <a href="#/mock-interview" className="action-button primary">
               Start Your First Interview
             </a>
           </div>

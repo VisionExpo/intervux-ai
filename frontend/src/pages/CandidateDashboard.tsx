@@ -62,7 +62,7 @@ export default function CandidateDashboard() {
         <h1>Welcome {profile?.name || user?.name || "Candidate"}</h1>
         <div className="nav-links">
           <a href="/profile">Profile</a>
-          <a href="/mock-interview">Mock Interview</a>
+          <a href="#/mock-interview">Mock Interview</a>
           <a href="/interview-history">History</a>
           <a href="/notifications">Notifications</a>
         </div>
@@ -121,7 +121,7 @@ export default function CandidateDashboard() {
 
       <div className="dashboard-actions">
         {dashboard?.mock_interviews_remaining !== undefined && dashboard.mock_interviews_remaining > 0 ? (
-          <a href="/mock-interview" className="action-button primary">
+          <a href="#/mock-interview" className="action-button primary">
             Start Mock Interview
           </a>
         ) : (

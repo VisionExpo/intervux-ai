@@ -115,13 +115,13 @@ export default function CandidateInterviewReport() {
         <div className="report-header">
           <h1>Interview Report</h1>
           <div className="nav-links">
-            <a href="/dashboard">Dashboard</a>
-            <a href="/interview-history">History</a>
+            <a href="#/dashboard">Dashboard</a>
+            <a href="#/interview-history">History</a>
           </div>
         </div>
         <div className="report-content">
           <div className="error-message">{error || "No report available"}</div>
-          <a href="/dashboard" className="action-button primary">
+          <a href="#/dashboard" className="action-button primary">
             Back to Dashboard
           </a>
         </div>
@@ -136,8 +136,8 @@ export default function CandidateInterviewReport() {
       <div className="report-header">
         <h1>Interview Completed</h1>
         <div className="nav-links">
-          <a href="/dashboard">Dashboard</a>
-          <a href="/interview-history">History</a>
+          <a href="#/dashboard">Dashboard</a>
+          <a href="#/interview-history">History</a>
         </div>
       </div>
 
@@ -219,10 +219,10 @@ export default function CandidateInterviewReport() {
         )}
 
         <div className="report-actions">
-          <a href="/mock-interview" className="action-button primary">
+          <a href="#/mock-interview" className="action-button primary">
             Start New Interview
           </a>
-          <a href="/dashboard" className="action-button">
+          <a href="#/dashboard" className="action-button">
             Back to Dashboard
           </a>
         </div>

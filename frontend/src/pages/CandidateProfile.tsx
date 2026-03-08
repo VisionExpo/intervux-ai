@@ -166,10 +166,10 @@ export default function CandidateProfile() {
       <div className="profile-header">
         <h1>My Profile</h1>
         <div className="nav-links">
-          <a href="/dashboard">Dashboard</a>
-          <a href="/mock-interview">Mock Interview</a>
-          <a href="/interview-history">History</a>
-          <a href="/notifications">Notifications</a>
+          <a href="#/dashboard">Dashboard</a>
+          <a href="#/mock-interview">Mock Interview</a>
+          <a href="#/interview-history">History</a>
+          <a href="#/notifications">Notifications</a>
         </div>
       </div>
 

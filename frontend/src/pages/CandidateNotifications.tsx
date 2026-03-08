@@ -72,10 +72,10 @@ export default function CandidateNotifications() {
       <div className="notifications-header">
         <h1>Notifications</h1>
         <div className="nav-links">
-          <a href="/dashboard">Dashboard</a>
-          <a href="/profile">Profile</a>
-          <a href="/mock-interview">Mock Interview</a>
-          <a href="/interview-history">History</a>
+          <a href="#/dashboard">Dashboard</a>
+          <a href="#/profile">Profile</a>
+          <a href="#/mock-interview">Mock Interview</a>
+          <a href="#/interview-history">History</a>
         </div>
       </div>
 
