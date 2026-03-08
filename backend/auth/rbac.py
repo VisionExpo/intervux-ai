@@ -97,7 +97,7 @@ role_manager = RoleManager()
 # Pre-built role dependencies
 require_admin = require_role(Role.ADMIN)
 require_recruiter = require_any_role([Role.ADMIN, Role.RECRUITER])
-require_viewer = require_any_role([Role.ADMIN, Role.RECRUITER, Role.VIEWER])
+require_viewer = require_any_role([Role.ADMIN, Role.RECRUITER])
 
 
 # Pre-built permission dependencies
@@ -300,7 +300,6 @@ def get_role_display_name(role: str) -> str:
     names = {
         Role.ADMIN: "Administrator",
         Role.RECRUITER: "Recruiter",
-        Role.VIEWER: "Viewer",
     }
     return names.get(role, role.title())
 

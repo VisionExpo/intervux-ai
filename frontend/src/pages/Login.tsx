@@ -65,7 +65,6 @@ export default function Login() {
           <h3>Demo Credentials</h3>
           <p><strong>Admin:</strong> admin@intervux.ai / admin123</p>
           <p><strong>Recruiter:</strong> recruiter@intervux.ai / recruiter123</p>
-          <p><strong>Viewer:</strong> viewer@intervux.ai / viewer123</p>
         </div>
       </div>
     </div>

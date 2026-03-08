@@ -45,7 +45,6 @@ class RateLimitConfig:
     LIMITS = {
         Role.ADMIN: 500,      # 500 requests/min
         Role.RECRUITER: 200,  # 200 requests/min
-        Role.VIEWER: 50,      # 50 requests/min
     }
     
     # Global fallback limits

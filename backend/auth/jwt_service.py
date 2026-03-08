@@ -274,13 +274,11 @@ class Role:
     """Role constants."""
     ADMIN = "admin"
     RECRUITER = "recruiter"
-    VIEWER = "viewer"
     
     # Role hierarchy (higher index = more permissions)
     HIERARCHY = {
         ADMIN: 3,
         RECRUITER: 2,
-        VIEWER: 1,
     }
 
 
@@ -361,7 +359,7 @@ class Permission:
     VIEW_REPORTS = "view_reports"
     GENERATE_REPORTS = "generate_reports"
     
-    # Viewer permissions
+    # Dashboard permissions
     VIEW_DASHBOARD = "view_dashboard"
     VIEW_METRICS = "view_metrics"
 
@@ -389,10 +387,6 @@ ROLE_PERMISSIONS = {
         Permission.MANAGE_CANDIDATES,
         Permission.VIEW_REPORTS,
         Permission.GENERATE_REPORTS,
-        Permission.VIEW_DASHBOARD,
-        Permission.VIEW_METRICS,
-    ],
-    Role.VIEWER: [
         Permission.VIEW_DASHBOARD,
         Permission.VIEW_METRICS,
     ],
@@ -553,13 +547,6 @@ DEMO_USERS = {
         "name": "Recruiter User",
         "role": Role.RECRUITER,
         "password_hash": hash_password("recruiter123"),
-    },
-    "viewer@intervux.ai": {
-        "id": "viewer-001",
-        "email": "viewer@intervux.ai",
-        "name": "Viewer User",
-        "role": Role.VIEWER,
-        "password_hash": hash_password("viewer123"),
     },
 }
 
