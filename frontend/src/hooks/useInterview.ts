@@ -35,6 +35,14 @@ type QueuedAudioChunk = {
 const WS_URL = "ws://localhost:8000/ws/interview";
 const MAX_RECONNECT_ATTEMPTS = 6;
 
+function getWebSocketUrl(): string {
+  const token = localStorage.getItem("auth_token");
+  if (token) {
+    return `${WS_URL}?token=${encodeURIComponent(token)}`;
+  }
+  return WS_URL;
+}
+
 export function useInterview() {
   const socketRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -115,11 +123,12 @@ export function useInterview() {
     setStage("connecting");
     setAvatarState("thinking");
 
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(getWebSocketUrl());
     ws.binaryType = "arraybuffer";
     socketRef.current = ws;
 
     ws.onopen = () => {
+      console.log("WebSocket connected successfully");
       if (connectId !== connectIdRef.current) return;
       reconnectAttemptRef.current = 0;
       setIsConnected(true);
@@ -127,6 +136,7 @@ export function useInterview() {
     };
 
     ws.onmessage = (event) => {
+      console.log("WebSocket message received:", event.data);
       if (connectId !== connectIdRef.current) return;
 
       if (event.data instanceof ArrayBuffer) {
@@ -248,12 +258,14 @@ export function useInterview() {
       }
     };
 
-    ws.onerror = () => {
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
       if (connectId !== connectIdRef.current) return;
       setLastError("WebSocket error.");
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
+      console.log("WebSocket closed:", event.code, event.reason);
       if (connectId !== connectIdRef.current) return;
       setIsConnected(false);
 

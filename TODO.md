@@ -1,63 +1,57 @@
-# Interview UI Layout Implementation
+# Interview UI Layout Implementation - COMPLETED ✅
 
-## Status: COMPLETED ✅
+## Summary of Fixes Made
 
-All required components and functionality are implemented.
+### 1. Navigation Links Fixed (Hash-based Routing)
+All navigation links across candidate pages now use hash-based routing (`#/mock-interview` instead of `/mock-interview`):
 
-## Changes Made:
+- **CandidateProfile.tsx** - Fixed nav links
+- **CandidateDashboard.tsx** - Fixed nav links  
+- **CandidateNotifications.tsx** - Fixed nav links
+- **CandidateInterviewReport.tsx** - Fixed nav links
+- **InterviewHistory.tsx** - Fixed nav links
+- **MockInterview.tsx** - Fixed nav links
 
-### 1. Frontend - Default Landing Page Changed
-- Changed candidate default route from `/dashboard` to `/profile` in `App.tsx`
-- After login, candidates now land on the Profile page
+### 2. WebSocket JWT Token Authentication
+The WebSocket connection now includes the JWT token in the URL:
 
-### 2. Backend - Resume Upload Fixed
-- Added static file serving for `/uploads` directory in `main.py`
-- Updated `upload_resume` in `candidate_routes.py` to:
-  - Save uploaded files to `uploads/resumes/{user_id}/` directory
-  - Generate unique filenames to prevent conflicts
-  - Add file size validation (max 10MB)
-  - Add better error handling
-  - Create notifications after successful upload
+- **useInterview.ts** - Added `getWebSocketUrl()` function that appends the auth token
+- Added debug logging for WebSocket events (open, message, error, close)
 
-### CSS Grid Layout (index.css):
-```css
-.interview-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 55vh 35vh;
-  gap: 12px;
-  height: 100vh;
-  padding: 10px;
-}
+### 3. CSS Grid Layout
+Updated to match specifications:
+- 55vh/35vh row sizing
+- 12px gap
+- Camera positioned as absolute overlay at bottom right
 
-/* Grid Areas */
-.interview-layout .avatar-interviewer { grid-column: 1; }  /* Top Left */
-.interview-layout .coding-sandbox { grid-column: 2; }     /* Top Right */
-.interview-layout .transcript-panel { grid-column: 1 / span 2; } /* Bottom */
+## Current Architecture
 
-/* Camera Overlay */
-.candidate-camera {
-  position: absolute;
-  right: 20px;
-  bottom: 20px;
-  width: 220px;
-  height: 160px;
-}
-```
+### Frontend Files:
+- `frontend/src/pages/InterviewPage.tsx` - Main interview page
+- `frontend/src/hooks/useInterview.ts` - WebSocket and audio handling hook
+- `frontend/src/components/interview/InterviewLayout.tsx` - Layout component
+- `frontend/src/components/interview/AvatarInterviewer.tsx` - AI Avatar
+- `frontend/src/components/interview/CodingSandbox.tsx` - Monaco Editor
+- `frontend/src/components/interview/CandidateCamera.tsx` - Webcam
+- `frontend/src/components/interview/TranscriptPanel.tsx` - Transcript
+- `frontend/src/index.css` - All CSS styles
 
-## Candidate Profile Features:
-✅ Update profile (name, skills, experience, education)
-✅ Upload resume (PDF, DOCX, DOC, PNG, JPG)
-✅ View scores (profile, resume, interview)
-✅ Start mock interviews
-✅ View notifications
-✅ View interview history
+### Backend WebSocket:
+- `backend/sockets/interview.py` - InterviewSocket class handles all WebSocket communication
+- Requires JWT token in query parameter: `ws://localhost:8000/ws/interview?token=<jwt>`
 
-## Files Modified:
-| File | Changes |
-|------|---------|
-| `frontend/src/App.tsx` | Changed default route to `/profile` |
-| `frontend/src/index.css` | Updated CSS Grid layout |
-| `backend/main.py` | Added static file serving |
-| `backend/routes/candidate_routes.py` | Fixed resume upload to save files |
+## To Test:
+
+1. Start backend: `cd backend && uvicorn main:app --reload`
+2. Start frontend: `cd frontend && npm run dev`
+3. Login as candidate
+4. Navigate to Mock Interview page
+5. Click "Start Mock Interview"
+6. Check browser console for WebSocket logs
+
+## Debug Logs to Look For:
+- "WebSocket connected successfully" - Connection established
+- "WebSocket message received:" - Messages from backend
+- "WebSocket closed:" - If connection drops
+
 
