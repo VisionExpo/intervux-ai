@@ -1,21 +1,30 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { VisemeCue } from "../avatar/LipSyncController";
 
-type InterviewStage =
+export type InterviewStage =
   | "connecting"
+  | "greeting"
   | "waiting_resume"
   | "asking_question"
   | "listening"
   | "processing"
+  | "next_question"
   | "completed";
 
-type AvatarState = "speaking" | "listening" | "thinking";
+export type AvatarState = "speaking" | "listening" | "thinking";
 
-type EvaluationPayload = {
+export type EvaluationPayload = {
   question_index: number;
   question: string;
   transcript: string;
   evaluation: Record<string, unknown>;
+};
+
+export type TranscriptMessage = {
+  id: string;
+  speaker: "ai" | "candidate";
+  text: string;
+  timestamp?: Date;
 };
 
 type QueuedAudioChunk = {
@@ -61,6 +70,23 @@ export function useInterview() {
   const [lastError, setLastError] = useState<string>("");
   const [visemes, setVisemes] = useState<VisemeCue[]>([]);
   const [emotion, setEmotion] = useState("neutral");
+  const [transcriptMessages, setTranscriptMessages] = useState<TranscriptMessage[]>([]);
+
+  // Add message to transcript
+  const addTranscriptMessage = useCallback((speaker: "ai" | "candidate", text: string) => {
+    const newMessage: TranscriptMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      speaker,
+      text,
+      timestamp: new Date(),
+    };
+    setTranscriptMessages((prev) => [...prev, newMessage]);
+  }, []);
+
+  // Clear transcript
+  const clearTranscript = useCallback(() => {
+    setTranscriptMessages([]);
+  }, []);
 
   useEffect(() => {
     stageRef.current = stage;
@@ -120,9 +146,14 @@ export function useInterview() {
       const type = typeof msg.type === "string" ? msg.type : "";
 
       if (type === "avatar_sync") {
-        setAvatarText(typeof msg.text === "string" ? msg.text : "");
+        const text = typeof msg.text === "string" ? msg.text : "";
+        setAvatarText(text);
         setQuestionIndex(Number(msg.question_index ?? 0));
         setTotalQuestions(Number(msg.total_questions ?? 0));
+        // Add AI message to transcript
+        if (text) {
+          addTranscriptMessage("ai", text);
+        }
         setStage(Number(msg.question_index ?? 0) > 0 ? "asking_question" : "waiting_resume");
         return;
       }
@@ -140,6 +171,10 @@ export function useInterview() {
       if (type === "evaluation") {
         const data = (msg.data ?? null) as EvaluationPayload | null;
         setLastEvaluation(data);
+        // Add candidate's answer to transcript
+        if (data?.transcript) {
+          addTranscriptMessage("candidate", data.transcript);
+        }
         setPartialTranscript("");
         setStage("asking_question");
         setAvatarState("thinking");
@@ -179,7 +214,18 @@ export function useInterview() {
       }
 
       if (type === "partial_transcript") {
-        setPartialTranscript(typeof msg.text === "string" ? msg.text : "");
+        const text = typeof msg.text === "string" ? msg.text : "";
+        setPartialTranscript(text);
+        // Update the last candidate message with partial transcript
+        setTranscriptMessages((prev) => {
+          const lastMsg = prev[prev.length - 1];
+          if (lastMsg && lastMsg.speaker === "candidate") {
+            const updated = [...prev];
+            updated[updated.length - 1] = { ...lastMsg, text };
+            return updated;
+          }
+          return prev;
+        });
         return;
       }
 
@@ -191,6 +237,12 @@ export function useInterview() {
         } else if (value === "PROCESSING") {
           setStage("processing");
           if (!isPlayingQueueRef.current) setAvatarState("thinking");
+        } else if (value === "NEXT_QUESTION") {
+          setStage("next_question");
+          if (!isPlayingQueueRef.current) setAvatarState("thinking");
+        } else if (value === "GREETING") {
+          setStage("greeting");
+          setAvatarState("speaking");
         }
         return;
       }
@@ -443,6 +495,9 @@ export function useInterview() {
     audioRef,
     visemes,
     emotion,
+    transcriptMessages,
+    addTranscriptMessage,
+    clearTranscript,
     uploadResume,
     sendAudioAnswer,
     startAudioStream,
