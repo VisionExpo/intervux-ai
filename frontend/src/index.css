@@ -29,16 +29,40 @@ body {
 .interview-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr auto;
-  gap: 1rem;
+  grid-template-rows: 55vh 35vh;
+  gap: 12px;
   height: 100vh;
-  padding: 1rem;
+  padding: 10px;
+  position: relative;
+}
+
+/* Grid Area Assignments */
+.interview-layout .avatar-interviewer {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.interview-layout .coding-sandbox {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.interview-layout .transcript-panel {
+  grid-column: 1 / span 2;
+  grid-row: 2;
 }
 
 @media (max-width: 1024px) {
   .interview-layout {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto auto auto;
+  }
+  
+  .interview-layout .avatar-interviewer,
+  .interview-layout .coding-sandbox,
+  .interview-layout .transcript-panel {
+    grid-column: 1;
+    grid-row: auto;
   }
 }
 
@@ -139,22 +163,27 @@ body {
   cursor: not-allowed;
 }
 
-/* Candidate Camera */
+/* Candidate Camera - Positioned at bottom right as overlay */
 .candidate-camera {
-  position: relative;
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  width: 220px;
+  height: 160px;
   background: #0f172a;
   border-radius: 16px;
   overflow: hidden;
-  aspect-ratio: 16/9;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 10;
 }
 
-.camera-preview {
+.candidate-camera .camera-preview {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.camera-overlay {
+.candidate-camera .camera-overlay {
   position: absolute;
   inset: 0;
   display: flex;
@@ -164,17 +193,17 @@ body {
   color: #94a3b8;
 }
 
-.camera-status {
+.candidate-camera .camera-status {
   position: absolute;
-  bottom: 0.75rem;
-  left: 0.75rem;
-  right: 0.75rem;
+  bottom: 0.5rem;
+  left: 0.5rem;
+  right: 0.5rem;
   display: flex;
   justify-content: space-between;
-  padding: 0.5rem 0.75rem;
-  background: rgba(0, 0, 0, 0.6);
-  border-radius: 8px;
-  font-size: 0.75rem;
+  padding: 0.375rem 0.5rem;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 6px;
+  font-size: 0.7rem;
 }
 
 .status-item {
