@@ -79,12 +79,16 @@ class InterviewEngine:
         Returns:
             Response with first question
         """
+        logger.info("Resume received")
+        logger.info(f"Resume size: {len(file_bytes_b64)}")
         state.transition_to(InterviewState.phase.__class__.WAITING_RESUME)
         
         # Parse resume
+        logger.info("Starting resume parsing")
         resume_start = time.time()
         _, extracted = await self._parse_resume(file_name, file_bytes_b64)
-        
+        logger.info("Resume parsed successfully")
+
         try:
             state.profile = ResumeData(**extracted)
         except Exception:
@@ -93,6 +97,7 @@ class InterviewEngine:
         metrics.record_latency("resume_parsing", time.time() - resume_start)
         
         # Initialize question generation
+        logger.info("Generating first question")
         question_start = time.time()
         state.target_question_count = int(session_policy.get("question_count", 2))
         state.skill_map = build_skill_map(state.profile.model_dump())
@@ -432,13 +437,17 @@ class InterviewEngine:
 
     async def _parse_resume(self, file_name: str, file_bytes_b64: str) -> Tuple[str, dict]:
         """Parse resume bytes."""
-        return await asyncio.to_thread(
-            partial(
-                parse_resume_bytes,
-                file_name=file_name,
-                file_bytes_b64=file_bytes_b64,
+        try:
+            return await asyncio.to_thread(
+                partial(
+                    parse_resume_bytes,
+                    file_name=file_name,
+                    file_bytes_b64=file_bytes_b64,
+                )
             )
-        )
+        except Exception:
+            logger.exception("Resume parsing failed")
+            return "", {}
 
     async def _generate_initial_question(
         self,

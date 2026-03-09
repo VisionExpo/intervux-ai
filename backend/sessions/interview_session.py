@@ -158,13 +158,21 @@ class InterviewSession:
                 "recoverable": True,
             }
         
-        # Start interview with resume
-        result = await self.engine.start_interview(
-            state=self.state,
-            file_name=file_name,
-            file_bytes_b64=file_bytes,
-            session_policy=self.session_policy,
-        )
+        try:
+            # Start interview with resume
+            result = await self.engine.start_interview(
+                state=self.state,
+                file_name=file_name,
+                file_bytes_b64=file_bytes,
+                session_policy=self.session_policy,
+            )
+        except Exception:
+            logger.exception("Bootstrap interview failed")
+            return {
+                "type": "error",
+                "message": "Failed to process resume",
+                "recoverable": True,
+            }
         
         return result
 
