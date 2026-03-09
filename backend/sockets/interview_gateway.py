@@ -166,19 +166,26 @@ class InterviewGateway:
         )
 
         try:
-            # Send welcome message
-            logger.info("Sending greeting")
-            
-            await self._send_avatar_with_audio(
-                ws=ws,
-                text="""Hello, welcome to Intervux.
+            # Send welcome message if not already sent
+            if not session.state.greeting_sent:
+                logger.info("Sending greeting")
+                
+                user_name = user_data.name.split()[0] if user_data.name else ""
+                greeting_text = f"Hello {user_name}, welcome to Intervux.".strip()
+                
+                full_text = f"""{greeting_text}
 
 I'll be conducting your interview today.
 
-Before we begin, please upload your resume so I can tailor questions based on your experience.""",
-                question_index=0,
-                total_questions=0,
-            )
+Before we begin, please upload your resume so I can tailor questions based on your experience."""
+
+                await self._send_avatar_with_audio(
+                    ws=ws,
+                    text=full_text,
+                    question_index=0,
+                    total_questions=0,
+                )
+                session.state.greeting_sent = True
 
             # Transition to waiting for resume
             session.state.transition_to(InterviewPhase.WAITING_RESUME)

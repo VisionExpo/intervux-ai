@@ -166,16 +166,23 @@ class InterviewSocket:
         )
 
         try:
-            await self._send_avatar_with_audio(
-                ws=ws,
-                text="""Hello, welcome to Intervux.
+            if not state.greeting_sent:
+                user_name = ws.state.user.name.split()[0] if ws.state.user.name else ""
+                greeting_text = f"Hello {user_name}, welcome to Intervux.".strip()
+                
+                full_text = f"""{greeting_text}
 
 I'll be conducting your interview today.
 
-Before we begin, please upload your resume so I can tailor questions based on your experience.""",
-                question_index=0,
-                total_questions=0,
-            )
+Before we begin, please upload your resume so I can tailor questions based on your experience."""
+                
+                await self._send_avatar_with_audio(
+                    ws=ws,
+                    text=full_text,
+                    question_index=0,
+                    total_questions=0,
+                )
+                state.greeting_sent = True
 
             resume_payload = await self._wait_for_resume_upload(ws)
             await self._bootstrap_interview(

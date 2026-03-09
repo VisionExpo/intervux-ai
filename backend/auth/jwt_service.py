@@ -53,6 +53,7 @@ class TokenData(BaseModel):
     """Token payload data."""
     user_id: str
     email: str
+    name: Optional[str] = None
     role: str = "viewer"
     exp: Optional[datetime] = None
 
@@ -177,6 +178,7 @@ def verify_token(token: str) -> TokenData:
         
         user_id: str = payload.get("user_id")
         email: str = payload.get("email")
+        name: str = payload.get("name")
         role: str = payload.get("role", "viewer")
         
         if user_id is None or email is None:
@@ -185,6 +187,7 @@ def verify_token(token: str) -> TokenData:
         token_data = TokenData(
             user_id=user_id,
             email=email,
+            name=name,
             role=role,
             exp=payload.get("exp"),
         )

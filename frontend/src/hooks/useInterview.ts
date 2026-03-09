@@ -52,6 +52,7 @@ export function useInterview() {
   const reconnectAttemptRef = useRef(0);
   const shouldReconnectRef = useRef(true);
   const inFlightSendRef = useRef(false);
+  const socketInitialized = useRef(false);
   const stageRef = useRef<InterviewStage>("connecting");
 
   const audioRef = useRef<HTMLAudioElement | null>(new Audio());
@@ -101,6 +102,10 @@ export function useInterview() {
   }, [stage]);
 
   useEffect(() => {
+    if (socketInitialized.current) {
+      return;
+    }
+    socketInitialized.current = true;
     connectSocket();
 
     return () => {
@@ -114,6 +119,7 @@ export function useInterview() {
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
       clearAudioQueue();
       socketRef.current?.close(1000, "Component unmounted");
+      socketInitialized.current = false;
     };
   }, []);
 
@@ -157,14 +163,17 @@ export function useInterview() {
 
       if (type === "avatar_sync") {
         const text = typeof msg.text === "string" ? msg.text : "";
+        const qIndex = Number(msg.question_index ?? 0);
+        
         setAvatarText(text);
-        setQuestionIndex(Number(msg.question_index ?? 0));
+        setQuestionIndex(qIndex);
         setTotalQuestions(Number(msg.total_questions ?? 0));
-        // Add AI message to transcript
-        if (text) {
+        
+        if (text && qIndex > 0) {
           addTranscriptMessage("ai", text);
         }
-        setStage(Number(msg.question_index ?? 0) > 0 ? "asking_question" : "waiting_resume");
+        
+        setStage(qIndex > 0 ? "asking_question" : "waiting_resume");
         return;
       }
 

@@ -96,6 +96,7 @@ class InterviewState:
 
     def reset(self):
         self.phase: InterviewPhase = InterviewPhase.CONNECTING
+        self.greeting_sent: bool = False
         self.resume_text: Optional[str] = None
         self.profile: Optional[ResumeData] = None
         self.questions: List[str] = []
