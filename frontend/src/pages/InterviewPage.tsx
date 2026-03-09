@@ -12,8 +12,7 @@ import type { AvatarState } from "../hooks/useInterview";
 
 export default function InterviewPage() {
   const [isPageLoading, setIsPageLoading] = useState(true);
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatusText, setUploadStatusText] = useState("");
   const {
     stage,
     avatarState,
@@ -36,24 +35,18 @@ export default function InterviewPage() {
   const prevStageRef = useRef(stage);
   const prevAvatarStateRef = useRef(avatarState);
 
-  // Handle resume file selection
-  const handleResumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle resume file selection and upload
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setResumeFile(file);
-    }
-  };
+    if (!file) return;
 
-  // Handle resume upload
-  const handleUploadResume = async () => {
-    if (!resumeFile) return;
-    setIsUploading(true);
+    setUploadStatusText("Uploading resume...");
     try {
-      await uploadResume(resumeFile);
+      await uploadResume(file);
+      setUploadStatusText("Analyzing your experience...");
     } catch (err) {
       console.error("Failed to upload resume:", err);
-    } finally {
-      setIsUploading(false);
+      setUploadStatusText("Failed to upload resume. Please try again.");
     }
   };
 
@@ -103,6 +96,10 @@ export default function InterviewPage() {
     if (prevStageRef.current !== stage) {
       console.log(`Stage transition: ${prevStageRef.current} -> ${stage}`);
       
+      if (stage === "processing" && prevStageRef.current === "waiting_resume") {
+        setUploadStatusText("Preparing your interview...");
+      }
+
       switch (stage) {
         case "listening":
           audioFeedback.listeningStart();
@@ -161,7 +158,8 @@ export default function InterviewPage() {
   }
 
   // Show resume upload UI when waiting for resume
-  const showResumeUpload = stage === "waiting_resume" || avatarText.includes("upload your resume");
+  const showResumeUpload = stage === "waiting_resume" || avatarText.includes("upload your resume") || stage === "processing";
+  const isUploading = stage === "processing" || uploadStatusText.startsWith("Uploading") || uploadStatusText.startsWith("Analyzing");
 
   return (
     <InterviewLayout
@@ -179,45 +177,34 @@ export default function InterviewPage() {
             padding: "2rem",
             textAlign: "center"
           }}>
-            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📄</div>
-            <h2 style={{ color: "#1a2940", marginBottom: "1rem" }}>Upload Your Resume</h2>
-            <p style={{ color: "#556174", marginBottom: "1.5rem" }}>
-              Please upload your resume to start the interview. The AI interviewer will use it to personalize questions.
-            </p>
-            <div style={{ marginBottom: "1rem" }}>
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx,.txt"
-                onChange={handleResumeChange}
-                style={{
-                  padding: "0.5rem",
-                  border: "1px solid #d2dde9",
-                  borderRadius: "8px",
-                  background: "#fff"
-                }}
-              />
+            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>
+              {isUploading ? "⏳" : "📄"}
             </div>
-            {resumeFile && (
-              <p style={{ color: "#22c55e", marginBottom: "1rem" }}>
-                Selected: {resumeFile.name}
-              </p>
+            <h2 style={{ color: "#1a2940", marginBottom: "1rem" }}>
+              {isUploading ? "Processing Resume" : "Upload Your Resume"}
+            </h2>
+            <p style={{ color: "#556174", marginBottom: "1.5rem" }}>
+              {isUploading
+                ? uploadStatusText
+                : "Please upload your resume to start the interview. The AI will use it to personalize questions."}
+            </p>
+            {!isUploading && (
+              <div style={{ marginBottom: "1rem" }}>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  disabled={isUploading}
+                  onChange={handleFileSelect}
+                  style={{
+                    padding: "0.5rem",
+                    border: "1px solid #d2dde9",
+                    borderRadius: "8px",
+                    background: "#fff",
+                    cursor: isUploading ? "not-allowed" : "pointer"
+                  }}
+                />
+              </div>
             )}
-            <button
-              onClick={handleUploadResume}
-              disabled={!resumeFile || isUploading}
-              style={{
-                padding: "0.75rem 2rem",
-                background: resumeFile && !isUploading ? "#c84630" : "#9ca3af",
-                color: "#fff",
-                border: "none",
-                borderRadius: "10px",
-                fontSize: "1rem",
-                fontWeight: 600,
-                cursor: resumeFile && !isUploading ? "pointer" : "not-allowed"
-              }}
-            >
-              {isUploading ? "Uploading..." : "Start Interview"}
-            </button>
           </div>
         ) : (
           <AvatarInterviewer

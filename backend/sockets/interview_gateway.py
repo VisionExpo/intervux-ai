@@ -113,6 +113,14 @@ class InterviewGateway:
 
         # Accept connection
         await ws.accept()
+        
+        # Debug logs for tracking WebSocket flow
+        try:
+            logger.info("Socket accepted")
+            logger.info(f"User authenticated: {user_data.user_id}")
+        except Exception as e:
+            logger.exception("Error in debug logs", exc_info=e)
+        
         await self._mark_pending(delta=1)
         
         # Try to acquire session slot
@@ -135,7 +143,7 @@ class InterviewGateway:
         
         session = InterviewSession(
             session_id=session_id,
-            user_id=user_data.sub,
+            user_id=user_data.user_id,
             session_policy=session_policy,
         )
         
@@ -159,15 +167,24 @@ class InterviewGateway:
 
         try:
             # Send welcome message
+            logger.info("Sending greeting")
+            
             await self._send_avatar_with_audio(
                 ws=ws,
-                text="Welcome to Intervux AI. Please upload your resume.",
+                text="""Hello, welcome to Intervux.
+
+I'll be conducting your interview today.
+
+Before we begin, please upload your resume so I can tailor questions based on your experience.""",
                 question_index=0,
                 total_questions=0,
             )
 
             # Transition to waiting for resume
             session.state.transition_to(InterviewPhase.WAITING_RESUME)
+
+            logger.info(f"Interview session started for user {user_data.user_id}")
+            logger.info("Waiting for resume upload")
 
             # Main message loop
             while True:
@@ -308,14 +325,45 @@ class InterviewGateway:
             )
             await self._send_bytes(ws, bytes(audio_bytes))
 
-    async def _send_evaluation_response(
+    async def _send_avatar_with_audio(
         self,
         ws: WebSocket,
-        response: Dict[str, Any],
-    ) -> None:
-        """Send evaluation response if available."""
-        # Evaluation responses are handled in stream_end
-        pass
+        text: str,
+        question_index: int,
+        total_questions: int,
+        preloaded_audio_chunks: list[dict[str, Any]] | None = None,
+    ):
+        """Send avatar sync with TTS audio."""
+        await self._send_json(
+            ws,
+            {
+                "type": "avatar_sync",
+                "text": text,
+                "question_index": question_index,
+                "total_questions": total_questions,
+            },
+        )
+
+        # Synthesize TTS
+        if preloaded_audio_chunks is not None:
+            audio_chunks = preloaded_audio_chunks
+        else:
+            audio_chunks = await asyncio.to_thread(self._synthesize_tts_chunks, text)
+
+        for chunk in audio_chunks:
+            visemes = chunk.get("visemes", [])
+            audio_bytes = chunk.get("audio_bytes", b"")
+            if not isinstance(audio_bytes, (bytes, bytearray)) or not audio_bytes:
+                continue
+
+            await self._send_json(
+                ws,
+                {
+                    "type": "avatar_visemes",
+                    "visemes": visemes,
+                },
+            )
+            await self._send_bytes(ws, bytes(audio_bytes))
 
     # ==================== Network Helpers ====================
 
