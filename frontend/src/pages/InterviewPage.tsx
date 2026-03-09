@@ -31,7 +31,6 @@ export default function InterviewPage() {
   } = useInterview();
 
   const prevStageRef = useRef(stage);
-  const prevAvatarStateRef = useRef(avatarState);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -49,20 +48,6 @@ export default function InterviewPage() {
   const isListening = stage === "LISTENING";
   const currentQuestion = lastEvaluation?.question || avatarText;
 
-  const handleStateTransition = useCallback(
-    (fromState: AvatarState, toState: AvatarState) => {
-      console.log(`State transition: ${fromState} -> ${toState}`);
-      if (toState === "listening" && fromState === "speaking") {
-        audioFeedback.listeningStart();
-      } else if (toState === "thinking" && fromState === "listening") {
-        audioFeedback.processing();
-      } else if (toState === "speaking" && fromState === "thinking") {
-        audioFeedback.nextQuestion();
-      }
-    },
-    []
-  );
-  
   useEffect(() => {
     if (stage === "LISTENING") {
       startAudioStream();
@@ -92,13 +77,6 @@ export default function InterviewPage() {
       prevStageRef.current = stage;
     }
   }, [stage]);
-
-  useEffect(() => {
-    if (prevAvatarStateRef.current !== avatarState) {
-      handleStateTransition(prevAvatarStateRef.current, avatarState);
-      prevAvatarStateRef.current = avatarState;
-    }
-  }, [avatarState, handleStateTransition]);
 
   useEffect(() => {
     return () => {
@@ -185,7 +163,6 @@ export default function InterviewPage() {
             avatarState={avatarState}
             emotion={emotion}
             questionText={currentQuestion}
-            onStateTransition={handleStateTransition}
           />
         )
       }

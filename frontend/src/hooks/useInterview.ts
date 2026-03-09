@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useReducer } from "react";
+import { useEffect, useRef, useState, useCallback, useReducer, useMemo } from "react";
 import type { VisemeCue } from "../avatar/LipSyncController";
 import {
   interviewReducer,
@@ -58,7 +58,6 @@ export function useInterview() {
   const pendingVisemesRef = useRef<VisemeCue[] | null>(null);
   const isPlayingQueueRef = useRef(false);
 
-  const [avatarState, setAvatarState] = useState<AvatarState>("thinking");
   const [avatarText, setAvatarText] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -68,7 +67,6 @@ export function useInterview() {
     null
   );
   const [partialTranscript, setPartialTranscript] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
   const [finalReport, setFinalReport] = useState<Record<string, unknown> | null>(
     null
   );
@@ -76,6 +74,21 @@ export function useInterview() {
   const [visemes, setVisemes] = useState<VisemeCue[]>([]);
   const [emotion, setEmotion] = useState("neutral");
   const [transcriptMessages, setTranscriptMessages] = useState<TranscriptMessage[]>([]);
+
+  const isRecording = stage === "LISTENING";
+
+  const avatarState: AvatarState = useMemo(() => {
+    if (isSpeaking) return "speaking";
+    if (stage === "LISTENING") return "listening";
+    if (
+      stage === "PROCESSING_RESUME" ||
+      stage === "PROCESSING_ANSWER" ||
+      stage === "CONNECTING"
+    ) {
+      return "thinking";
+    }
+    return "thinking"; // Default state
+  }, [isSpeaking, stage]);
 
   // Add message to transcript
   const addTranscriptMessage = useCallback((speaker: "ai" | "candidate", text: string) => {
@@ -123,7 +136,6 @@ export function useInterview() {
     connectIdRef.current += 1;
     const connectId = connectIdRef.current;
     dispatch({ type: "WS_CONNECTING" });
-    setAvatarState("thinking");
 
     const ws = new WebSocket(getWebSocketUrl());
     ws.binaryType = "arraybuffer";
@@ -198,14 +210,12 @@ export function useInterview() {
         }
         setPartialTranscript("");
         dispatch({ type: "EVALUATION_COMPLETE" });
-        setAvatarState("thinking");
         return;
       }
 
       if (type === "interview_complete") {
         setFinalReport((msg.report ?? null) as Record<string, unknown> | null);
         dispatch({ type: "INTERVIEW_COMPLETE" });
-        setAvatarState("listening");
         shouldReconnectRef.current = false;
         return;
       }
@@ -248,10 +258,8 @@ export function useInterview() {
         const value = typeof msg.value === "string" ? msg.value : "";
         if (value === "LISTENING") {
           dispatch({ type: "PHASE_LISTENING" });
-          if (!isPlayingQueueRef.current) setAvatarState("listening");
         } else if (value === "PROCESSING") {
           dispatch({ type: "ANSWER_PROCESSING_START" });
-          if (!isPlayingQueueRef.current) setAvatarState("thinking");
         }
         return;
       }
@@ -291,7 +299,6 @@ export function useInterview() {
     const delayMs = backoffMs + jitterMs;
     setLastError(`Connection lost. Reconnecting (attempt ${attempt})...`);
     dispatch({ type: "RESET" });
-    setAvatarState("thinking");
 
     if (reconnectTimerRef.current !== null) {
       window.clearTimeout(reconnectTimerRef.current);
@@ -328,7 +335,6 @@ export function useInterview() {
           file_bytes: fileBytes,
         })
       );
-      setAvatarState("thinking");
       setLastError("");
     } finally {
       inFlightSendRef.current = false;
@@ -375,14 +381,10 @@ export function useInterview() {
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
       mediaRecorderRef.current = null;
-      setIsRecording(false);
-      if (!isPlayingQueueRef.current) setAvatarState("thinking");
     };
 
     recorder.start(300);
     setPartialTranscript("");
-    setIsRecording(true);
-    setAvatarState("listening");
     setLastError("");
   }
 
@@ -409,7 +411,6 @@ export function useInterview() {
     if (!next) {
       setIsSpeaking(false);
       setVisemes([]);
-      setAvatarState(stageRef.current === "PROCESSING_ANSWER" ? "thinking" : "listening");
       return;
     }
 
@@ -421,7 +422,6 @@ export function useInterview() {
 
     isPlayingQueueRef.current = true;
     setIsSpeaking(true);
-    setAvatarState("speaking");
     setVisemes(next.visemes);
 
     if (activeObjectUrlRef.current) {

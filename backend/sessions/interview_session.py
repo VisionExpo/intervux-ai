@@ -158,16 +158,19 @@ class InterviewSession:
                 "recoverable": True,
             }
         
+        logger.info("Resume upload message received, starting processing.")
         try:
             # Start interview with resume
+            logger.info("Calling interview engine to start interview.")
             result = await self.engine.start_interview(
                 state=self.state,
                 file_name=file_name,
                 file_bytes_b64=file_bytes,
                 session_policy=self.session_policy,
             )
+            logger.info("Interview engine returned initial question.")
         except Exception:
-            logger.exception("Bootstrap interview failed")
+            logger.exception("Bootstrap interview failed in session handler")
             return {
                 "type": "error",
                 "message": "Failed to process resume",
