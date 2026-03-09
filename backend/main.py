@@ -50,7 +50,7 @@ from backend.services.evaluation_dashboard_store import (
 )
 from backend.services.decision_support_service import generate_full_report
 from backend.models import recruiter_dashboard_models  # noqa: F401
-from backend.sockets.interview import InterviewSocket
+from backend.sockets.interview_gateway import InterviewGateway
 from backend.sockets.metrics import metrics_socket
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
@@ -64,8 +64,8 @@ from backend.middleware.rate_limiter import RateLimitMiddleware
 from backend.routes.candidate_routes import router as candidate_router
 
 logger = get_logger(__name__)
-interview_socket = InterviewSocket(total_questions=2)
-runtime_monitor = RuntimeMonitor(interview_socket=interview_socket)
+interview_gateway = InterviewGateway(total_questions=2)
+runtime_monitor = RuntimeMonitor(interview_socket=interview_gateway)
 thread_pool: ThreadPoolExecutor | None = None
 
 
@@ -82,7 +82,7 @@ async def lifespan(_app: FastAPI):
     try:
         yield
     finally:
-        await interview_socket.shutdown()
+        await interview_gateway.shutdown()
         await runtime_monitor.stop()
         if thread_pool is not None:
             thread_pool.shutdown(wait=False, cancel_futures=True)
@@ -259,7 +259,7 @@ def get_candidate_comparison(
 
 @app.websocket("/ws/interview")
 async def websocket_interview(ws: WebSocket):
-    await interview_socket.handle(ws)
+    await interview_gateway.handle(ws)
 
 
 @app.websocket("/ws/metrics")
