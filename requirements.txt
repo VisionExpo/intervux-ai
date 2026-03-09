@@ -1,39 +1,42 @@
-# --- Core Backend ---
-fastapi==0.110.0
-uvicorn[standard]==0.27.1
-sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.0
+# Web framework
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+starlette==0.37.2
 
-# --- WebSocket & Async ---
-websockets>=13.0
+# Authentication
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-jose[cryptography]==3.3.0
 
-# --- Audio Processing ---
-numpy==1.26.4
-pyttsx3==2.90
-faster-whisper
-ctranslate2
-edge-tts
-soundfile
+# Data models
+pydantic==2.8.2
 
-# --- Vision ---
-opencv-python
+# HTTP clients
+httpx==0.27.0
+requests==2.32.3
 
-# --- ML/AI ---
-torch
-torchvision
-torchaudio
+# AI / LLM
+google-generativeai==0.7.2
 
-# --- Security & Auth ---
-python-jose[cryptography]
-passlib[bcrypt]
-python-multipart
-bcrypt
+# Speech to Text
+faster-whisper==1.0.3
+ctranslate2==4.3.1
 
-# --- Utils ---
-python-dotenv==1.0.1
-pydantic>=2.9.0
-PyYAML==6.0.1
+# Audio processing
+soundfile==0.12.1
+pydub==0.25.1
 
-# --- API Clients ---
-google-genai
-azure-cognitiveservices-speech
+# Resume parsing / documents
+pdfplumber==0.11.4
+python-docx==1.1.2
+pytesseract==0.3.10
+Pillow==10.4.0
+
+# Async utilities
+anyio==4.4.0
+
+# Logging / telemetry
+python-json-logger==2.0.7
+
+# Optional: Windows speech dependencies
+comtypes==1.4.5

@@ -123,7 +123,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
-app.add_middleware(SecurityHeadersMiddleware)
+# app.add_middleware(SecurityHeadersMiddleware)
 
 # Include auth router
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
