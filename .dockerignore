@@ -1,0 +1,76 @@
+# =============================================================================
+# Intervux AI - Docker Ignore
+# =============================================================================
+# Files and directories to ignore when building Docker images
+# This helps reduce image size and improves build performance
+# =============================================================================
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+myenv/
+venv/
+env/
+.venv/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Environment files (use docker-compose .env instead)
+.env
+.env.local
+.env.*.local
+
+# Documentation
+*.md
+docs/
+
+# Tests
+tests/
+evaluation/
+
+# Node.js (frontend)
+frontend/
+node_modules/
+package*.json
+
+# Logs
+logs/
+*.log
+
+# Docker files (not needed in image)
+docker/
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# CI/CD
+.github/
+.github/workflows/
+
+# License and readme
+LICENSE
+README.md
+
+# Misc
+*.bak
+*.tmp
+.DS_Store
+Thumbs.db
+
