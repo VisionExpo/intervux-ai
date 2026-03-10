@@ -11,6 +11,12 @@
 
 version: "3.9"
 
+# Build configuration - builds once, reused by all services
+build:
+  context: .
+  dockerfile: docker/Dockerfile
+  image: intervux-backend
+
 services:
   # ---------------------------------------------------------------------------
   # PostgreSQL Database
@@ -54,10 +60,9 @@ services:
   # FastAPI Backend
   # ---------------------------------------------------------------------------
   api:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-    container_name: intervux-api
+    image: intervux-backend
+    container_name: intervux_api
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4
     ports:
       - "8000:8000"
     env_file:
@@ -84,10 +89,8 @@ services:
   # Celery Worker
   # ---------------------------------------------------------------------------
   worker:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-    container_name: intervux-worker
+    image: intervux-backend
+    container_name: intervux_worker
     command: celery -A backend.core.celery_app worker --loglevel=info --concurrency=4
     env_file:
       - .env
@@ -113,10 +116,8 @@ services:
   # Flower Monitoring Dashboard
   # ---------------------------------------------------------------------------
   flower:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-    container_name: intervux-flower
+    image: intervux-backend
+    container_name: intervux_flower
     command: celery -A backend.core.celery_app flower --port=5555
     ports:
       - "5555:5555"
