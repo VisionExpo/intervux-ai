@@ -1,23 +1,7 @@
-# =============================================================================
-# Intervux AI - Docker Compose Configuration
-# =============================================================================
-# Production-grade setup with:
-# - FastAPI API server
-# - Celery background workers
-# - Redis task broker
-# - PostgreSQL database
-# - Flower monitoring dashboard
-# =============================================================================
-
 version: "3.9"
 
-# Build configuration - builds once, reused by all services
-build:
-  context: .
-  dockerfile: docker/Dockerfile
-  image: intervux-backend
-
 services:
+
   # ---------------------------------------------------------------------------
   # PostgreSQL Database
   # ---------------------------------------------------------------------------
@@ -33,14 +17,9 @@ services:
     ports:
       - "5432:5432"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-intervux}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   # ---------------------------------------------------------------------------
-  # Redis Cache and Message Broker
+  # Redis
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -50,16 +29,14 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   # ---------------------------------------------------------------------------
   # FastAPI Backend
   # ---------------------------------------------------------------------------
   api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     image: intervux-backend
     container_name: intervux_api
     command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4
@@ -67,19 +44,9 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_DB=${POSTGRES_DB:-intervux}
-      - POSTGRES_USER=${POSTGRES_USER:-intervux}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-intervux}
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - postgres
+      - redis
     volumes:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
@@ -94,26 +61,16 @@ services:
     command: celery -A backend.core.celery_app worker --loglevel=info --concurrency=4
     env_file:
       - .env
-    environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_DB=${POSTGRES_DB:-intervux}
-      - POSTGRES_USER=${POSTGRES_USER:-intervux}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-intervux}
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - postgres
+      - redis
     volumes:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # Flower Monitoring Dashboard
+  # Flower Dashboard
   # ---------------------------------------------------------------------------
   flower:
     image: intervux-backend
@@ -123,25 +80,11 @@ services:
       - "5555:5555"
     env_file:
       - .env
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       - redis
       - worker
     restart: unless-stopped
 
-# -----------------------------------------------------------------------------
-# Volumes for persistent data
-# -----------------------------------------------------------------------------
 volumes:
   postgres_data:
   redis_data:
-
-# -----------------------------------------------------------------------------
-# Networks
-# -----------------------------------------------------------------------------
-networks:
-  default:
-    name: intervux-network
-
