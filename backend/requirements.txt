@@ -19,7 +19,7 @@ httpx==0.27.0
 requests==2.32.3
 
 # AI / LLM
-google-generativeai==0.7.2
+google-genai==0.1.0
 spacy==3.7.5
 
 # Speech to Text
