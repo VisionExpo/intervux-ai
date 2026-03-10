@@ -58,10 +58,10 @@ from backend.utils.runtime_monitor import RuntimeMonitor
 
 # Auth imports
 from backend.auth import get_current_user
-from backend.auth.routes import router as auth_router
+from backend.api.routes.auth_routes import router as auth_router
 from backend.auth.rbac import require_recruiter, require_admin
 from backend.middleware.rate_limiter import RateLimitMiddleware
-from backend.routes.candidate_routes import router as candidate_router
+from backend.api.routes.candidate_routes import router as candidate_router
 
 logger = get_logger(__name__)
 interview_gateway = InterviewGateway(total_questions=2)
