@@ -1,307 +1,241 @@
-# Intervux AI – Docker Production Setup TODO
+# Project Folder Structure
 
-## 🎯 Goal
-
-Containerize the **Intervux AI backend** using Docker so the system runs with:
-
-* FastAPI API server
-* Celery background workers
-* Redis task broker
-* PostgreSQL database
-* Flower monitoring dashboard
-
-This setup enables **production-grade async resume processing and scalable AI interview pipelines**.
-
----
-
-# Phase 1 — Project Structure
-
-Create the following directory structure:
+## Recommended Clean Production Structure
 
 ```
-intervux-ai
+intervux-ai/
+├── .dockerignore
+├── .gitignore
+├── docker-compose.yaml
+├── LICENSE
+├── package.json
+├── package-lock.json
+├── README.md
+├── TODO.md
 │
-├── backend
-│   ├── app
-│   │   ├── main.py
-│   │   ├── core
-│   │   │   └── celery_app.py
-│   │   ├── workers
-│   │   │   └── resume_tasks.py
-│   │   └── resume_parser
-│   │       └── pipeline.py
+├── backend/
+│   ├── main.py
+│   ├── requirements.txt
 │   │
-│   └── requirements.txt
+│   ├── api/
+│   │   └── routes/
+│   │       ├── candidate_routes.py
+│   │       └── resume_routes.py
+│   │
+│   ├── auth/
+│   │   ├── jwt_service.py
+│   │   ├── rbac.py
+│   │   └── routes.py
+│   │
+│   ├── config/
+│   │   ├── prompt_loader.py
+│   │   ├── prompts.yaml
+│   │   ├── setting.py
+│   │   └── model_registry.py
+│   │
+│   ├── core/
+│   │   ├── adaptive_engine.py
+│   │   ├── agent_ocr.py
+│   │   ├── audio_stack.py
+│   │   ├── celery_app.py
+│   │   ├── code_engine.py
+│   │   ├── consistency_checker.py
+│   │   ├── difficulty_engine.py
+│   │   ├── emotion_ai.py
+│   │   ├── evaluation_engine.py
+│   │   ├── knowledge_graph.py
+│   │   ├── llm_brain.py
+│   │   ├── memory_engine.py
+│   │   ├── multipass_evaluator.py
+│   │   ├── reasoning_analyzer.py
+│   │   ├── self_consistency.py
+│   │   └── skill_coverage.py
+│   │
+│   ├── db/
+│   │   ├── database.py
+│   │   └── alembic/
+│   │       ├── env.py
+│   │       ├── script.py.mako
+│   │       └── versions/
+│   │           ├── 001_initial.py
+│   │           ├── 002_job_posts_candidates.py
+│   │           └── 003_candidate_portal.py
+│   │
+│   ├── engines/
+│   │   └── interview_engine.py
+│   │
+│   ├── middleware/
+│   │   └── rate_limiter.py
+│   │
+│   ├── models/
+│   │   ├── candidate_portal.py
+│   │   ├── evaluation_dashboard.py
+│   │   ├── interview.py
+│   │   ├── recruiter_dashboard.py
+│   │   └── recruiter_dashboard_models.py
+│   │
+│   ├── resume_parser/
+│   │   ├── models.py
+│   │   └── services.py
+│   │
+│   ├── services/
+│   │   ├── alerting_service.py
+│   │   ├── audio_buffer.py
+│   │   ├── audit_service.py
+│   │   ├── decision_support_service.py
+│   │   ├── evaluation_dashboard_store.py
+│   │   ├── evaluation_service.py
+│   │   ├── recruiter_dashboard_store.py
+│   │   ├── stt_service.py
+│   │   ├── telemetry_service.py
+│   │   ├── tts_service.py
+│   │   └── viseme_service.py
+│   │
+│   ├── sessions/
+│   │   ├── interview_session.py
+│   │   └── registry.py
+│   │
+│   ├── sockets/
+│   │   ├── interview.py
+│   │   ├── interview_gateway.py
+│   │   └── metrics.py
+│   │
+│   ├── workers/
+│   │   ├── resume_tasks.py
+│   │   ├── evaluation_tasks.py
+│   │   └── stt_tasks.py
+│   │
+│   ├── ai_models/
+│   │   ├── skill_taxonomy.json
+│   │   ├── embeddings/
+│   │   └── prompts/
+│   │
+│   ├── scripts/
+│   │   └── seed_dashboard.py
+│   │
+│   ├── static/
+│   │   └── audio/
+│   │       └── ff56422a-3a6b-4bea-990b-7029528c8dad.wav
+│   │
+│   └── utils/
+│       ├── logger.py
+│       ├── metrics.py
+│       ├── research_logger.py
+│       ├── runtime_monitor.py
+│       └── structured_logger.py
 │
-├── docker
-│   ├── Dockerfile
-│   └── entrypoint.sh
+├── docker/
+│   └── Dockerfile
 │
-├── docker-compose.yml
-├── .env
-└── .dockerignore
+├── docs/
+│   ├── HLD_Intervux_AI.docx
+│   ├── LLD_Intervux_AI.docx
+│   ├── README.md
+│   ├── recruiter_dashboard_schema.sql
+│   │
+│   ├── rubrics/
+│   │   └── evaluation_schema.md
+│   │
+│   └── sessions/
+│       ├── interview_average.json
+│       ├── interview_good.json
+│       └── interview_poor.json
+│
+├── frontend/
+│   ├── eslint.config.js
+│   ├── index.html
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── postcss.config.js
+│   ├── README.md
+│   ├── tailwind.config.js
+│   ├── TODO_ENHANCEMENTS.md
+│   ├── tsconfig.app.json
+│   ├── tsconfig.json
+│   ├── tsconfig.node.json
+│   ├── vite.config.ts
+│   │
+│   ├── public/
+│   │   ├── avatar.vrm
+│   │   └── vite.svg
+│   │
+│   └── src/
+│       ├── App.css
+│       ├── App.tsx
+│       ├── index.css
+│       ├── main.tsx
+│       │
+│       ├── assets/
+│       │   └── react.svg
+│       │
+│       ├── avatar/
+│       │   ├── AvatarScene.tsx
+│       │   ├── BlinkController.ts
+│       │   ├── LipSyncController.ts
+│       │   ├── visemeMap.ts
+│       │   └── VRMAvatar.tsx
+│       │
+│       ├── components/
+│       │   ├── Avatar3D/
+│       │   │   └── index.tsx
+│       │   │
+│       │   └── interview/
+│       │       ├── AudioStreamHandler.tsx
+│       │       ├── AvatarInterviewer.tsx
+│       │       ├── CandidateCamera.tsx
+│       │       ├── CodingSandbox.tsx
+│       │       ├── InterviewLayout.tsx
+│       │       ├── TranscriptPanel.tsx
+│       │       └── index.ts
+│       │
+│       ├── hooks/
+│       │   ├── useAuth.tsx
+│       │   ├── useAvatarSocket.ts
+│       │   ├── useInterview.ts
+│       │   └── useInterviewStateMachine.ts
+│       │
+│       ├── pages/
+│       │   ├── AIEvaluationDashboard.tsx
+│       │   ├── CandidateComparison.tsx
+│       │   ├── CandidateDashboard.tsx
+│       │   ├── CandidateInterviewReport.tsx
+│       │   ├── CandidateList.tsx
+│       │   ├── CandidateNotifications.tsx
+│       │   ├── CandidateProfile.tsx
+│       │   ├── InterviewHistory.tsx
+│       │   ├── InterviewPage.tsx
+│       │   ├── InterviewReplay.tsx
+│       │   ├── InterviewReport.tsx
+│       │   ├── Login.tsx
+│       │   ├── MockInterview.tsx
+│       │   ├── RecruiterDashboard.tsx
+│       │   ├── Signup.tsx
+│       │   ├── SkillAnalytics.tsx
+│       │   └── types.ts
+│       │
+│       └── utils/
+│           └── audioFeedback.ts
+│
+├── tests/
+│   ├── conftest.py
+│   ├── test_auth.py
+│   ├── test_decision.py
+│   ├── test_experiments.py
+│   ├── test_health.py
+│   ├── test_metrics.py
+│   ├── test.db
+│   └── TESTING.md
+│
+├── logs/
+├── uploads/
+└── myenv/
 ```
 
-Tasks:
-
-* [x] Create `docker/` directory
-* [x] Create `Dockerfile`
-* [x] Create `docker-compose.yml`
-* [x] Create `.env` file
-* [x] Create `.dockerignore`
-
----
-
-# Phase 2 — Dockerfile Implementation
-
-Create:
-
-```
-docker/Dockerfile
-```
-
-Tasks:
-
-* [x] Use lightweight base image `python:3.11-slim`
-* [x] Set Python environment variables
-* [x] Install required system dependencies
-* [x] Create non-root user `appuser`
-* [x] Set working directory `/app`
-* [x] Copy `requirements.txt`
-* [x] Install Python dependencies
-* [x] Copy backend application code
-* [x] Set correct file permissions
-* [x] Switch to non-root user
-* [x] Expose port `8000`
-* [x] Run FastAPI using `uvicorn`
-
-Goals:
-
-* secure container
-* smaller image
-* optimized build layers
-
----
-
-# Phase 3 — Docker Ignore
-
-Create `.dockerignore`.
-
-Tasks:
-
-* [x] Ignore Python cache files
-* [x] Ignore `.env`
-* [x] Ignore `.git`
-* [x] Ignore virtual environments
-* [x] Ignore logs
-
----
-
-# Phase 4 — Environment Configuration
-
-Create `.env`.
-
-Tasks:
-
-* [x] Define PostgreSQL credentials
-* [x] Define Redis connection
-* [x] Define Celery broker configuration
-
----
-
-# Phase 5 — Docker Compose Services
-
-Create `docker-compose.yml`.
-
-Services to configure:
-
-### API Service
-
-Tasks:
-
-* [x] Build image from Dockerfile
-* [x] Run FastAPI server
-* [x] Map port `8000`
-* [x] Load `.env`
-* [x] Add dependency on Redis and Postgres
-* [x] Enable automatic restart
-
-### Celery Worker
-
-Tasks:
-
-* [x] Use same Docker image
-* [x] Start Celery worker
-* [x] Set concurrency level
-* [x] Load environment variables
-* [x] Enable restart policy
-
-### Redis Service
-
-Tasks:
-
-* [x] Use `redis:7-alpine`
-* [x] Expose port `6379`
-* [x] Enable restart policy
-
-### PostgreSQL Service
-
-Tasks:
-
-* [x] Use `postgres:15`
-* [x] Load `.env`
-* [x] Persist database using Docker volume
-* [x] Expose port `5432`
-
-### Flower Monitoring
-
-Tasks:
-
-* [x] Run Flower dashboard
-* [x] Connect to Celery workers
-* [x] Expose port `5555`
-
----
-
-# Phase 6 — Celery Configuration
-
-Create files:
-
-```
-backend/core/celery_app.py
-backend/core/celery_tasks.py
-```
-
-Tasks:
-
-* [x] Initialize Celery instance
-* [x] Load broker URL from environment variables
-* [x] Load result backend
-* [x] Configure serializers
-* [x] Enable UTC timezone
-* [x] Create background tasks for resume parsing
-* [x] Create background tasks for evaluation generation
-* [x] Create background tasks for report generation
-
----
-
-# Phase 7 — System Startup
-
-Run containers.
-
-Tasks:
-
-* [ ] Build Docker images
-* [ ] Start containers
-* [ ] Verify service health
-
-Command:
-
-```
-docker compose up --build
-```
-
-Verify containers:
-
-```
-docker ps
-```
-
-Expected services:
-
-```
-intervux_api
-intervux_worker
-intervux_redis
-intervux_postgres
-intervux_flower
-```
-
----
-
-# Phase 8 — Service Verification
-
-Test API server.
-
-Tasks:
-
-* [ ] Open API docs
-* [ ] Test upload endpoints
-* [ ] Confirm Celery tasks run
-* [ ] Verify Redis queues
-* [ ] Confirm Postgres writes
-
-URLs:
-
-```
-API docs:
-http://localhost:8000/docs
-
-Celery dashboard:
-http://localhost:5555
-```
-
----
-
-# Phase 9 — Scaling Workers
-
-Increase background processing capacity.
-
-Tasks:
-
-* [ ] Increase Celery concurrency
-* [ ] Scale worker containers
-* [ ] Monitor CPU and memory
-
-Examples:
-
-Increase worker threads:
-
-```
-celery worker --concurrency=8
-```
-
-Scale containers:
-
-```
-docker compose up --scale worker=3
-```
-
----
-
-# Phase 10 — Production Hardening
-
-Future improvements:
-
-* [ ] Add Nginx reverse proxy
-* [ ] Enable HTTPS
-* [ ] Add centralized logging
-* [ ] Implement health checks
-* [ ] Add container resource limits
-* [ ] Implement auto-scaling
-
----
-
-# Final System Architecture
-
-```
-User Request
-      │
-      ▼
-FastAPI API Server
-      │
-      ▼
-Redis Task Broker
-      │
-      ▼
-Celery Workers
-      │
-      ▼
-Resume Processing Pipeline
-      │
-      ▼
-PostgreSQL Database
-```
-
-This architecture enables **asynchronous resume parsing, scalable AI interview processing, and production-ready container deployment for Intervux AI**.
+## Key Restructuring Notes
+
+1. **requirements.txt** → moved to `backend/requirements.txt`
+2. **Routes** → moved to `backend/api/routes/`
+3. **Celery Tasks** → consolidated in `backend/workers/`
+4. **AI Models** → new `backend/ai_models/` folder for skill taxonomy, embeddings, and prompts
+5. **Alembic migrations** → moved inside `backend/db/` for better organization
 
