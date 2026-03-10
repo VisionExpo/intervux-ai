@@ -9,7 +9,7 @@ This module provides API endpoints for:
 - Notifications
 
 Example usage:
-    from backend.routes.candidate_routes import router
+    from backend.api.routes.candidate_routes import router
     
     app.include_router(router, prefix="/api/candidate", tags=["candidate"])
 """

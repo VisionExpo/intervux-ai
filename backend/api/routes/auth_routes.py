@@ -9,7 +9,7 @@ This module provides authentication endpoints:
 - Change password
 
 Example usage:
-    from backend.auth.routes import router
+    from backend.api.routes.auth_routes import router
     
     app.include_router(router, prefix="/api/auth", tags=["auth"])
 """

@@ -20,7 +20,7 @@ from backend.auth.jwt_service import (
     has_permission,
 )
 
-from backend.auth.routes import router as auth_router
+from backend.api.routes.auth_routes import router as auth_router
 from backend.auth.rbac import (
     role_manager,
     require_admin,
