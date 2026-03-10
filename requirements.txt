@@ -20,6 +20,7 @@ requests==2.32.3
 
 # AI / LLM
 google-generativeai==0.7.2
+spacy==3.7.5
 
 # Speech to Text
 faster-whisper==1.0.3
@@ -50,5 +51,10 @@ anyio==4.4.0
 # Logging / telemetry
 python-json-logger==2.0.7
 
-# Optional: Windows speech dependencies
+# Windows speech dependencies
 comtypes==1.4.5
+
+# Task Queue and Message Broker
+redis==5.0.7
+celery==5.4.0
+flower==2.0.1
