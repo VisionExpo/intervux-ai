@@ -131,14 +131,6 @@ class DashboardResponse(BaseModel):
 # =========================================================
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 def _calculate_profile_score(profile: CandidateProfile) -> float:
     """Calculate profile score based on various factors."""
     score = 0.0

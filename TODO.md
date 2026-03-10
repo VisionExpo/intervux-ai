@@ -1,34 +1,22 @@
-## Implementation Progress
+# TODO: Remove Duplicate Files and Logic
 
-### Completed:
-- [x] 1. Read and understand TODO.md restructuring notes
-- [x] 2. Move requirements.txt to backend/requirements.txt
-- [x] 3. Move routes to backend/api/routes/
-- [x] 4. Consolidate Celery Tasks in backend/workers/
-- [x] 5. Create backend/ai_models/ folder
-- [x] 6. Move alembic migrations to backend/db/
+## Phase 1: Remove Exact Duplicate Files (COMPLETED)
 
-### Summary of Changes Made:
+- [x] 1.1 Delete `backend/auth/routes.py` (keep `backend/api/routes/auth_routes.py`)
+- [x] 1.2 Delete `backend/routes/candidate_routes.py` (keep `backend/api/routes/candidate_routes.py`)
+- [x] 1.3 Delete `backend/routes/resume_routes.py` (keep `backend/api/routes/resume_routes.py`)
 
-1. **requirements.txt** → copied to `backend/requirements.txt`
+## Phase 2: Fix Internal Duplicates Within Files (COMPLETED)
 
-2. **Routes** → moved to `backend/api/routes/`:
-   - `backend/routes/candidate_routes.py` → `backend/api/routes/candidate_routes.py`
-   - `backend/routes/resume_routes.py` → `backend/api/routes/resume_routes.py`
-   - `backend/auth/routes.py` → `backend/api/routes/auth_routes.py`
+- [x] 2.1 Fix `backend/api/routes/auth_routes.py` - Remove duplicated auth routes content (appears twice in file)
+- [x] 2.2 Fix `backend/api/routes/resume_routes.py` - Remove duplicated upload_resume function (appears twice in file)
 
-3. **Celery Tasks** → consolidated in `backend/workers/`:
-   - `backend/core/celery_tasks.py` → `backend/workers/tasks.py`
+## Phase 3: Remove Duplicate get_db() Helper (COMPLETED)
 
-4. **AI Models** → new `backend/ai_models/` folder created (empty, for future use)
+- [x] 3.1 Remove get_db() from `backend/api/routes/candidate_routes.py` (already in database.py)
 
-5. **Alembic migrations** → moved to `backend/db/alembic/`
+## Phase 4: Review Interview Architecture (Future)
 
-6. **Import updates** in `backend/main.py` to reflect new route locations
+- [ ] 4.1 Review `sockets/interview.py` vs `sockets/interview_gateway.py` for consolidation
+- [ ] 4.2 Review dashboard models duplication between recruiter_dashboard.py and recruiter_dashboard_models.py
 
-### Key Restructuring Notes (Original):
-1. **requirements.txt** → moved to `backend/requirements.txt`
-2. **Routes** → moved to `backend/api/routes/`
-3. **Celery Tasks** → consolidated in `backend/workers/`
-4. **AI Models** → new `backend/ai_models/` folder for skill taxonomy, embeddings, and prompts
-5. **Alembic migrations** → moved inside `backend/db/` for better organization
