@@ -46,7 +46,7 @@ COPY requirements.txt .
 # -----------------------------------------------------------------------------
 # Install Python Dependencies
 # -----------------------------------------------------------------------------
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # -----------------------------------------------------------------------------
 # Copy Application Code
