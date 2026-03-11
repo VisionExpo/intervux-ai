@@ -1,7 +1,7 @@
 # =============================================================================
 # Intervux AI - Docker Ignore
 # =============================================================================
-# Files and directories to ignore when building Docker images
+# Files and directories to Ignore when building Docker images
 # This helps reduce image size and improves build performance
 # =============================================================================
 
@@ -54,12 +54,6 @@ package*.json
 logs/
 *.log
 
-# Docker files (not needed in image)
-docker/
-docker-compose*.yml
-Dockerfile
-.dockerignore
-
 # CI/CD
 .github/
 .github/workflows/
@@ -73,4 +67,7 @@ README.md
 *.tmp
 .DS_Store
 Thumbs.db
+
+# Test database
+test_intervux.db
 

@@ -2,89 +2,21 @@ version: "3.9"
 
 services:
 
-  # ---------------------------------------------------------------------------
-  # PostgreSQL Database
-  # ---------------------------------------------------------------------------
   postgres:
-    image: postgres:15-alpine
-    container_name: intervux-postgres
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-intervux}
-      POSTGRES_USER: ${POSTGRES_USER:-intervux}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-intervux}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    image: postgres:15
     ports:
       - "5432:5432"
-    restart: unless-stopped
 
-  # ---------------------------------------------------------------------------
-  # Redis
-  # ---------------------------------------------------------------------------
   redis:
-    image: redis:7-alpine
-    container_name: intervux-redis
+    image: redis:7
     ports:
       - "6379:6379"
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
 
-  # ---------------------------------------------------------------------------
-  # FastAPI Backend
-  # ---------------------------------------------------------------------------
-  api:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-    image: intervux-backend
-    container_name: intervux_api
-    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4
+  backend:
+    build: .
     ports:
       - "8000:8000"
-    env_file:
-      - .env.docker
     depends_on:
       - postgres
       - redis
-    volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
-    restart: unless-stopped
 
-  # ---------------------------------------------------------------------------
-  # Celery Worker
-  # ---------------------------------------------------------------------------
-  worker:
-    image: intervux-backend
-    container_name: intervux_worker
-    command: celery -A backend.core.celery_app worker --loglevel=info --concurrency=4
-    env_file:
-      - .env.docker
-    depends_on:
-      - postgres
-      - redis
-    volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
-    restart: unless-stopped
-
-  # ---------------------------------------------------------------------------
-  # Flower Dashboard
-  # ---------------------------------------------------------------------------
-  flower:
-    image: intervux-backend
-    container_name: intervux_flower
-    command: celery -A backend.core.celery_app flower --port=5555
-    ports:
-      - "5555:5555"
-    env_file:
-      - .env.docker
-    depends_on:
-      - redis
-      - worker
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
-  redis_data:
