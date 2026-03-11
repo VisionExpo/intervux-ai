@@ -43,7 +43,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - .env.docker
     depends_on:
       - postgres
       - redis
@@ -60,7 +60,7 @@ services:
     container_name: intervux_worker
     command: celery -A backend.core.celery_app worker --loglevel=info --concurrency=4
     env_file:
-      - .env
+      - .env.docker
     depends_on:
       - postgres
       - redis
@@ -79,7 +79,7 @@ services:
     ports:
       - "5555:5555"
     env_file:
-      - .env
+      - .env.docker
     depends_on:
       - redis
       - worker
