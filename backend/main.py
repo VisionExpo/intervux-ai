@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from backend.models.evaluation_dashboard import (
     EvaluationDashboardResponse,
@@ -73,6 +74,21 @@ thread_pool: ThreadPoolExecutor | None = None
 async def lifespan(_app: FastAPI):
     global thread_pool
     workers = int(os.getenv("RUNTIME_THREADPOOL_WORKERS", "4"))
+
+    # Wait for Postgres readiness before metadata/table initialization.
+    db_ready = False
+    for _ in range(20):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            db_ready = True
+            break
+        except Exception:
+            await asyncio.sleep(1.5)
+
+    if not db_ready:
+        logger.warning("Database was not ready during startup warmup window")
+
     Base.metadata.create_all(bind=engine)
     loop = asyncio.get_running_loop()
     thread_pool = ThreadPoolExecutor(max_workers=workers)
@@ -513,4 +529,3 @@ os.makedirs(uploads_dir, exist_ok=True)
 
 # Mount static files for uploaded resumes
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
-

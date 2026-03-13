@@ -4,7 +4,10 @@ import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import pyttsx3
+try:
+    import pyttsx3
+except Exception:  # pragma: no cover - optional dependency
+    pyttsx3 = None
 
 try:
     import azure.cognitiveservices.speech as speechsdk
@@ -28,11 +31,15 @@ class LocalTTSService:
     _engine_lock = threading.Lock()
 
     def __init__(self, voice: Optional[str] = None):
-        self.engine = pyttsx3.init()
-        if voice:
+        self.enabled = pyttsx3 is not None
+        self.engine = pyttsx3.init() if self.enabled else None
+        if voice and self.engine is not None:
             self.engine.setProperty("voice", voice)
 
     def synthesize_to_wav_bytes(self, text: str) -> bytes:
+        if not self.enabled or self.engine is None:
+            return b""
+
         filename = f"{uuid.uuid4()}.wav"
         filepath = str(STATIC_DIR / filename)
 

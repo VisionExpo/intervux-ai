@@ -20,6 +20,7 @@ ENV TZ=UTC
 # -----------------------------------------------------------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libgomp1 \
     libsndfile1 \
     ffmpeg \
     libgl1 \
@@ -81,5 +82,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # -----------------------------------------------------------------------------
 # Run FastAPI using uvicorn
 # -----------------------------------------------------------------------------
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
 

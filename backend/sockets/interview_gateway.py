@@ -586,6 +586,14 @@ Before we begin, please upload your resume so I can tailor questions based on yo
         # Cleanup all sessions
         await self._registry.cleanup_all()
 
+    def runtime_stats(self) -> Dict[str, int]:
+        """Return runtime counters for monitor gauges."""
+        return {
+            "active_sessions": self._active_sessions,
+            "queue_depth": self._pending_connections,
+            "max_concurrent_sessions": self.max_concurrent_sessions,
+        }
+
 
 # Need re for sentence splitting
 import re

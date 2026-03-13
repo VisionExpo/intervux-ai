@@ -1,22 +1,100 @@
-version: "3.9"
-
 services:
-
   postgres:
     image: postgres:15
+    container_name: intervux-postgres
+    environment:
+      POSTGRES_USER: intervux
+      POSTGRES_PASSWORD: Vishal
+      POSTGRES_DB: intervux
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intervux -d intervux"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   redis:
     image: redis:7
+    container_name: intervux-redis
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: intervux-backend
+    env_file:
+      - .env.docker
     ports:
       - "8000:8000"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: intervux-worker
+    command: celery -A backend.core.celery_app:celery_app worker -l info --concurrency=2
+    env_file:
+      - .env.docker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os, subprocess, sys; host=os.getenv('HOSTNAME',''); out=subprocess.run(['celery','-A','backend.core.celery_app:celery_app','inspect','ping','-d',f'celery@{host}'], capture_output=True, text=True); sys.exit(0 if out.returncode==0 and 'pong' in out.stdout.lower() else 1)\""]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: intervux-flower
+    command: celery -A backend.core.celery_app:celery_app flower --port=5555
+    env_file:
+      - .env.docker
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5555/')\""]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres_data:
+  redis_data:
 

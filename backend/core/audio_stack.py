@@ -7,7 +7,6 @@ from io import BytesIO
 import edge_tts
 import numpy as np
 import soundfile as sf
-from faster_whisper import WhisperModel
 
 from backend.config.setting import DEVICE
 
@@ -19,11 +18,18 @@ class AudioEngine:
 
     def __init__(self, whisper_model: str = "base"):
         print(f"[INFO] Initializing AudioEngine on {DEVICE}")
+        self.stt_model = None
+
+        if os.getenv("DISABLE_STT", "false").strip().lower() in {"1", "true", "yes", "on"}:
+            print("[WARN] STT disabled by DISABLE_STT")
+            return
 
         # Load Whisper once (heavy model)
         # Use DEVICE from settings (automatically falls back to CPU if CUDA unavailable)
         compute_type = "float16" if DEVICE == "cuda" else "int8"
         try:
+            from faster_whisper import WhisperModel
+
             self.stt_model = WhisperModel(
                 whisper_model,
                 device=DEVICE,
@@ -33,13 +39,16 @@ class AudioEngine:
             if "CUDA" in str(e):
                 print(f"[WARN] CUDA initialization failed: {e}")
                 print("[INFO] Falling back to CPU for Whisper")
+                from faster_whisper import WhisperModel
                 self.stt_model = WhisperModel(
                     whisper_model,
                     device="cpu",
                     compute_type="int8",
                 )
             else:
-                raise
+                print(f"[WARN] STT model failed to initialize: {e}")
+        except Exception as e:
+            print(f"[WARN] STT unavailable, continuing without speech model: {e}")
 
     # ---------------------------
     # Text → Speech
@@ -75,6 +84,9 @@ class AudioEngine:
         """
         Transcribe an audio file into text.
         """
+        if self.stt_model is None:
+            raise RuntimeError("STT model is not available")
+
         segments, _info = self.stt_model.transcribe(
             audio_path,
             beam_size=1,
@@ -88,6 +100,9 @@ class AudioEngine:
         """
         Transcribe audio bytes in-memory to avoid filesystem roundtrips.
         """
+        if self.stt_model is None:
+            raise RuntimeError("STT model is not available")
+
         audio_buffer = io.BytesIO(audio_bytes)
         audio, _sample_rate = sf.read(audio_buffer, dtype="float32")
         if audio.ndim > 1:
@@ -106,6 +121,9 @@ class AudioEngine:
         """
         Fast path for WAV bytes without filesystem roundtrip.
         """
+        if self.stt_model is None:
+            raise RuntimeError("STT model is not available")
+
         with wave.open(BytesIO(audio_bytes), "rb") as wf:
             channels = wf.getnchannels()
             frames = wf.readframes(wf.getnframes())

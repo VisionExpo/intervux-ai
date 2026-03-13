@@ -8,6 +8,6 @@ pytest-cov==4.1.0
 # HTTP clients for testing
 httpx==0.27.0
 
-# For WebSocket testing
-websockets==12.0
+# For WebSocket testing (must align with google-genai dependency range)
+websockets==14.2
 

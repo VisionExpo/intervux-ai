@@ -60,12 +60,18 @@ class STTService:
             raise
 
 
-# --- Singleton instance ---
-_stt_service_instance = STTService()
+_stt_service_instance: STTService | None = None
+
+
+def _get_stt_service() -> STTService:
+    global _stt_service_instance
+    if _stt_service_instance is None:
+        _stt_service_instance = STTService()
+    return _stt_service_instance
 
 
 def transcribe_audio(audio_file) -> str:
-    return _stt_service_instance.transcribe(audio_file)
+    return _get_stt_service().transcribe(audio_file)
 
 
 def transcribe_audio_bytes(audio_bytes: bytes, suffix: str = ".wav") -> str:
@@ -80,7 +86,7 @@ def transcribe_audio_bytes(audio_bytes: bytes, suffix: str = ".wav") -> str:
         return ""
 
     try:
-        text = _stt_service_instance.audio_engine.speech_to_text_bytes(audio_bytes)
+        text = _get_stt_service().audio_engine.speech_to_text_bytes(audio_bytes)
         text = text.strip()
 
         duration = round(time.time() - start_time, 3)
@@ -102,7 +108,7 @@ def transcribe_audio_bytes(audio_bytes: bytes, suffix: str = ".wav") -> str:
         # Fall back to file path pipeline for formats unsupported in memory.
         if suffix.lower() == ".wav":
             try:
-                text = _stt_service_instance.audio_engine.speech_to_text_wav_bytes(audio_bytes)
+                text = _get_stt_service().audio_engine.speech_to_text_wav_bytes(audio_bytes)
                 text = text.strip()
 
                 duration = round(time.time() - start_time, 3)
@@ -127,7 +133,7 @@ def transcribe_audio_bytes(audio_bytes: bytes, suffix: str = ".wav") -> str:
         tmp.write(audio_bytes)
 
     try:
-        text = _stt_service_instance.audio_engine.speech_to_text(audio_path)
+        text = _get_stt_service().audio_engine.speech_to_text(audio_path)
         text = text.strip()
 
         duration = round(time.time() - start_time, 3)
@@ -148,7 +154,7 @@ def transcribe_audio_bytes(audio_bytes: bytes, suffix: str = ".wav") -> str:
     except Exception:
         metrics.record_error()
         logger.exception("STT byte processing failed")
-        raise
+        return ""
     finally:
         if os.path.exists(audio_path):
             os.remove(audio_path)
