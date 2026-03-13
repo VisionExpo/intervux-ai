@@ -9,6 +9,9 @@ from google import genai
 from dotenv import load_dotenv
 from backend.config.prompt_loader import PromptManager
 from fastapi import UploadFile
+from backend.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Load .env from project root
 project_root = Path(__file__).parent.parent.parent
@@ -76,7 +79,7 @@ class ResumeParser:
             try:
                 client.files.delete(name=uploaded_file.name)
             except Exception:
-                pass
+                logger.warning("Failed to delete uploaded Gemini file artifact", exc_info=True)
 
 
 def parse_resume(file: UploadFile) -> Tuple[str, dict]:

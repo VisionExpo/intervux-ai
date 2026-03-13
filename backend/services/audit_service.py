@@ -230,7 +230,7 @@ class AuditLogger:
                 with open(self.file_path, "a", encoding="utf-8") as f:
                     f.write(event.to_json() + "\n")
             except Exception:
-                pass  # Silently fail
+                logger.exception("Failed to write audit event")
     
     def query(
         self,

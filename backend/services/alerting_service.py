@@ -22,6 +22,9 @@ from email.mime.text import MIMEText
 from typing import Any, Dict, List, Optional
 from urllib.request import Request, urlopen
 from urllib.error import URLError
+from backend.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 # =========================================================
@@ -111,7 +114,7 @@ class SlackNotifier:
             req = Request(self.webhook_url, data=data, headers={"Content-Type": "application/json"})
             urlopen(req, timeout=5)
         except URLError:
-            pass  # Silently fail
+            logger.exception("Slack alert send failed")
 
 
 # =========================================================
@@ -158,7 +161,7 @@ Timestamp: {alert.timestamp.isoformat()}
                 server.login(self.smtp_user, self.smtp_password)
                 server.send_message(msg)
         except Exception:
-            pass  # Silently fail
+            logger.exception("Email alert send failed")
 
 
 # =========================================================
@@ -210,7 +213,7 @@ class PagerDutyNotifier:
             )
             urlopen(req, timeout=5)
         except URLError:
-            pass  # Silently fail
+            logger.exception("PagerDuty alert send failed")
 
 
 # =========================================================

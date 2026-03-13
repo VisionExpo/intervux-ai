@@ -28,6 +28,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.auth.jwt_service import Role
 from backend.auth.jwt_service import verify_token
+from backend.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 # =========================================================
@@ -290,7 +293,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     request.state.user_id = token_data.user_id
                     request.state.user_role = token_data.role
                 except Exception:
-                    pass
+                    logger.warning("Failed to decode auth token for rate limiting", exc_info=True)
         
         # Get identifier
         user_id = getattr(request.state, "user_id", None)

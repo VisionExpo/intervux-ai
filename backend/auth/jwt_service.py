@@ -25,6 +25,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel, ConfigDict
+from backend.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Configuration - should be set via environment variables
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "intervux-secret-key-change-in-production")
@@ -639,7 +642,7 @@ def revoke_token(token: str) -> bool:
             _revoked_tokens.add(jti)
             return True
     except Exception:
-        pass
+        logger.exception("Failed to revoke access token")
     return False
 
 
@@ -665,7 +668,7 @@ def revoke_refresh_token(token: str) -> bool:
             _revoked_refresh_tokens.add(jti)
             return True
     except Exception:
-        pass
+        logger.exception("Failed to revoke refresh token")
     return False
 
 

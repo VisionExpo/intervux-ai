@@ -58,7 +58,6 @@ from backend.utils.metrics import metrics
 from backend.utils.runtime_monitor import RuntimeMonitor
 
 # Auth imports
-from backend.auth import get_current_user
 from backend.api.routes.auth_routes import router as auth_router
 from backend.auth.rbac import require_recruiter, require_admin
 from backend.middleware.rate_limiter import RateLimitMiddleware

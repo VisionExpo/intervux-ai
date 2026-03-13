@@ -20,8 +20,11 @@ from typing import Any, Dict, Set
 from fastapi import WebSocket, WebSocketDisconnect
 
 from backend.utils.metrics import metrics
+from backend.utils.logger import get_logger
 # Import JWT service for token validation
 from backend.auth.jwt_service import verify_token, TokenData
+
+logger = get_logger(__name__)
 
 
 class MetricsSocket:
@@ -97,9 +100,12 @@ class MetricsSocket:
                 await asyncio.sleep(self.broadcast_interval)
                 
         except WebSocketDisconnect:
-            pass
+            logger.info("Metrics WebSocket disconnected")
+        except asyncio.CancelledError:
+            logger.info("Metrics WebSocket task cancelled")
+            raise
         except Exception:
-            pass
+            logger.exception("Metrics WebSocket handler failed")
         finally:
             self._connections.discard(websocket)
     
@@ -116,6 +122,7 @@ class MetricsSocket:
             try:
                 await ws.send_json(data)
             except Exception:
+                logger.warning("Dropping disconnected metrics websocket client")
                 disconnected.add(ws)
         
         # Clean up disconnected clients
@@ -193,10 +200,18 @@ async def start_metrics_broadcast():
     """Start broadcasting metrics to connected clients."""
     metrics_socket._running = True
     
-    while metrics_socket._running:
-        snapshot = metrics_socket._get_metrics_snapshot()
-        await metrics_socket.broadcast(snapshot)
-        await asyncio.sleep(metrics_socket.broadcast_interval)
+    try:
+        while metrics_socket._running:
+            snapshot = metrics_socket._get_metrics_snapshot()
+            await metrics_socket.broadcast(snapshot)
+            await asyncio.sleep(metrics_socket.broadcast_interval)
+    except asyncio.CancelledError:
+        logger.info("Metrics broadcast task cancelled")
+        raise
+    except Exception:
+        logger.exception("Metrics broadcast loop failed")
+    finally:
+        metrics_socket._running = False
 
 
 async def stop_metrics_broadcast():

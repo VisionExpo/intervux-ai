@@ -565,7 +565,7 @@ class InterviewEngine:
                 try:
                     history_values.setdefault(key, []).append(float(value))
                 except Exception:
-                    pass
+                    continue
 
         if not history_values:
             return evaluation
@@ -609,7 +609,7 @@ class InterviewEngine:
                     try:
                         values.append(float(value))
                     except Exception:
-                        pass
+                        continue
                         
             avg_score = sum(values) / len(values) if values else 0.0
             bucket = summary.setdefault(skill, {"_sum": 0.0, "_count": 0.0, "max_difficulty_reached": 1.0})

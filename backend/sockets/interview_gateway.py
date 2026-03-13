@@ -432,7 +432,7 @@ Before we begin, please upload your resume so I can tailor questions based on yo
         try:
             await ws.close(code=code)
         except Exception:
-            pass
+            logger.debug("WebSocket close failed", exc_info=True)
 
     # ==================== Session Management ====================
 
@@ -563,6 +563,7 @@ Before we begin, please upload your resume so I can tailor questions based on yo
                 duration_ms = int((frames / frame_rate) * 1000)
                 return max(duration_ms, 0)
         except Exception:
+            logger.debug("Failed to read WAV duration", exc_info=True)
             return 0
 
     async def shutdown(self) -> None:
@@ -580,7 +581,7 @@ Before we begin, please upload your resume so I can tailor questions based on yo
                     },
                 )
             except Exception:
-                pass
+                logger.debug("Failed to send shutdown message to websocket", exc_info=True)
             await self._close_ws(ws, code=1001)
         
         # Cleanup all sessions

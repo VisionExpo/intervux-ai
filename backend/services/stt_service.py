@@ -126,7 +126,7 @@ def transcribe_audio_bytes(audio_bytes: bytes, suffix: str = ".wav") -> str:
                 )
                 return text
             except Exception:
-                pass
+                logger.debug("WAV in-memory STT fallback failed", exc_info=True)
 
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         audio_path = tmp.name

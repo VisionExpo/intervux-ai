@@ -26,6 +26,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from backend.db.database import SessionLocal, LLMMetrics
+from backend.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 # =========================================================
@@ -97,10 +100,11 @@ class EvaluationDBLogger:
                 db.commit()
             except Exception:
                 db.rollback()
+                logger.exception("Telemetry DB transaction failed; rolled back")
             finally:
                 db.close()
         except Exception:
-            pass  # Silently fail to avoid interrupting interview
+            logger.exception("Telemetry DB logging failed")
 
 
 # =========================================================

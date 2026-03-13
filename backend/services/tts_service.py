@@ -3,6 +3,9 @@ import threading
 import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from backend.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 try:
     import pyttsx3
@@ -119,7 +122,7 @@ def synthesize_speech_with_visemes(text: str) -> Tuple[bytes, List[Dict[str, int
         try:
             return _azure_tts.synthesize_with_visemes(text)
         except Exception:
-            pass
+            logger.warning("Azure TTS failed, falling back to local TTS", exc_info=True)
 
     return _local_tts.synthesize_to_wav_bytes(text), []
 
