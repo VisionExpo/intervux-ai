@@ -1,5 +1,6 @@
 import os
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -24,6 +25,30 @@ else:
     STATIC_DIR = Path("backend/static/audio")
 
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _cleanup_static_audio_files() -> None:
+    """Best-effort cleanup for legacy static audio artifacts."""
+    ttl_seconds = int(os.getenv("TTS_STATIC_TTL_SECONDS", "3600"))
+    max_files = int(os.getenv("TTS_STATIC_MAX_FILES", "500"))
+    now = time.time()
+
+    files = sorted(STATIC_DIR.glob("*.wav"), key=lambda path: path.stat().st_mtime)
+    for path in files:
+        try:
+            if now - path.stat().st_mtime > ttl_seconds:
+                path.unlink(missing_ok=True)
+        except Exception:
+            logger.debug("Static audio cleanup failed for %s", path, exc_info=True)
+
+    files = sorted(STATIC_DIR.glob("*.wav"), key=lambda path: path.stat().st_mtime)
+    overflow = len(files) - max_files
+    if overflow > 0:
+        for path in files[:overflow]:
+            try:
+                path.unlink(missing_ok=True)
+            except Exception:
+                logger.debug("Static audio overflow cleanup failed for %s", path, exc_info=True)
 
 
 class LocalTTSService:
@@ -132,6 +157,7 @@ def synthesize_speech(text: str) -> str:
     Backward-compatible API that writes a WAV to static path.
     """
     audio_bytes, _ = synthesize_speech_with_visemes(text)
+    _cleanup_static_audio_files()
 
     filename = f"{uuid.uuid4()}.wav"
     filepath = str(STATIC_DIR / filename)

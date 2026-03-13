@@ -29,7 +29,7 @@ import threading
 from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, Optional
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 
 from fastapi import BackgroundTasks
 
@@ -68,7 +68,18 @@ class TaskQueue:
     
     def __init__(self, max_workers: int = 4):
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
-        self._tasks: Dict[str, asyncio.Task] = {}
+        self._tasks: Dict[str, Future | asyncio.Task] = {}
+        self._max_tracked_tasks = int(os.getenv("BACKGROUND_MAX_TRACKED_TASKS", "1000"))
+
+    def _prune_tasks(self):
+        done_ids = [task_id for task_id, task in self._tasks.items() if task.done()]
+        for task_id in done_ids:
+            self._tasks.pop(task_id, None)
+
+        overflow = len(self._tasks) - self._max_tracked_tasks
+        if overflow > 0:
+            for task_id in list(self._tasks.keys())[:overflow]:
+                self._tasks.pop(task_id, None)
     
     def submit(
         self,
@@ -78,6 +89,7 @@ class TaskQueue:
         **kwargs
     ) -> str:
         """Submit a task for background processing."""
+        self._prune_tasks()
         task_id = f"{task_type.value}_{datetime.utcnow().timestamp()}"
         
         def run():
@@ -100,6 +112,7 @@ class TaskQueue:
         **kwargs
     ) -> str:
         """Submit an async task."""
+        self._prune_tasks()
         task_id = f"{task_type.value}_{datetime.utcnow().timestamp()}"
         
         async def run():
@@ -116,14 +129,17 @@ class TaskQueue:
     
     def cancel(self, task_id: str) -> bool:
         """Cancel a task."""
+        self._prune_tasks()
         if task_id in self._tasks:
             future = self._tasks[task_id]
             future.cancel()
+            self._tasks.pop(task_id, None)
             return True
         return False
     
     def get_status(self, task_id: str) -> Dict[str, Any]:
         """Get task status."""
+        self._prune_tasks()
         if task_id not in self._tasks:
             return {"status": "not_found"}
         
@@ -131,7 +147,9 @@ class TaskQueue:
         
         if future.done():
             if future.exception():
+                self._tasks.pop(task_id, None)
                 return {"status": "failed", "error": str(future.exception())}
+            self._tasks.pop(task_id, None)
             return {"status": "completed"}
         
         return {"status": "running"}

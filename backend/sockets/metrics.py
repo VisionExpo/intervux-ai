@@ -116,18 +116,22 @@ class MetricsSocket:
         Args:
             data: Data to broadcast
         """
-        disconnected = set()
-        
-        for ws in self._connections:
-            try:
-                await ws.send_json(data)
-            except Exception:
+        connections = list(self._connections)
+        if not connections:
+            return
+
+        results = await asyncio.gather(
+            *[
+                asyncio.wait_for(ws.send_json(data), timeout=2.0)
+                for ws in connections
+            ],
+            return_exceptions=True,
+        )
+
+        for ws, result in zip(connections, results):
+            if isinstance(result, Exception):
                 logger.warning("Dropping disconnected metrics websocket client")
-                disconnected.add(ws)
-        
-        # Clean up disconnected clients
-        for ws in disconnected:
-            self._connections.discard(ws)
+                self._connections.discard(ws)
     
     def _get_metrics_snapshot(self) -> Dict[str, Any]:
         """

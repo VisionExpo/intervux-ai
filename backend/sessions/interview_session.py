@@ -9,6 +9,7 @@ This class manages:
 """
 
 import asyncio
+import contextlib
 import json
 import time
 from typing import Any, Dict, Optional
@@ -121,6 +122,9 @@ class InterviewSession:
         # Cancel any pending tasks
         if self._early_eval_task and not self._early_eval_task.done():
             self._early_eval_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._early_eval_task
+            self._early_eval_task = None
         
         # Reset state
         self.state.reset()
@@ -201,7 +205,21 @@ class InterviewSession:
             self._first_chunk_time = now
         self._last_chunk_time = now
         
-        self.audio_buffer.add(audio_chunk)
+        if not self.audio_buffer.add(audio_chunk):
+            logger.warning(
+                "Audio buffer overflow",
+                extra={"extra_data": {"session_id": self.session_id}},
+            )
+            metrics.increment_counter("audio_buffer_overflow")
+            self.audio_buffer.clear()
+            self._partial_transcript = ""
+            self._partial_count = 0
+            return {
+                "type": "error",
+                "code": "AUDIO_BUFFER_FULL",
+                "message": "Audio too long. Please send a shorter response.",
+                "recoverable": True,
+            }
         
         # Check if we should emit partial transcript
         partial_min_bytes = 12000

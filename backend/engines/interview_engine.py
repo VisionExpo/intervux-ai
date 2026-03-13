@@ -58,6 +58,7 @@ class InterviewEngine:
     def __init__(self):
         self.min_questions_per_skill = int(os.getenv("MIN_QUESTIONS_PER_SKILL", "1"))
         self.difficulty_start_level = int(os.getenv("DIFFICULTY_START_LEVEL", "2"))
+        self.max_questions_hard_cap = int(os.getenv("MAX_QUESTIONS_HARD_CAP", "8"))
         self.evaluation_service = get_evaluation_service()
 
     async def start_interview(
@@ -426,6 +427,9 @@ class InterviewEngine:
 
     def _should_continue(self, state: InterviewState) -> bool:
         """Check if interview should continue."""
+        if state.current_index >= self.max_questions_hard_cap:
+            return False
+
         under_target = state.current_index < state.target_question_count
         if state.skill_coverage is None:
             return under_target

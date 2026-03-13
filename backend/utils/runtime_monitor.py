@@ -3,6 +3,9 @@ import os
 from typing import Optional
 
 from backend.utils.metrics import metrics
+from backend.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class RuntimeMonitor:
@@ -38,6 +41,7 @@ class RuntimeMonitor:
                 self._record_gpu_stats()
             except Exception:
                 metrics.record_error()
+                logger.exception("Runtime monitor loop error")
             await asyncio.sleep(self.interval_s)
 
     def _record_socket_stats(self):

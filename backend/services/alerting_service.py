@@ -16,6 +16,7 @@ Supports multiple notification channels:
 import os
 import smtplib
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -251,6 +252,12 @@ class AlertingService:
         self.cooldown_seconds = int(os.getenv("ALERT_COOLDOWN_SECONDS", "300"))
         self._last_alerts: Dict[str, float] = {}
         self._lock = threading.Lock()
+        self._notify_executor = ThreadPoolExecutor(
+            max_workers=int(os.getenv("ALERT_NOTIFY_WORKERS", "4")),
+            thread_name_prefix="alert-notify",
+        )
+        self._max_pending_notifications = int(os.getenv("ALERT_NOTIFY_MAX_PENDING", "100"))
+        self._pending_notifications = 0
     
     def _should_send_alert(self, metric_name: str) -> bool:
         """Check if we should send an alert (respects cooldown)."""
@@ -352,17 +359,28 @@ class AlertingService:
     
     def _send_alert(self, alert: Alert):
         """Send alert to all configured notifiers."""
-        # Send to Slack
-        thread = threading.Thread(target=self.slack.send, args=(alert,))
-        thread.start()
-        
-        # Send to Email
-        thread = threading.Thread(target=self.email.send, args=(alert,))
-        thread.start()
-        
-        # Send to PagerDuty
-        thread = threading.Thread(target=self.pagerduty.send, args=(alert,))
-        thread.start()
+        self._submit_notifier(self.slack.send, alert)
+        self._submit_notifier(self.email.send, alert)
+        self._submit_notifier(self.pagerduty.send, alert)
+
+    def _submit_notifier(self, notifier, alert: Alert):
+        """Submit notifier work to bounded executor queue."""
+        with self._lock:
+            if self._pending_notifications >= self._max_pending_notifications:
+                logger.warning("Dropping alert notification due to executor backpressure")
+                return
+            self._pending_notifications += 1
+
+        def _run():
+            try:
+                notifier(alert)
+            except Exception:
+                logger.exception("Alert notifier execution failed")
+            finally:
+                with self._lock:
+                    self._pending_notifications = max(0, self._pending_notifications - 1)
+
+        self._notify_executor.submit(_run)
     
     def send_test_alert(self, channel: str = "slack"):
         """

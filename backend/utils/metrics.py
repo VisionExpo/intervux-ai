@@ -1,5 +1,6 @@
+import os
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from threading import Lock
 
 class Metrics:
@@ -7,7 +8,8 @@ class Metrics:
         self._lock = Lock()
         self.request_counts = 0
         self.error_count = 0
-        self.latencies = defaultdict(list)
+        self._latency_max_samples = int(os.getenv("METRICS_LATENCY_MAX_SAMPLES", "5000"))
+        self.latencies = defaultdict(lambda: deque(maxlen=self._latency_max_samples))
         self.interviews_completed = 0
         self.gauges = {}
         self.counters = defaultdict(int)

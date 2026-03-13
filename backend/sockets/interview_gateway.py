@@ -63,6 +63,9 @@ class InterviewGateway:
         self._pending_connections = 0
         self._connections: Set[WebSocket] = set()
         self._ip_hits: Dict[str, list] = {}
+        self.max_tracked_ips = int(os.getenv("RATE_LIMIT_WS_MAX_TRACKED_IPS", "10000"))
+        self.ip_prune_interval_s = float(os.getenv("RATE_LIMIT_WS_PRUNE_INTERVAL_S", "30"))
+        self._last_ip_prune = 0.0
         self._registry = get_session_registry()
 
     async def handle(self, ws: WebSocket) -> None:
@@ -464,6 +467,7 @@ Before we begin, please upload your resume so I can tailor questions based on yo
         window_start = now - 60.0
 
         async with self._rate_limit_lock:
+            self._prune_ip_hits(now, window_start)
             hits = self._ip_hits.get(ip, [])
             hits = [ts for ts in hits if ts >= window_start]
             if len(hits) >= self.rate_limit_per_minute:
@@ -473,6 +477,30 @@ Before we begin, please upload your resume so I can tailor questions based on yo
             hits.append(now)
             self._ip_hits[ip] = hits
             return True
+
+    def _prune_ip_hits(self, now: float, window_start: float) -> None:
+        """Prune stale/overflow IP tracking entries."""
+        should_prune = (
+            (now - self._last_ip_prune) >= self.ip_prune_interval_s
+            or len(self._ip_hits) > self.max_tracked_ips
+        )
+        if not should_prune:
+            return
+
+        stale_ips = [ip for ip, hits in self._ip_hits.items() if not hits or hits[-1] < window_start]
+        for stale_ip in stale_ips:
+            self._ip_hits.pop(stale_ip, None)
+
+        overflow = len(self._ip_hits) - self.max_tracked_ips
+        if overflow > 0:
+            oldest = sorted(
+                self._ip_hits.items(),
+                key=lambda item: item[1][-1] if item[1] else 0.0,
+            )
+            for ip, _ in oldest[:overflow]:
+                self._ip_hits.pop(ip, None)
+
+        self._last_ip_prune = now
 
     def _build_load_policy(self) -> Dict[str, Any]:
         """Build session load policy based on current load."""

@@ -19,6 +19,8 @@ from celery import Celery
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL)
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL)
+_broker_retries_raw = int(os.getenv("CELERY_BROKER_MAX_RETRIES", "-1"))
+_broker_max_retries = None if _broker_retries_raw < 0 else _broker_retries_raw
 
 # Initialize Celery app
 celery_app = Celery(
@@ -45,18 +47,24 @@ celery_app.conf.update(
     task_track_started=True,
     task_time_limit=3600,  # 1 hour max
     task_soft_time_limit=3000,  # 50 minutes soft limit
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    task_ignore_result=os.getenv("CELERY_TASK_IGNORE_RESULT", "true").lower() in {"1", "true", "yes", "on"},
     
     # Result settings
-    result_expires=86400,  # 24 hours
+    result_expires=int(os.getenv("CELERY_RESULT_EXPIRES_S", "3600")),
     
     # Worker settings
-    worker_prefetch_multiplier=4,
+    worker_prefetch_multiplier=int(os.getenv("CELERY_WORKER_PREFETCH_MULTIPLIER", "1")),
     worker_max_tasks_per_child=1000,
     
     # Broker settings
     broker_connection_retry_on_startup=True,
     broker_connection_retry=True,
-    broker_connection_max_retries=10,
+    broker_connection_max_retries=_broker_max_retries,
+    broker_transport_options={
+        "visibility_timeout": int(os.getenv("CELERY_VISIBILITY_TIMEOUT_S", "7200")),
+    },
     
     # Task routing
     task_routes={
