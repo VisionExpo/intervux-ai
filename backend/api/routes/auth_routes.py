@@ -15,7 +15,7 @@ Example usage:
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -31,6 +31,7 @@ from backend.auth.jwt_service import (
     get_current_user,
     get_user_by_email,
     hash_password,
+    oauth2_scheme,
     refresh_access_token,
     verify_password,
     verify_token,
@@ -153,20 +154,42 @@ async def get_current_user_profile(current_user: TokenData = Depends(get_current
 
 
 @router.post("/logout")
-async def logout(current_user: TokenData = Depends(get_current_user)):
-    """
-    Logout current user.
-    
-    In a full implementation, this would invalidate the token
-    by adding it to a blacklist in Redis or database.
-    """
-    # In production, add token to blacklist
-    # token_blacklist.add(current_user.exp)
-    
-    return {
-        "message": "Successfully logged out",
-        "user_id": current_user.user_id,
-    }
+async def logout(
+    token: str = Depends(oauth2_scheme),
+    current_user: TokenData = Depends(get_current_user),
+):
+    from backend.db.database import RevokedToken, SessionLocal
+    from backend.auth.jwt_service import SECRET_KEY, ALGORITHM
+    from jose import jwt as _jwt
+
+    try:
+        payload = _jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+            options={"verify_exp": False},
+        )
+        jti = payload.get("jti") or payload.get("user_id", "")
+        exp_ts = payload.get("exp")
+        expires_at = (
+            datetime.utcfromtimestamp(exp_ts)
+            if exp_ts
+            else datetime.utcnow() + timedelta(hours=12)
+        )
+        db = SessionLocal()
+        try:
+            existing = db.query(RevokedToken).filter(RevokedToken.jti == jti).first()
+            if not existing:
+                db.add(RevokedToken(jti=jti, token_type="access", expires_at=expires_at))
+                db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("Token revocation failed during logout")
+
+    return {"message": "Successfully logged out", "user_id": current_user.user_id}
 
 
 # =========================================================

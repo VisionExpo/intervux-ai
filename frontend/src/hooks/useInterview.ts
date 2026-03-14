@@ -350,6 +350,22 @@ export function useInterview() {
     }
     if (isRecording) return;
 
+    // Check microphone permission before requesting stream
+    try {
+      const permissionStatus = await navigator.permissions.query({
+        name: "microphone" as PermissionName,
+      });
+      if (permissionStatus.state === "denied") {
+        setLastError(
+          "Microphone access is blocked. Please allow microphone access in your browser settings and refresh the page."
+        );
+        dispatch({ type: "ERROR_OCCURRED" });
+        return;
+      }
+    } catch {
+      // permissions API not supported in this browser - proceed anyway
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaStreamRef.current = stream;
 

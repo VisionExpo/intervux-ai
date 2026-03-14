@@ -1,5 +1,6 @@
 import os
 import tempfile
+import threading
 import time
 
 from backend.core.audio_stack import AudioEngine
@@ -61,12 +62,14 @@ class STTService:
 
 
 _stt_service_instance: STTService | None = None
+_stt_lock = threading.Lock()
 
 
 def _get_stt_service() -> STTService:
     global _stt_service_instance
-    if _stt_service_instance is None:
-        _stt_service_instance = STTService()
+    with _stt_lock:
+        if _stt_service_instance is None:
+            _stt_service_instance = STTService()
     return _stt_service_instance
 
 

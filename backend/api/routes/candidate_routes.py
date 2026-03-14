@@ -32,7 +32,7 @@ from backend.auth.jwt_service import (
     hash_password,
 )
 from backend.core.agent_ocr import parse_resume
-from backend.db.database import SessionLocal
+from backend.db.database import SessionLocal, User
 from backend.models.candidate_portal import CandidateProfile, MockInterview, Notification
 from backend.utils.logger import get_logger
 
@@ -244,15 +244,14 @@ async def candidate_signup(candidate_data: CandidateSignup):
             "role": Role.CANDIDATE,
         }
         
-        # Store user in DEMO_USERS for authentication (in production, use database)
-        from backend.auth.jwt_service import DEMO_USERS
-        DEMO_USERS[candidate_data.email] = {
-            "id": user_id,
-            "email": candidate_data.email,
-            "name": candidate_data.name,
-            "role": Role.CANDIDATE,
-            "password_hash": hash_password(candidate_data.password),
-        }
+        db_user = User(
+            email=candidate_data.email,
+            password_hash=hash_password(candidate_data.password),
+            name=candidate_data.name,
+            role=Role.CANDIDATE,
+        )
+        db.add(db_user)
+        db.commit()
         
         return create_token_pair(user_data)
         

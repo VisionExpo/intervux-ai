@@ -378,6 +378,10 @@ Before we begin, please upload your resume so I can tailor questions based on yo
             )
             await self._send_bytes(ws, bytes(audio_bytes))
 
+        if question_index > 0:
+            await self._send_json(ws, {"type": "phase", "value": "LISTENING"})
+
+    # Safe no-op for first-question payloads that carry no evaluation data.
     async def _send_evaluation_response(self, ws: WebSocket, response: Dict[str, Any]) -> None:
         """
         Send evaluation block when a response carries one.

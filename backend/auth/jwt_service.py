@@ -573,19 +573,39 @@ def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
     Returns:
         User data if authenticated, None otherwise
     """
+    # Check in-memory demo users first
     user = DEMO_USERS.get(email)
-    if not user:
+    if user:
+        if not verify_password(password, user["password_hash"]):
+            return None
+        return {
+            "user_id": user["id"],
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"],
+        }
+
+    # Fall back to database
+    try:
+        from backend.db.database import SessionLocal, User
+        db = SessionLocal()
+        try:
+            db_user = db.query(User).filter(User.email == email).first()
+            if not db_user:
+                return None
+            if not verify_password(password, db_user.password_hash):
+                return None
+            return {
+                "user_id": str(db_user.id),
+                "email": db_user.email,
+                "name": db_user.name,
+                "role": db_user.role,
+            }
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("Database user lookup failed during authentication")
         return None
-    
-    if not verify_password(password, user["password_hash"]):
-        return None
-    
-    return {
-        "user_id": user["id"],
-        "email": user["email"],
-        "name": user["name"],
-        "role": user["role"],
-    }
 
 
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:

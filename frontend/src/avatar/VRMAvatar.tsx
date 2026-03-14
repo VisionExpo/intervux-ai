@@ -12,6 +12,7 @@ type VRMAvatarProps = {
   visemes?: VisemeCue[];
   avatarState: "speaking" | "listening" | "thinking";
   emotion: string;
+  onLoadError?: () => void;
 };
 
 export default function VRMAvatar({
@@ -19,6 +20,7 @@ export default function VRMAvatar({
   visemes,
   avatarState,
   emotion,
+  onLoadError,
 }: VRMAvatarProps) {
   const vrmRef = useRef<VRM | null>(null);
   const headRef = useRef<Object3D | null>(null);
@@ -32,21 +34,35 @@ export default function VRMAvatar({
     loader.load(
       "/avatar.vrm",
       (gltf) => {
-        VRMUtils.removeUnnecessaryJoints(gltf.scene);
-        const vrm = gltf.userData.vrm as VRM | undefined;
-        if (!vrm || cancelled) return;
+        try {
+          VRMUtils.removeUnnecessaryJoints(gltf.scene);
+          const vrm = gltf.userData.vrm as VRM | undefined;
+          if (!vrm || cancelled) {
+            if (!cancelled && !vrm) {
+              setLoaded(false);
+              onLoadError?.();
+            }
+            return;
+          }
 
-        vrm.scene.rotation.y = Math.PI;
-        vrmRef.current = vrm;
-        headRef.current =
-          (vrm.humanoid as { getNormalizedBoneNode?: (name: string) => Object3D | null })
-            ?.getNormalizedBoneNode?.("head") ?? null;
-        setLoaded(true);
+          vrm.scene.rotation.y = Math.PI;
+          vrmRef.current = vrm;
+          headRef.current =
+            (vrm.humanoid as { getNormalizedBoneNode?: (name: string) => Object3D | null })
+              ?.getNormalizedBoneNode?.("head") ?? null;
+          setLoaded(true);
+        } catch {
+          if (!cancelled) {
+            setLoaded(false);
+            onLoadError?.();
+          }
+        }
       },
       undefined,
       () => {
         if (!cancelled) {
           setLoaded(false);
+          onLoadError?.();
         }
       }
     );

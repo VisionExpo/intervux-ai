@@ -90,6 +90,29 @@ class InterviewEngine:
         _, extracted = await self._parse_resume(file_name, file_bytes_b64)
         logger.info("Resume parsed successfully")
 
+        if not isinstance(extracted, dict):
+            extracted = {}
+
+        # Normalize Gemini output to match ResumeData schema
+        # Gemini may return extra fields or nested structures that don't match the model
+        extracted = {
+            "name": extracted.get("name") if isinstance(extracted.get("name"), str) else None,
+            "skills": [
+                s for s in extracted.get("skills", []) if isinstance(s, str)
+            ],
+            "projects": [
+                {
+                    "title": p.get("title", "") if isinstance(p.get("title"), str) else "",
+                    "tech_stack": [
+                        t for t in p.get("tech_stack", []) if isinstance(t, str)
+                    ],
+                    "description": p.get("description", "") if isinstance(p.get("description"), str) else "",
+                }
+                for p in extracted.get("projects", [])
+                if isinstance(p, dict)
+            ],
+        }
+
         try:
             state.profile = ResumeData(**extracted)
         except Exception:
@@ -349,7 +372,9 @@ class InterviewEngine:
         
         # Generate next question
         memory_context = build_memory_context(state.memory)
-        
+        # Derive current_concept from session state before generating next question
+        current_concept = state.concepts[-1] if state.concepts else ""
+
         (
             generated_question,
             next_skill,
@@ -371,7 +396,7 @@ class InterviewEngine:
             evaluation_summary=str(last_evaluation.get("summary", "") or ""),
             question_temperature=session_policy.get("question_temperature", 0.7),
             memory_context=memory_context,
-            current_concept=next_concept,
+            current_concept=current_concept,
         )
         
         state.questions.append(generated_question)

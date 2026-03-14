@@ -1,3 +1,5 @@
+import asyncio
+import io
 import os
 import threading
 import time
@@ -5,8 +7,10 @@ import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from backend.utils.logger import get_logger
+from backend.services.viseme_service import VisemeService
 
 logger = get_logger(__name__)
+viseme_service = VisemeService()
 
 try:
     import pyttsx3
@@ -136,20 +140,62 @@ _local_tts = LocalTTSService()
 _azure_tts = AzureNativeTTSService()
 
 
+async def _edge_tts_bytes(text: str) -> bytes:
+    """Synthesize speech via Edge TTS and return raw audio bytes."""
+    import edge_tts
+
+    voice = os.getenv("EDGE_TTS_VOICE", "en-US-AriaNeural")
+    communicate = edge_tts.Communicate(text, voice)
+    buf = io.BytesIO()
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            buf.write(chunk["data"])
+    return buf.getvalue()
+
+
 def synthesize_speech_with_visemes(text: str) -> Tuple[bytes, List[Dict[str, int]]]:
     """
-    Returns WAV audio bytes and viseme timeline.
-
-    If Azure is configured, use native viseme events.
-    Otherwise fallback to local TTS with an empty viseme timeline.
+    Synthesize speech and return (audio_bytes, viseme_timeline).
+    Primary: Edge TTS (free, no account required).
+    Fallback: pyttsx3 local TTS.
+    Azure TTS is disabled - set AZURE_SPEECH_KEY to re-enable manually.
     """
-    if _azure_tts.is_enabled:
-        try:
-            return _azure_tts.synthesize_with_visemes(text)
-        except Exception:
-            logger.warning("Azure TTS failed, falling back to local TTS", exc_info=True)
+    audio_bytes = b""
 
-    return _local_tts.synthesize_to_wav_bytes(text), []
+    # Primary: Edge TTS
+    try:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # Called from inside an async context (e.g. asyncio.to_thread)
+            # Run in a new thread with its own event loop
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                audio_bytes = pool.submit(asyncio.run, _edge_tts_bytes(text)).result(timeout=30)
+        else:
+            audio_bytes = asyncio.run(_edge_tts_bytes(text))
+    except Exception:
+        logger.warning("Edge TTS failed, falling back to pyttsx3", exc_info=True)
+
+    # Fallback: pyttsx3
+    if not audio_bytes:
+        try:
+            audio_bytes = _local_tts.synthesize_to_wav_bytes(text)
+        except Exception:
+            logger.warning("pyttsx3 fallback also failed", exc_info=True)
+
+    if not audio_bytes:
+        return b"", []
+
+    # Generate duration-based viseme timeline
+    # Edge TTS returns MP3 (~16kbps); estimate duration from size
+    estimated_ms = max(1200, int(len(audio_bytes) / 2000 * 1000))
+    visemes = viseme_service.generate_timeline(estimated_ms)
+    return audio_bytes, visemes
 
 
 def synthesize_speech(text: str) -> str:

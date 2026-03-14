@@ -2,6 +2,7 @@ import time
 import uuid
 import asyncio
 import os
+import json as _json
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
 
@@ -51,6 +52,7 @@ from backend.services.evaluation_dashboard_store import (
 )
 from backend.services.decision_support_service import generate_full_report
 from backend.models import recruiter_dashboard_models  # noqa: F401
+from backend.models.candidate_portal import CandidateProfile, MockInterview, Notification  # noqa: F401
 from backend.sockets.interview_gateway import InterviewGateway
 from backend.sockets.metrics import metrics_socket
 from backend.utils.logger import get_logger
@@ -106,10 +108,16 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Intervux-AI", version="1.0.0", lifespan=lifespan)
 
+_cors_raw = os.getenv("CORS_ALLOW_ORIGINS", '["http://localhost:5173"]')
+try:
+    _cors_origins = _json.loads(_cors_raw)
+except Exception:
+    _cors_origins = ["http://localhost:5173"]
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
