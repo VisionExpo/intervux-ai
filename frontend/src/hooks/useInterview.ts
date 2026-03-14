@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useReducer, useMemo } from "react";
 import type { VisemeCue } from "../avatar/LipSyncController";
-import {
-  interviewReducer,
-  initialState,
-  InterviewState,
-} from "./useInterviewStateMachine";
+import { interviewReducer, initialState } from "./useInterviewStateMachine";
+import type { InterviewState } from "./useInterviewStateMachine";
 
 export type AvatarState = "speaking" | "listening" | "thinking";
 

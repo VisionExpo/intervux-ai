@@ -34,8 +34,10 @@ from backend.auth.jwt_service import (
 from backend.core.agent_ocr import parse_resume
 from backend.db.database import SessionLocal
 from backend.models.candidate_portal import CandidateProfile, MockInterview, Notification
+from backend.utils.logger import get_logger
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 # =========================================================
@@ -450,10 +452,12 @@ async def upload_resume(
         
         # Parse resume
         try:
+            # Reset file pointer because we already consumed it while persisting to disk.
+            file.file.seek(0)
             _, parsed_data = parse_resume(file)
         except Exception as e:
             # If parsing fails, still save the file but return error
-            print(f"Resume parsing error: {e}")
+            logger.exception("Resume parsing failed in candidate upload")
             parsed_data = {"skills": [], "projects": [], "experience": [], "education": []}
         
         # Calculate resume score

@@ -3,15 +3,15 @@ services:
     image: postgres:15
     container_name: intervux-postgres
     environment:
-      POSTGRES_USER: intervux
-      POSTGRES_PASSWORD: Vishal
-      POSTGRES_DB: intervux
+      POSTGRES_USER: ${POSTGRES_USER:-intervux}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-intervux}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U intervux -d intervux"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-intervux} -d ${POSTGRES_DB:-intervux}"]
       interval: 10s
       timeout: 5s
       retries: 10

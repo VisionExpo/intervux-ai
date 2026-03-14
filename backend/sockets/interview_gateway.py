@@ -238,7 +238,7 @@ Before we begin, please upload your resume so I can tailor questions based on yo
                 if response:
                     # Handle special response types
                     if response.get("type") == "question":
-                        # Send question with TTS
+                        # Send optional evaluation payload and then question with TTS.
                         await self._send_evaluation_response(ws, response)
                         await self._send_question_with_audio(ws, session, response)
                         
@@ -335,6 +335,9 @@ Before we begin, please upload your resume so I can tailor questions based on yo
             )
             await self._send_bytes(ws, bytes(audio_bytes))
 
+        # After the interviewer finishes speaking, client can start capturing audio.
+        await self._send_json(ws, {"type": "phase", "value": "LISTENING"})
+
     async def _send_avatar_with_audio(
         self,
         ws: WebSocket,
@@ -374,6 +377,15 @@ Before we begin, please upload your resume so I can tailor questions based on yo
                 },
             )
             await self._send_bytes(ws, bytes(audio_bytes))
+
+    async def _send_evaluation_response(self, ws: WebSocket, response: Dict[str, Any]) -> None:
+        """
+        Send evaluation block when a response carries one.
+        Safe no-op for first-question payloads that do not include evaluation.
+        """
+        eval_payload = response.get("data")
+        if isinstance(eval_payload, dict):
+            await self._send_json(ws, {"type": "evaluation", "data": eval_payload})
 
     # ==================== Network Helpers ====================
 

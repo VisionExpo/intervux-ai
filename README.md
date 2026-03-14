@@ -529,3 +529,14 @@ Distributed under the MIT License.
 <sub>Built with ❤️ by Vishal Gorule</sub>
 </div>
 
+
+## Maintainer Quick Start
+
+1. Copy .env.example to .env and fill secrets (GOOGLE_API_KEY, JWT_SECRET_KEY, DB credentials).
+2. Start stack with docker compose up --build -d.
+3. Verify GET /health, GET /ready, and Flower (http://localhost:5555).
+4. Frontend dev server: 
+pm --prefix frontend install && npm --prefix frontend run dev.
+5. Run backend checks: py -3 -m compileall backend and pytest -q.
+
+See also: SYSTEM_FLOW.md and ARCHITECTURE.md.

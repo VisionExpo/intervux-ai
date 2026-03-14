@@ -61,10 +61,10 @@ export default function CandidateDashboard() {
       <div className="dashboard-header">
         <h1>Welcome {profile?.name || user?.name || "Candidate"}</h1>
         <div className="nav-links">
-          <a href="/profile">Profile</a>
+          <a href="#/profile">Profile</a>
           <a href="#/mock-interview">Mock Interview</a>
-          <a href="/interview-history">History</a>
-          <a href="/notifications">Notifications</a>
+          <a href="#/interview-history">History</a>
+          <a href="#/notifications">Notifications</a>
         </div>
       </div>
 
@@ -79,7 +79,7 @@ export default function CandidateDashboard() {
             )}
           </div>
           {!profile?.resume_url && (
-            <a href="/profile" className="upload-hint">Upload your resume</a>
+            <a href="#/profile" className="upload-hint">Upload your resume</a>
           )}
         </div>
         
@@ -129,7 +129,7 @@ export default function CandidateDashboard() {
             You have completed your free mock interviews.
           </div>
         )}
-        <a href="/profile" className="action-button">
+        <a href="#/profile" className="action-button">
           Update Profile
         </a>
       </div>

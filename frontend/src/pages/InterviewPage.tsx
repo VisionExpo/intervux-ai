@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useInterview } from "../hooks/useInterview";
 import { audioFeedback } from "../utils/audioFeedback";
 import {
@@ -8,7 +8,6 @@ import {
   CandidateCamera,
   TranscriptPanel,
 } from "../components/interview";
-import type { AvatarState } from "../hooks/useInterview";
 
 export default function InterviewPage() {
   const {

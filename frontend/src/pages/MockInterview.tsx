@@ -158,7 +158,7 @@ export default function MockInterview() {
                 ) : interview.status === "in_progress" ? (
                   <div className="interview-pending">
                     <p>Interview in progress...</p>
-                    <a href="/interview-session" className="resume-button">Resume Interview</a>
+                    <a href="#/interview-session" className="resume-button">Resume Interview</a>
                   </div>
                 ) : (
                   <div className="interview-pending">
