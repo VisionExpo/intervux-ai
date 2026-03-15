@@ -565,15 +565,9 @@ DEMO_USERS = {
 def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
     """
     Authenticate a user by email and password.
-    
-    Args:
-        email: User email
-        password: Plain text password
-        
-    Returns:
-        User data if authenticated, None otherwise
+    Checks DEMO_USERS first, then falls back to the database.
     """
-    # Check in-memory demo users first
+    # Check hardcoded demo users first
     user = DEMO_USERS.get(email)
     if user:
         if not verify_password(password, user["password_hash"]):
@@ -585,7 +579,7 @@ def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
             "role": user["role"],
         }
 
-    # Fall back to database
+    # Fall back to database for registered users
     try:
         from backend.db.database import SessionLocal, User
         db = SessionLocal()
@@ -596,7 +590,7 @@ def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
             if not verify_password(password, db_user.password_hash):
                 return None
             return {
-                "user_id": str(db_user.id),
+                "user_id": f"candidate-{db_user.id}",
                 "email": db_user.email,
                 "name": db_user.name,
                 "role": db_user.role,
@@ -604,31 +598,46 @@ def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
         finally:
             db.close()
     except Exception:
-        logger.exception("Database user lookup failed during authentication")
+        logger.exception("Database lookup failed during authentication")
         return None
 
 
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     """
     Get user by email.
-    
-    Args:
-        email: User email
-        
-    Returns:
-        User data if found, None otherwise
+    Checks DEMO_USERS first, then falls back to the database.
     """
+    # Check hardcoded demo users first
     user = DEMO_USERS.get(email)
-    if not user:
+    if user:
+        return {
+            "user_id": user["id"],
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"],
+            "password_hash": user.get("password_hash", ""),
+        }
+
+    # Fall back to database
+    try:
+        from backend.db.database import SessionLocal, User
+        db = SessionLocal()
+        try:
+            db_user = db.query(User).filter(User.email == email).first()
+            if not db_user:
+                return None
+            return {
+                "user_id": f"candidate-{db_user.id}",
+                "email": db_user.email,
+                "name": db_user.name,
+                "role": db_user.role,
+                "password_hash": db_user.password_hash,
+            }
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("Database lookup failed in get_user_by_email")
         return None
-    
-    return {
-        "user_id": user["id"],
-        "email": user["email"],
-        "name": user["name"],
-        "role": user["role"],
-        "password_hash": user.get("password_hash", ""),
-    }
 
 
 # =========================================================

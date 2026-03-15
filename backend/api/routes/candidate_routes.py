@@ -32,7 +32,7 @@ from backend.auth.jwt_service import (
     hash_password,
 )
 from backend.core.agent_ocr import parse_resume
-from backend.db.database import SessionLocal, User
+from backend.db.database import SessionLocal
 from backend.models.candidate_portal import CandidateProfile, MockInterview, Notification
 from backend.utils.logger import get_logger
 
@@ -207,25 +207,35 @@ def _calculate_resume_score(parsed_data: dict) -> tuple[float, List[str], List[s
 async def candidate_signup(candidate_data: CandidateSignup):
     """
     Register a new candidate.
-    
-    Creates a new user account and candidate profile.
+    Creates a User row and a CandidateProfile row in the database.
     """
+    from backend.db.database import User
+
     db = SessionLocal()
     try:
-        # Check if email already exists
-        existing = db.query(CandidateProfile).filter(
-            CandidateProfile.user_id == candidate_data.email
+        # Check if email already exists in users table
+        existing_user = db.query(User).filter(
+            User.email == candidate_data.email
         ).first()
-        
-        if existing:
+
+        if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
-        
-        # Create user ID
-        user_id = f"candidate-{uuid.uuid4().hex[:8]}"
-        
+
+        # Create user in users table
+        db_user = User(
+            email=candidate_data.email,
+            password_hash=hash_password(candidate_data.password),
+            name=candidate_data.name,
+            role=Role.CANDIDATE,
+        )
+        db.add(db_user)
+        db.flush()  # get db_user.id before commit
+
+        user_id = f"candidate-{db_user.id}"
+
         # Create candidate profile
         profile = CandidateProfile(
             user_id=user_id,
@@ -235,26 +245,16 @@ async def candidate_signup(candidate_data: CandidateSignup):
         )
         db.add(profile)
         db.commit()
-        db.refresh(profile)
-        
-        # Create token
+
+        # Issue token
         user_data = {
             "user_id": user_id,
             "email": candidate_data.email,
+            "name": candidate_data.name,
             "role": Role.CANDIDATE,
         }
-        
-        db_user = User(
-            email=candidate_data.email,
-            password_hash=hash_password(candidate_data.password),
-            name=candidate_data.name,
-            role=Role.CANDIDATE,
-        )
-        db.add(db_user)
-        db.commit()
-        
         return create_token_pair(user_data)
-        
+
     finally:
         db.close()
 
