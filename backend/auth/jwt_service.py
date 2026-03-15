@@ -539,11 +539,11 @@ def refresh_access_token(refresh_token: str) -> Token:
 
 
 # =========================================================
-# Demo Users (For Development)
+# Demo Users (Development Only)
+# Only admin and recruiter are provided as demo accounts.
+# Candidates must register via POST /api/candidate/signup
 # =========================================================
 
-
-# In production, these would be stored in the database
 DEMO_USERS = {
     "admin@intervux.ai": {
         "id": "admin-001",

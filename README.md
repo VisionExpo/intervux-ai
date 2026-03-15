@@ -324,21 +324,19 @@ docker-compose up --build
 
 ---
 
-# Authentication 🔒
+## Authentication
 
 Login endpoint
-
-```
 POST /api/auth/login/json
-```
 
-Demo users
+Demo accounts (development only)
 
-```
-admin@intervux.ai / admin123
-recruiter@intervux.ai / recruiter123
-viewer@intervux.ai / viewer123
-```
+| Role      | Email                    | Password      |
+|-----------|--------------------------|---------------|
+| Admin     | admin@intervux.ai        | admin123      |
+| Recruiter | recruiter@intervux.ai    | recruiter123  |
+
+Candidates must register via the signup page.
 
 Header
 
@@ -540,3 +538,4 @@ pm --prefix frontend install && npm --prefix frontend run dev.
 5. Run backend checks: py -3 -m compileall backend and pytest -q.
 
 See also: SYSTEM_FLOW.md and ARCHITECTURE.md.
+
