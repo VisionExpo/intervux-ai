@@ -266,6 +266,13 @@ class InterviewSession:
 
         On final completion, writes results back to the MockInterview row.
         """
+        if not self.state.questions or self.state.current_index >= len(self.state.questions):
+            return {
+                "type": "error",
+                "code": "INVALID_STATE",
+                "message": "No active question to evaluate.",
+                "recoverable": True,
+            }
         question = self.state.questions[self.state.current_index]
         audio_bytes = self.audio_buffer.bytes()
 

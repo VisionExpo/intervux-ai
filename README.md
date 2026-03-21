@@ -287,7 +287,14 @@ cd intervux-ai
 ```powershell
 python -m venv myenv
 .\myenv\Scripts\activate
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
+```
+
+Optional local-only dependencies:
+
+```powershell
+# Windows-only dependency used for local development (not for Docker/Linux)
+pip install -r requirements-windows.txt
 ```
 
 Create `.env`
@@ -389,7 +396,9 @@ intervux-ai/                    # Repository root
 |- .github/workflows/           # CI workflows
 |- docker-compose.yaml          # Local orchestration
 |- Dockerfile                   # Container build file
-|- requirements.txt             # Python dependencies
+|- backend/requirements.txt     # Runtime Python dependencies
+|- requirements-test.txt        # Test-only dependencies
+|- requirements-windows.txt     # Windows-only local dependency overrides
 `- README.md                    # Project overview
 ```
 
@@ -400,6 +409,7 @@ intervux-ai/                    # Repository root
 Run the full suite
 
 ```powershell
+pip install -r requirements-test.txt
 pytest -q
 ```
 

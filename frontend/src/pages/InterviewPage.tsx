@@ -19,6 +19,7 @@ export default function InterviewPage() {
     questionIndex,
     totalQuestions,
     lastEvaluation,
+    finalReport,
     audioRef,
     visemes,
     emotion,
@@ -82,6 +83,12 @@ export default function InterviewPage() {
       audioFeedback.dispose();
     };
   }, []);
+
+  if (stage === "INTERVIEW_COMPLETE" && finalReport) {
+    sessionStorage.setItem("interview_report", JSON.stringify(finalReport));
+    window.location.hash = "#/report";
+    return null;
+  }
 
   if (stage === "CONNECTING") {
     return (

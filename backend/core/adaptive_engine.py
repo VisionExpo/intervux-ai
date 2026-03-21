@@ -11,21 +11,46 @@ DEFAULT_TOPICS = [
     "machine_learning",
     "deep_learning",
     "system_design",
+    "javascript",
+    "java",
+    "databases",
+    "devops",
+    "backend",
 ]
-DEFAULT_SKILLS = ["Python", "Machine Learning", "Deep Learning", "System Design"]
+DEFAULT_SKILLS = [
+    "Python",
+    "Machine Learning",
+    "Deep Learning",
+    "System Design",
+    "JavaScript",
+    "Java",
+    "Databases",
+    "DevOps",
+    "Backend",
+]
 SKILL_TO_TOPIC = {
     "Python": "python",
     "Machine Learning": "machine_learning",
     "Deep Learning": "deep_learning",
     "System Design": "system_design",
+    "JavaScript": "javascript",
+    "Java": "java",
+    "Databases": "databases",
+    "DevOps": "devops",
+    "Backend": "backend",
 }
 TOPIC_TO_SKILL = {value: key for key, value in SKILL_TO_TOPIC.items()}
 
 _TOPIC_ALIASES = {
-    "python": {"python", "django", "flask", "fastapi"},
-    "machine_learning": {"machine learning", "ml", "scikit", "xgboost"},
-    "deep_learning": {"deep learning", "pytorch", "tensorflow", "cnn", "rnn", "transformer"},
-    "system_design": {"system design", "architecture", "microservices", "scalability"},
+    "python": {"python", "django", "flask", "fastapi", "celery", "sqlalchemy"},
+    "machine_learning": {"machine learning", "ml", "scikit", "xgboost", "pandas", "numpy"},
+    "deep_learning": {"deep learning", "pytorch", "tensorflow", "cnn", "rnn", "transformer", "llm"},
+    "system_design": {"system design", "architecture", "microservices", "scalability", "distributed"},
+    "javascript": {"javascript", "typescript", "react", "vue", "angular", "node", "nextjs", "nodejs"},
+    "java": {"java", "spring", "springboot", "maven", "gradle", "jvm", "kotlin"},
+    "databases": {"sql", "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "database"},
+    "devops": {"docker", "kubernetes", "aws", "gcp", "azure", "ci/cd", "terraform", "linux"},
+    "backend": {"api", "rest", "graphql", "grpc", "fastapi", "express", "backend"},
 }
 
 
@@ -304,6 +329,16 @@ def _topic_default_concept(topic: str) -> str:
         return "Python"
     if topic == "system_design":
         return "System Design"
+    if topic == "javascript":
+        return "JavaScript"
+    if topic == "java":
+        return "Java"
+    if topic == "databases":
+        return "Databases"
+    if topic == "devops":
+        return "DevOps"
+    if topic == "backend":
+        return "Backend"
     return topic.replace("_", " ").title()
 
 

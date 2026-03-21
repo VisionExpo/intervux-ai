@@ -45,6 +45,16 @@ def build_ml_graph():
     graph.add_node("Learning Rate", difficulty=2)
     graph.add_node("Batch Normalization", difficulty=3)
     graph.add_node("Dropout", difficulty=2)
+    graph.add_node("System Design", difficulty=2)
+    graph.add_node("Microservices", difficulty=2)
+    graph.add_node("Distributed Systems", difficulty=3)
+    graph.add_node("Databases", difficulty=2)
+    graph.add_node("API Design", difficulty=2)
+    graph.add_node("DevOps", difficulty=2)
+    graph.add_node("Docker", difficulty=1)
+    graph.add_node("Kubernetes", difficulty=3)
+    graph.add_node("JavaScript", difficulty=1)
+    graph.add_node("Java", difficulty=1)
 
     graph.add_edge("Machine Learning", "Supervised Learning")
     graph.add_edge("Supervised Learning", "Linear Regression")
@@ -55,6 +65,12 @@ def build_ml_graph():
     graph.add_edge("Gradient Descent", "Learning Rate")
     graph.add_edge("CNN", "Batch Normalization")
     graph.add_edge("CNN", "Dropout")
+    graph.add_edge("System Design", "Microservices")
+    graph.add_edge("System Design", "Distributed Systems")
+    graph.add_edge("System Design", "Databases")
+    graph.add_edge("System Design", "API Design")
+    graph.add_edge("DevOps", "Docker")
+    graph.add_edge("Docker", "Kubernetes")
 
     return graph
 

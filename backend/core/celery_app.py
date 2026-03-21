@@ -74,7 +74,17 @@ celery_app.conf.update(
     },
     
     # Beat schedule (for periodic tasks)
-    beat_schedule={},
+    beat_schedule={
+        "cleanup-old-logs-daily": {
+            "task": "backend.core.celery_tasks.cleanup_old_logs",
+            "schedule": 86400.0,  # every 24 hours
+            "kwargs": {"days": 30},
+        },
+        "aggregate-analytics-hourly": {
+            "task": "backend.core.celery_tasks.aggregate_analytics",
+            "schedule": 3600.0,  # every hour
+        },
+    },
 )
 
 # Auto-discover tasks

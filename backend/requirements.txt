@@ -51,9 +51,6 @@ anyio==4.4.0
 # Logging / telemetry
 python-json-logger==2.0.7
 
-# Windows speech dependencies
-comtypes==1.4.5
-
 # Task Queue and Message Broker
 redis==5.0.7
 celery==5.4.0

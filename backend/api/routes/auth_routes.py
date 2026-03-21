@@ -37,6 +37,9 @@ from backend.auth.jwt_service import (
     verify_token,
     Role,
 )
+from backend.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 

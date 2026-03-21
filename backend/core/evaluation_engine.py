@@ -10,6 +10,7 @@ from backend.core.reasoning_analyzer import ReasoningAnalyzer
 from backend.core.self_consistency import SelfConsistencyEvaluator
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
+from backend.utils.research_logger import research_logger
 
 logger = get_logger(__name__)
 
@@ -227,7 +228,44 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
                 )
             return base
 
-        combined = _evaluate_with_reasoning(question, answer, profile)
+        async def _evaluate_concurrent(
+            q: str, a: str, p: Dict[str, Any] | None
+        ) -> Dict[str, Any]:
+            loop = asyncio.get_running_loop()
+            base_eval, reasoning = await asyncio.gather(
+                loop.run_in_executor(
+                    None,
+                    lambda: _dual_eval_engine.evaluate(question=q, answer=a, profile=p),
+                ),
+                loop.run_in_executor(
+                    None,
+                    lambda: _reasoning_analyzer.analyze(question=q, answer=a),
+                ),
+            )
+            consistency = await loop.run_in_executor(
+                None,
+                lambda: _consistency_checker.check(
+                    question=q,
+                    answer=a,
+                    reasoning_steps=reasoning.get("steps", []),
+                ),
+            )
+            base_eval["reasoning"] = reasoning
+            base_eval["consistency"] = consistency
+            adjustment_factor = float(
+                consistency.get("technical_adjustment_factor", 1.0)
+            )
+            if adjustment_factor < 1.0:
+                for key in ("accuracy", "depth", "problem_solving"):
+                    base_eval["technical"][key] = _clamp_score(
+                        round(float(base_eval["technical"].get(key, 0)) * adjustment_factor)
+                    )
+                base_eval["final"] = _dual_eval_engine.fuse_scores(
+                    base_eval["technical"], base_eval["behavioral"]
+                )
+            return base_eval
+
+        combined = asyncio.run(_evaluate_concurrent(question, answer, profile))
         reasoning = combined.get("reasoning", {})
         consistency = combined.get("consistency", {})
         tech = combined["technical"]
@@ -240,8 +278,7 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
         )
 
         if initial_confidence >= SELF_CONSISTENCY_THRESHOLD or _self_consistency.passes <= 1:
-            metrics.record_latency("dual_eval_final_score", final_score)
-            return _format_dual_payload(
+            result = _format_dual_payload(
                 tech=tech,
                 behavior=behavior,
                 final_score=final_score,
@@ -252,6 +289,18 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
                 reasoning=reasoning,
                 consistency=consistency,
             )
+            research_logger.write_evaluation_record({
+                "question": question,
+                "answer": answer,
+                "score": result.get("final", {}).get("score", 0),
+                "reasoning_score": result.get("reasoning", {}).get("reasoning_score", 0),
+                "concept_consistency_score": result.get("consistency", {}).get("concept_consistency_score", 0),
+                "hallucination_risk": result.get("consistency", {}).get("hallucination_risk", 0),
+                "provider": result.get("meta", {}).get("provider", "unknown"),
+                "skill": (profile or {}).get("skills", ["unknown"])[0] if profile else "unknown",
+            })
+            metrics.record_latency("dual_eval_final_score", final_score)
+            return result
 
         if SELF_CONSISTENCY_PARALLEL:
             aggregate = asyncio.run(
@@ -268,7 +317,7 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
         metrics.record_latency(
             "evaluation_variance", float(aggregate.get("spread", 0.0))
         )
-        return _format_dual_payload(
+        result = _format_dual_payload(
             tech=aggregate.get("technical", tech),
             behavior=aggregate.get("behavioral", behavior),
             final_score=float(aggregate.get("final_score", final_score)),
@@ -323,6 +372,17 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
                 "notes": aggregate.get("consistency_notes", consistency.get("notes", [])),
             },
         )
+        research_logger.write_evaluation_record({
+            "question": question,
+            "answer": answer,
+            "score": result.get("final", {}).get("score", 0),
+            "reasoning_score": result.get("reasoning", {}).get("reasoning_score", 0),
+            "concept_consistency_score": result.get("consistency", {}).get("concept_consistency_score", 0),
+            "hallucination_risk": result.get("consistency", {}).get("hallucination_risk", 0),
+            "provider": result.get("meta", {}).get("provider", "unknown"),
+            "skill": (profile or {}).get("skills", ["unknown"])[0] if profile else "unknown",
+        })
+        return result
     except Exception:
         metrics.record_error()
         logger.exception("Dual evaluation failed")
