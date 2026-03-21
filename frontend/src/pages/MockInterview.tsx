@@ -49,17 +49,21 @@ export default function MockInterview() {
     setError("");
 
     try {
-      // Start the interview session
-      const response = await authFetch<{ session_id: string; mock_interview_id: number; message: string }>(
-        "/api/candidate/mock-interview/start",
-        { method: "POST" }
-      );
+      const response = await authFetch<{
+        session_id: string;
+        mock_interview_id: number;
+        message: string;
+      }>("/api/candidate/mock-interview/start", { method: "POST" });
 
-      console.log("Interview started:", response);
-      
-      // Navigate to the interview session page
+      // ---------------------------------------------------------------
+      // Store the session_id in sessionStorage so that useInterview can
+      // append it to the WebSocket URL as ?mock_session_id=...
+      // The backend gateway will link the WebSocket session to this
+      // MockInterview row and write scores back on completion.
+      // ---------------------------------------------------------------
+      sessionStorage.setItem("mock_session_id", response.session_id);
+
       window.location.hash = "#/interview-session";
-      
     } catch (err) {
       console.error("Failed to start interview:", err);
       setError(err instanceof Error ? err.message : "Failed to start interview");
@@ -94,15 +98,19 @@ export default function MockInterview() {
 
       <div className="interview-start-section">
         <h2>Start Your Practice Interview</h2>
-        <p>Practice with our AI-powered mock interviewer. You'll get 3 free interviews to improve your skills.</p>
-        
+        <p>
+          Practice with our AI-powered mock interviewer. You'll get 3 free
+          interviews to improve your skills.
+        </p>
+
         {interviewsRemaining > 0 ? (
           <>
             <p className="interviews-remaining">
-              You have <strong>{interviewsRemaining}</strong> mock interview{interviewsRemaining !== 1 ? 's' : ''} remaining.
+              You have <strong>{interviewsRemaining}</strong> mock interview
+              {interviewsRemaining !== 1 ? "s" : ""} remaining.
             </p>
-            <button 
-              onClick={startInterview} 
+            <button
+              onClick={startInterview}
               disabled={!canStartInterview}
               className="start-interview-button"
             >
@@ -119,9 +127,11 @@ export default function MockInterview() {
 
       <div className="interview-history-section">
         <h2>Your Interview History</h2>
-        
+
         {interviewHistory.length === 0 ? (
-          <p className="no-history">You haven't taken any mock interviews yet.</p>
+          <p className="no-history">
+            You haven't taken any mock interviews yet.
+          </p>
         ) : (
           <div className="interview-list">
             {interviewHistory.map((interview) => (
@@ -132,33 +142,46 @@ export default function MockInterview() {
                     {new Date(interview.created_at).toLocaleDateString()}
                   </p>
                   <p className="interview-status">
-                    Status: <span className={`status-${interview.status}`}>{interview.status}</span>
+                    Status:{" "}
+                    <span className={`status-${interview.status}`}>
+                      {interview.status}
+                    </span>
                   </p>
                 </div>
-                
+
                 {interview.score !== null ? (
                   <div className="interview-scores">
                     <div className="score-item">
                       <span className="score-label">Overall</span>
-                      <span className="score-value">{interview.score.toFixed(0)}</span>
+                      <span className="score-value">
+                        {interview.score.toFixed(0)}
+                      </span>
                     </div>
                     <div className="score-item">
                       <span className="score-label">Technical</span>
-                      <span className="score-value">{interview.technical_score?.toFixed(0) || "N/A"}</span>
+                      <span className="score-value">
+                        {interview.technical_score?.toFixed(0) ?? "N/A"}
+                      </span>
                     </div>
                     <div className="score-item">
                       <span className="score-label">Communication</span>
-                      <span className="score-value">{interview.communication_score?.toFixed(0) || "N/A"}</span>
+                      <span className="score-value">
+                        {interview.communication_score?.toFixed(0) ?? "N/A"}
+                      </span>
                     </div>
                     <div className="score-item">
                       <span className="score-label">Reasoning</span>
-                      <span className="score-value">{interview.reasoning_score?.toFixed(0) || "N/A"}</span>
+                      <span className="score-value">
+                        {interview.reasoning_score?.toFixed(0) ?? "N/A"}
+                      </span>
                     </div>
                   </div>
                 ) : interview.status === "in_progress" ? (
                   <div className="interview-pending">
                     <p>Interview in progress...</p>
-                    <a href="#/interview-session" className="resume-button">Resume Interview</a>
+                    <a href="#/interview-session" className="resume-button">
+                      Resume Interview
+                    </a>
                   </div>
                 ) : (
                   <div className="interview-pending">
@@ -173,4 +196,3 @@ export default function MockInterview() {
     </div>
   );
 }
-

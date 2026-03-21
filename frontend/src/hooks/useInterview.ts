@@ -24,15 +24,30 @@ type QueuedAudioChunk = {
   visemes: VisemeCue[];
 };
 
-const WS_URL = "ws://localhost:8000/ws/interview";
+const WS_BASE_URL = "ws://localhost:8000/ws/interview";
 const MAX_RECONNECT_ATTEMPTS = 6;
 
+/**
+ * Build the WebSocket URL.
+ *
+ * Appends:
+ *   ?token=<jwt>
+ *   &mock_session_id=<id>   (if stored in sessionStorage)
+ *
+ * The frontend stores mock_session_id in sessionStorage when it calls
+ * POST /api/candidate/mock-interview/start so the gateway can link this
+ * WebSocket session back to the MockInterview DB row.
+ */
 function getWebSocketUrl(): string {
-  const token = localStorage.getItem("auth_token");
-  if (token) {
-    return `${WS_URL}?token=${encodeURIComponent(token)}`;
-  }
-  return WS_URL;
+  const token = localStorage.getItem("auth_token") ?? "";
+  const mockSessionId = sessionStorage.getItem("mock_session_id") ?? "";
+
+  const params = new URLSearchParams();
+  if (token) params.set("token", token);
+  if (mockSessionId) params.set("mock_session_id", mockSessionId);
+
+  const qs = params.toString();
+  return qs ? `${WS_BASE_URL}?${qs}` : WS_BASE_URL;
 }
 
 export function useInterview() {
@@ -45,7 +60,7 @@ export function useInterview() {
   const shouldReconnectRef = useRef(true);
   const inFlightSendRef = useRef(false);
   const socketInitialized = useRef(false);
-  
+
   const [stage, dispatch] = useReducer(interviewReducer, initialState);
   const stageRef = useRef<InterviewState>(stage);
 
@@ -60,13 +75,9 @@ export function useInterview() {
   const [isConnected, setIsConnected] = useState(false);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
-  const [lastEvaluation, setLastEvaluation] = useState<EvaluationPayload | null>(
-    null
-  );
+  const [lastEvaluation, setLastEvaluation] = useState<EvaluationPayload | null>(null);
   const [partialTranscript, setPartialTranscript] = useState("");
-  const [finalReport, setFinalReport] = useState<Record<string, unknown> | null>(
-    null
-  );
+  const [finalReport, setFinalReport] = useState<Record<string, unknown> | null>(null);
   const [lastError, setLastError] = useState<string>("");
   const [visemes, setVisemes] = useState<VisemeCue[]>([]);
   const [emotion, setEmotion] = useState("neutral");
@@ -84,10 +95,9 @@ export function useInterview() {
     ) {
       return "thinking";
     }
-    return "thinking"; // Default state
+    return "thinking";
   }, [isSpeaking, stage]);
 
-  // Add message to transcript
   const addTranscriptMessage = useCallback((speaker: "ai" | "candidate", text: string) => {
     const newMessage: TranscriptMessage = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -98,7 +108,6 @@ export function useInterview() {
     setTranscriptMessages((prev) => [...prev, newMessage]);
   }, []);
 
-  // Clear transcript
   const clearTranscript = useCallback(() => {
     setTranscriptMessages([]);
   }, []);
@@ -108,9 +117,7 @@ export function useInterview() {
   }, [stage]);
 
   useEffect(() => {
-    if (socketInitialized.current) {
-      return;
-    }
+    if (socketInitialized.current) return;
     socketInitialized.current = true;
     connectSocket();
 
@@ -126,6 +133,9 @@ export function useInterview() {
       clearAudioQueue();
       socketRef.current?.close(1000, "Component unmounted");
       socketInitialized.current = false;
+
+      // Clean up sessionStorage when the interview page unmounts
+      sessionStorage.removeItem("mock_session_id");
     };
   }, []);
 
@@ -148,7 +158,6 @@ export function useInterview() {
     };
 
     ws.onmessage = (event) => {
-      console.log("WebSocket message received:", event.data);
       if (connectId !== connectIdRef.current) return;
 
       if (event.data instanceof ArrayBuffer) {
@@ -157,6 +166,7 @@ export function useInterview() {
       }
 
       if (typeof event.data !== "string") return;
+
       let msg: Record<string, unknown>;
       try {
         msg = JSON.parse(event.data);
@@ -171,19 +181,19 @@ export function useInterview() {
       if (type === "avatar_sync" || type === "question" || type === "next_question") {
         const text = typeof msg.text === "string" ? msg.text : "";
         const qIndex = Number(msg.question_index ?? 0);
-        
+
         setAvatarText(text);
         setQuestionIndex(qIndex);
         setTotalQuestions(Number(msg.total_questions ?? 0));
-        
+
         if (text && qIndex > 0) {
           addTranscriptMessage("ai", text);
         }
-        
-        if (qIndex === 1 && stageRef.current === 'PROCESSING_RESUME') {
-            dispatch({ type: "RESUME_PROCESS_SUCCESS" });
+
+        if (qIndex === 1 && stageRef.current === "PROCESSING_RESUME") {
+          dispatch({ type: "RESUME_PROCESS_SUCCESS" });
         } else if (qIndex > 0) {
-            dispatch({ type: "QUESTION_RECEIVED" });
+          dispatch({ type: "QUESTION_RECEIVED" });
         }
         return;
       }
@@ -201,7 +211,6 @@ export function useInterview() {
       if (type === "evaluation") {
         const data = (msg.data ?? null) as EvaluationPayload | null;
         setLastEvaluation(data);
-        // Add candidate's answer to transcript
         if (data?.transcript) {
           addTranscriptMessage("candidate", data.transcript);
         }
@@ -214,12 +223,13 @@ export function useInterview() {
         setFinalReport((msg.report ?? null) as Record<string, unknown> | null);
         dispatch({ type: "INTERVIEW_COMPLETE" });
         shouldReconnectRef.current = false;
+        // Clear the stored session id - interview is done
+        sessionStorage.removeItem("mock_session_id");
         return;
       }
 
       if (type === "error") {
-        const message =
-          typeof msg.message === "string" ? msg.message : "Server error.";
+        const message = typeof msg.message === "string" ? msg.message : "Server error.";
         setLastError(message);
         dispatch({ type: "ERROR_OCCURRED" });
         return;
@@ -227,9 +237,7 @@ export function useInterview() {
 
       if (type === "server_shutdown") {
         const message =
-          typeof msg.message === "string"
-            ? msg.message
-            : "Server is restarting. Reconnecting...";
+          typeof msg.message === "string" ? msg.message : "Server is restarting. Reconnecting...";
         setLastError(message);
         dispatch({ type: "RESET" });
         return;
@@ -238,7 +246,6 @@ export function useInterview() {
       if (type === "partial_transcript") {
         const text = typeof msg.text === "string" ? msg.text : "";
         setPartialTranscript(text);
-        // Update the last candidate message with partial transcript
         setTranscriptMessages((prev) => {
           const lastMsg = prev[prev.length - 1];
           if (lastMsg && lastMsg.speaker === "candidate") {
@@ -294,6 +301,7 @@ export function useInterview() {
     const backoffMs = Math.min(1500 * 2 ** (attempt - 1), 15000);
     const jitterMs = Math.floor(Math.random() * 300);
     const delayMs = backoffMs + jitterMs;
+
     setLastError(`Connection lost. Reconnecting (attempt ${attempt})...`);
     dispatch({ type: "RESET" });
 
@@ -310,7 +318,7 @@ export function useInterview() {
   }
 
   async function uploadResume(file: File) {
-    if (stage !== 'WAITING_RESUME') {
+    if (stage !== "WAITING_RESUME") {
       console.warn("Cannot upload resume outside of WAITING_RESUME stage");
       return;
     }
@@ -339,7 +347,7 @@ export function useInterview() {
   }
 
   async function startAudioStream() {
-    if (stage !== 'LISTENING') {
+    if (stage !== "LISTENING") {
       console.warn("Cannot start audio stream outside of LISTENING stage");
       return;
     }
@@ -350,7 +358,6 @@ export function useInterview() {
     }
     if (isRecording) return;
 
-    // Check microphone permission before requesting stream
     try {
       const permissionStatus = await navigator.permissions.query({
         name: "microphone" as PermissionName,
@@ -363,7 +370,7 @@ export function useInterview() {
         return;
       }
     } catch {
-      // permissions API not supported in this browser - proceed anyway
+      // permissions API not supported - proceed
     }
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -377,10 +384,8 @@ export function useInterview() {
     mediaRecorderRef.current = recorder;
 
     recorder.ondataavailable = async (event) => {
-      if (stageRef.current !== 'LISTENING') return;
-      if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
-        return;
-      }
+      if (stageRef.current !== "LISTENING") return;
+      if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
       if (event.data.size <= 0) return;
       const buffer = await event.data.arrayBuffer();
       socketRef.current.send(buffer);
@@ -547,11 +552,7 @@ function parseVisemes(raw: unknown): VisemeCue[] {
         return null;
       }
 
-      return {
-        start,
-        end,
-        viseme,
-      } satisfies VisemeCue;
+      return { start, end, viseme } satisfies VisemeCue;
     })
     .filter((item): item is VisemeCue => item !== null);
 }

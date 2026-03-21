@@ -1,11 +1,14 @@
 """
 Interview Session Manager - Handles interview lifecycle and message routing.
 
-This class manages:
-- Interview state machine transitions
-- Message routing to engine
-- Audio buffering
-- Session cleanup
+Changes vs previous version:
+- __init__ now accepts an optional mock_interview_session_id so the gateway
+  can pass the session_id that was stored in the MockInterview row.
+- _handle_stream_end calls interview_persistence.complete_mock_interview()
+  once the final report is ready.
+- cleanup() calls interview_persistence.fail_mock_interview() when the
+  session ends without having completed normally, so rows don't stay
+  stuck in 'in_progress'.
 """
 
 import asyncio
@@ -17,6 +20,10 @@ from typing import Any, Dict, Optional
 from backend.engines.interview_engine import InterviewEngine
 from backend.models.interview import InterviewPhase, InterviewState
 from backend.services.audio_buffer import AudioBuffer
+from backend.services.interview_persistence import (
+    complete_mock_interview,
+    fail_mock_interview,
+)
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
 
@@ -26,12 +33,13 @@ logger = get_logger(__name__)
 class InterviewSession:
     """
     Manages a single interview session lifecycle.
-    
+
     Responsibilities:
     - Route messages to appropriate handlers
     - Manage interview state machine
     - Buffer audio chunks
     - Coordinate with InterviewEngine
+    - Persist results to MockInterview table on completion/error
     """
 
     def __init__(
@@ -39,24 +47,34 @@ class InterviewSession:
         session_id: str,
         user_id: str,
         session_policy: Dict[str, Any],
+        mock_interview_session_id: Optional[str] = None,
     ):
         """
-        Initialize interview session.
-        
         Args:
-            session_id: Unique session identifier
-            user_id: User identifier from JWT
-            session_policy: Session load policy
+            session_id: Unique WebSocket session identifier (UUID).
+            user_id: User identifier from JWT.
+            session_policy: Session load policy from the gateway.
+            mock_interview_session_id: The session_id stored on the
+                MockInterview DB row (returned by /mock-interview/start).
+                When provided, results are persisted on completion.
+                When None, the session runs without DB write-back
+                (e.g. direct WebSocket connections without going through
+                the candidate portal flow).
         """
         self.session_id = session_id
         self.user_id = user_id
         self.session_policy = session_policy
-        
+        self.mock_interview_session_id = mock_interview_session_id
+
         self.state = InterviewState()
         self.engine = InterviewEngine()
         self.audio_buffer = AudioBuffer()
         self.eval_context_cache: Dict[int, dict] = {}
-        
+
+        # Set when the interview completes normally so cleanup() knows
+        # not to mark the row as abandoned.
+        self._completed_normally: bool = False
+
         # Audio streaming state
         self._first_chunk_time: Optional[float] = None
         self._last_chunk_time: Optional[float] = None
@@ -65,23 +83,20 @@ class InterviewSession:
         self._partial_count: int = 0
         self._early_eval_task: Optional[asyncio.Task] = None
 
+    # ------------------------------------------------------------------
+
     async def handle_message(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Handle incoming WebSocket message.
-        
-        Args:
-            message: WebSocket message dict with 'type', 'text', 'bytes', etc.
-            
-        Returns:
-            Response dict to send back, or None
+        Handle an incoming WebSocket message.
+
+        Returns a response dict to send back, or None.
         """
         msg_type = self._get_message_type(message)
-        
-        # Guard: Check if message is allowed in current phase
+
         if not self.state.can_proceed(msg_type):
             logger.warning(
                 f"Invalid message {msg_type} for phase {self.state.phase.value}",
-                extra={"extra_data": {"session_id": self.session_id}}
+                extra={"extra_data": {"session_id": self.session_id}},
             )
             return {
                 "type": "error",
@@ -89,20 +104,15 @@ class InterviewSession:
                 "message": f"Cannot receive {msg_type} in {self.state.phase.value} phase",
                 "recoverable": True,
             }
-        
-        # Route to appropriate handler
+
         if msg_type == "ping":
             return await self._handle_ping()
-            
         elif msg_type == "resume_upload":
             return await self._handle_resume_upload(message)
-            
         elif msg_type == "audio_chunk":
             return await self._handle_audio_chunk(message)
-            
         elif msg_type in ("stream_end", "audio_end"):
             return await self._handle_stream_end(message)
-            
         else:
             logger.warning(f"Unknown message type: {msg_type}")
             return {
@@ -113,20 +123,33 @@ class InterviewSession:
             }
 
     async def cleanup(self) -> None:
-        """Clean up session resources."""
+        """
+        Clean up session resources.
+
+        If the interview did not complete normally and we have a
+        mock_interview_session_id, the DB row is marked as abandoned
+        so it doesn't stay stuck in 'in_progress'.
+        """
         logger.info(
             "Cleaning up interview session",
-            extra={"extra_data": {"session_id": self.session_id}}
+            extra={"extra_data": {"session_id": self.session_id}},
         )
-        
+
         # Cancel any pending tasks
         if self._early_eval_task and not self._early_eval_task.done():
             self._early_eval_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._early_eval_task
             self._early_eval_task = None
-        
-        # Reset state
+
+        # Mark abandoned if we have a DB row and didn't complete normally
+        if self.mock_interview_session_id and not self._completed_normally:
+            await asyncio.to_thread(
+                fail_mock_interview,
+                self.mock_interview_session_id,
+                "session_cleanup",
+            )
+
         self.state.reset()
         self.audio_buffer.clear()
         self.eval_context_cache.clear()
@@ -134,26 +157,21 @@ class InterviewSession:
     # ==================== Message Handlers ====================
 
     async def _handle_ping(self) -> Dict[str, Any]:
-        """Handle ping message."""
         return {"type": "pong"}
 
     async def _handle_resume_upload(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Handle resume upload message.
-        
-        Expected message format:
-        {
-            "type": "resume_upload",
-            "file_name": "resume.pdf",
-            "file_bytes": "base64..."
-        }
+        Handle resume_upload message.
+
+        Expected format:
+            {"type": "resume_upload", "file_name": "...", "file_bytes": "<b64>"}
         """
         self.state.transition_to(InterviewPhase.WAITING_RESUME)
-        
+
         data = message.get("data", {})
         file_name = data.get("file_name", "")
         file_bytes = data.get("file_bytes", "")
-        
+
         if not file_name or not file_bytes:
             return {
                 "type": "error",
@@ -161,11 +179,9 @@ class InterviewSession:
                 "message": "Missing file_name or file_bytes",
                 "recoverable": True,
             }
-        
+
         logger.info("Resume upload message received, starting processing.")
         try:
-            # Start interview with resume
-            logger.info("Calling interview engine to start interview.")
             result = await self.engine.start_interview(
                 state=self.state,
                 file_name=file_name,
@@ -180,31 +196,24 @@ class InterviewSession:
                 "message": "Failed to process resume",
                 "recoverable": True,
             }
-        
+
         return result
 
-    async def _handle_audio_chunk(self, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_audio_chunk(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Handle incoming audio chunk.
-        
-        Expected message format:
-        {
-            "bytes": <binary audio data>
-        }
-        
-        Returns partial transcript if enough audio accumulated.
+        Buffer an incoming audio chunk and emit partial transcripts when
+        enough audio has accumulated.
         """
         audio_chunk = message.get("bytes")
-        
+
         if not audio_chunk:
             return None
-        
-        # Add to buffer
+
         now = time.time()
         if self._first_chunk_time is None:
             self._first_chunk_time = now
         self._last_chunk_time = now
-        
+
         if not self.audio_buffer.add(audio_chunk):
             logger.warning(
                 "Audio buffer overflow",
@@ -220,20 +229,19 @@ class InterviewSession:
                 "message": "Audio too long. Please send a shorter response.",
                 "recoverable": True,
             }
-        
-        # Check if we should emit partial transcript
+
         partial_min_bytes = 12000
         partial_interval = 0.9
-        
-        if (len(self.audio_buffer) >= partial_min_bytes and 
-            (now - self._last_partial_at) >= partial_interval):
-            
+
+        if (
+            len(self.audio_buffer) >= partial_min_bytes
+            and (now - self._last_partial_at) >= partial_interval
+        ):
             self._last_partial_at = now
-            
-            # Transcribe partial audio
+
             from functools import partial
             from backend.services.stt_service import transcribe_audio_bytes
-            
+
             partial_text = await asyncio.to_thread(
                 partial(
                     transcribe_audio_bytes,
@@ -241,38 +249,27 @@ class InterviewSession:
                     suffix=self.engine._detect_audio_suffix(self.audio_buffer.bytes()),
                 )
             )
-            
+
             if partial_text:
                 self._partial_transcript = partial_text
                 self._partial_count += 1
                 metrics.increment_counter("partial_transcript_count")
-                
-                return {
-                    "type": "partial_transcript",
-                    "text": partial_text,
-                }
-        
+
+                return {"type": "partial_transcript", "text": partial_text}
+
         return None
 
     async def _handle_stream_end(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Handle stream end - process complete answer.
-        
-        Returns evaluation and next question (if any).
+        Process the complete answer, evaluate it, and either generate the
+        next question or complete the interview.
+
+        On final completion, writes results back to the MockInterview row.
         """
-        # Get current question
         question = self.state.questions[self.state.current_index]
-        
-        # Process audio
         audio_bytes = self.audio_buffer.bytes()
-        
-        # Send processing phase
-        processing_response = {
-            "type": "phase",
-            "value": "PROCESSING",
-        }
-        
-        # Evaluate answer
+
+        # Evaluate the answer
         eval_result = await self.engine.evaluate_answer(
             state=self.state,
             audio_bytes=audio_bytes,
@@ -283,34 +280,45 @@ class InterviewSession:
             draft_transcript=self._partial_transcript,
             early_eval_task=self._early_eval_task,
         )
-        
+
         # Reset audio state
         self.audio_buffer.clear()
         self._first_chunk_time = None
         self._last_chunk_time = None
         self._partial_transcript = ""
         self._partial_count = 0
-        
-        # Check if we should continue
+
+        # Continue or complete?
         if self.engine._should_continue(self.state):
-            # Generate next question
             last_eval = eval_result.get("data", {}).get("evaluation", {})
             next_q = await self.engine.generate_next_question(
                 state=self.state,
                 last_evaluation=last_eval,
                 session_policy=self.session_policy,
             )
-            
+
             if next_q:
                 return {
                     "type": "next_question",
                     "question": eval_result,
                     "next_question": next_q,
                 }
-        
-        # Complete interview
+
+        # ----------------------------------------------------------------
+        # Interview complete - generate final report and persist to DB
+        # ----------------------------------------------------------------
         final_result = await self.engine.complete_interview(self.state)
-        
+
+        # Persist to MockInterview table if we have a session_id
+        if self.mock_interview_session_id:
+            await asyncio.to_thread(
+                complete_mock_interview,
+                self.mock_interview_session_id,
+                final_result.get("report", {}),
+                self.state.answers,
+            )
+            self._completed_normally = True
+
         return {
             "type": "complete",
             "evaluation": eval_result,
@@ -320,8 +328,7 @@ class InterviewSession:
     # ==================== Helper Methods ====================
 
     def _get_message_type(self, message: Dict[str, Any]) -> str:
-        """Extract message type from message."""
-        # Check text payload
+        """Extract message type from a WebSocket message dict."""
         text = message.get("text")
         if text:
             try:
@@ -329,24 +336,19 @@ class InterviewSession:
                 return data.get("type", "unknown")
             except json.JSONDecodeError:
                 pass
-        
-        # Check data key
+
         if isinstance(message.get("data"), dict):
             return message.get("data", {}).get("type", "unknown")
-        
-        # Check bytes - this is audio chunk
+
         if message.get("bytes"):
             return "audio_chunk"
-        
+
         return "unknown"
 
     @property
     def phase(self) -> InterviewPhase:
-        """Get current phase."""
         return self.state.phase
 
     @property
     def is_complete(self) -> bool:
-        """Check if interview is complete."""
         return self.state.phase == InterviewPhase.COMPLETE
-
