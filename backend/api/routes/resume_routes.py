@@ -1,49 +1,62 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
-import shutil
-import os
-from backend.resume_parser.services import parse_resume, extract_entities
-from backend.resume_parser.models import CandidateProfile
+"""
+Legacy Resume Upload Route
+
+This route previously called the text parser directly.
+It now goes through the unified ResumeParserService so it benefits
+from the same Gemini primary + text fallback chain as the rest of the platform.
+"""
+
+from typing import List, Optional
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from pydantic import BaseModel
+
+from backend.services.resume_parser_service import parse_resume_from_upload
 
 router = APIRouter()
 
-# Define a temporary directory to store uploaded resumes
-TEMP_DIR = "uploads/resumes"
 
-@router.post("/upload", response_model=CandidateProfile)
+class ResumeProfile(BaseModel):
+    """Response schema for the legacy upload endpoint."""
+
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    skills: List[str] = []
+    companies: List[str] = []
+    education: List[str] = []
+    parser_used: str = "unknown"
+
+
+@router.post("/upload", response_model=ResumeProfile)
 async def upload_resume(file: UploadFile = File(...)):
     """
-    Uploads a resume file, parses it, extracts entities, and returns a candidate profile.
-    """
-    if not os.path.exists(TEMP_DIR):
-        os.makedirs(TEMP_DIR)
-        
-    file_path = os.path.join(TEMP_DIR, file.filename)
-    
-    try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        file_extension = file.filename.split(".")[-1].lower()
-        if file_extension not in ["pdf", "docx", "txt"]:
-            raise HTTPException(status_code=400, detail="Unsupported file type. Please upload a PDF, DOCX, or TXT file.")
-            
-        # Parse the resume to extract text
-        text = parse_resume(file_path, file_extension)
-        
-        # Extract entities to build the profile
-        profile = extract_entities(text)
-        
-        return profile
-        
-    except Exception as e:
-        # Clean up the saved file in case of an error
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-    finally:
-        # Optionally, you can leave the file for debugging or remove it.
-        # For this example, we'll remove it after processing.
-        if os.path.exists(file_path):
-             os.remove(file_path)
+    Upload a resume file and return extracted entities.
 
+    Supports PDF, DOCX, and TXT. Uses the unified ResumeParserService
+    (Gemini vision primary, pdfplumber+spaCy fallback).
+    """
+    allowed_extensions = {".pdf", ".docx", ".txt"}
+    filename = file.filename or ""
+    file_ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if f".{file_ext}" not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type. Please upload a PDF, DOCX, or TXT file.",
+        )
+
+    try:
+        parsed = parse_resume_from_upload(file)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Parsing failed: {exc}") from exc
+
+    return ResumeProfile(
+        name=parsed.name,
+        email=parsed.email,
+        phone=parsed.phone,
+        skills=parsed.skills,
+        companies=parsed.companies,
+        education=parsed.education,
+        parser_used=parsed.parser_used,
+    )

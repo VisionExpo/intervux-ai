@@ -10,12 +10,12 @@ This engine handles:
 - Report generation
 """
 
+import asyncio
 import os
 import time
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.core.agent_ocr import parse_resume_bytes
 from backend.core.adaptive_engine import (
     build_skill_coverage_engine,
     build_skill_map,
@@ -24,13 +24,14 @@ from backend.core.adaptive_engine import (
     update_topic_scores,
 )
 from backend.core.difficulty_engine import DifficultyCalibrationEngine
-from backend.core.llm_brain import generate_final_report, prepare_evaluation_context
+from backend.core.llm_brain import generate_final_report
 from backend.core.memory_engine import (
     build_memory_context,
     seed_memory_projects,
     update_memory,
 )
 from backend.models.interview import InterviewState, ResumeData
+from backend.services.resume_parser_service import ParsedResume, parse_resume_from_b64
 from backend.services.audio_buffer import AudioBuffer
 from backend.services.evaluation_service import get_evaluation_service
 from backend.services.stt_service import transcribe_audio_bytes
@@ -87,35 +88,23 @@ class InterviewEngine:
         # Parse resume
         logger.info("Starting resume parsing")
         resume_start = time.time()
-        _, extracted = await self._parse_resume(file_name, file_bytes_b64)
-        logger.info("Resume parsed successfully")
-
-        if not isinstance(extracted, dict):
-            extracted = {}
-
-        # Normalize Gemini output to match ResumeData schema
-        # Gemini may return extra fields or nested structures that don't match the model
-        extracted = {
-            "name": extracted.get("name") if isinstance(extracted.get("name"), str) else None,
-            "skills": [
-                s for s in extracted.get("skills", []) if isinstance(s, str)
-            ],
-            "projects": [
-                {
-                    "title": p.get("title", "") if isinstance(p.get("title"), str) else "",
-                    "tech_stack": [
-                        t for t in p.get("tech_stack", []) if isinstance(t, str)
-                    ],
-                    "description": p.get("description", "") if isinstance(p.get("description"), str) else "",
+        parsed_resume = await self._parse_resume(file_name, file_bytes_b64)
+        logger.info(
+            "Resume parsed",
+            extra={
+                "extra_data": {
+                    "parser_used": parsed_resume.parser_used,
+                    "skills_found": len(parsed_resume.skills),
+                    "empty": parsed_resume.is_empty(),
                 }
-                for p in extracted.get("projects", [])
-                if isinstance(p, dict)
-            ],
-        }
+            },
+        )
+        extracted = parsed_resume.to_interview_profile()
 
         try:
             state.profile = ResumeData(**extracted)
         except Exception:
+            logger.exception("Failed to build ResumeData from ParsedResume")
             state.profile = ResumeData()
             
         metrics.record_latency("resume_parsing", time.time() - resume_start)
@@ -464,19 +453,13 @@ class InterviewEngine:
 
     # ==================== Private Helper Methods ====================
 
-    async def _parse_resume(self, file_name: str, file_bytes_b64: str) -> Tuple[str, dict]:
+    async def _parse_resume(self, file_name: str, file_bytes_b64: str) -> ParsedResume:
         """Parse resume bytes."""
         try:
-            return await asyncio.to_thread(
-                partial(
-                    parse_resume_bytes,
-                    file_name=file_name,
-                    file_bytes_b64=file_bytes_b64,
-                )
-            )
+            return await asyncio.to_thread(parse_resume_from_b64, file_name, file_bytes_b64)
         except Exception:
             logger.exception("Resume parsing failed")
-            return "", {}
+            return ParsedResume(parser_used="failed")
 
     async def _generate_initial_question(
         self,
@@ -556,8 +539,6 @@ class InterviewEngine:
         early_eval_task: Any = None,
     ) -> dict:
         """Evaluate answer."""
-        prepared_context = eval_context_cache.get(current_index)
-        
         return await asyncio.to_thread(
             partial(
                 self.evaluation_service.evaluate_full,
@@ -678,6 +659,4 @@ class InterviewEngine:
         return len(audio_bytes) / 32000  # ~16kHz * 2 bytes per sample
 
 
-# Need asyncio for to_thread
-import asyncio
 

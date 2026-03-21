@@ -7,11 +7,6 @@ This module provides API endpoints for:
 - Resume upload
 - Mock interviews
 - Notifications
-
-Example usage:
-    from backend.api.routes.candidate_routes import router
-    
-    app.include_router(router, prefix="/api/candidate", tags=["candidate"])
 """
 
 import json
@@ -31,9 +26,9 @@ from backend.auth.jwt_service import (
     get_current_user,
     hash_password,
 )
-from backend.core.agent_ocr import parse_resume
 from backend.db.database import SessionLocal
 from backend.models.candidate_portal import CandidateProfile, MockInterview, Notification
+from backend.services.resume_parser_service import ParsedResume, parse_resume_from_upload
 from backend.utils.logger import get_logger
 
 router = APIRouter()
@@ -46,14 +41,12 @@ logger = get_logger(__name__)
 
 
 class CandidateSignup(BaseModel):
-    """Candidate signup request."""
     email: str
     password: str
     name: str
 
 
 class CandidateProfileResponse(BaseModel):
-    """Candidate profile response."""
     id: int
     user_id: str
     name: str
@@ -71,7 +64,6 @@ class CandidateProfileResponse(BaseModel):
 
 
 class CandidateProfileUpdate(BaseModel):
-    """Candidate profile update request."""
     name: Optional[str] = None
     skills: Optional[List[str]] = None
     experience_years: Optional[int] = None
@@ -81,7 +73,6 @@ class CandidateProfileUpdate(BaseModel):
 
 
 class ResumeUploadResponse(BaseModel):
-    """Resume upload response."""
     resume_url: str
     resume_score: float
     skills: List[str]
@@ -90,7 +81,6 @@ class ResumeUploadResponse(BaseModel):
 
 
 class MockInterviewResponse(BaseModel):
-    """Mock interview response."""
     id: int
     session_id: str
     score: Optional[float] = None
@@ -104,14 +94,12 @@ class MockInterviewResponse(BaseModel):
 
 
 class MockInterviewStartResponse(BaseModel):
-    """Mock interview start response."""
     session_id: str
     message: str
     mock_interview_id: int
 
 
 class NotificationResponse(BaseModel):
-    """Notification response."""
     id: int
     type: str
     message: str
@@ -120,7 +108,6 @@ class NotificationResponse(BaseModel):
 
 
 class DashboardResponse(BaseModel):
-    """Dashboard response."""
     profile_score: float
     resume_score: float
     mock_interview_score: float
@@ -134,67 +121,60 @@ class DashboardResponse(BaseModel):
 
 
 def _calculate_profile_score(profile: CandidateProfile) -> float:
-    """Calculate profile score based on various factors."""
     score = 0.0
-    factors = 0
-    
+
     if profile.name:
         score += 20
-        factors += 1
-    
+
     if profile.skills:
         skills = json.loads(profile.skills) if isinstance(profile.skills, str) else profile.skills
         score += min(len(skills) * 3, 30)
-        factors += 1
-    
+
     if profile.experience_years:
         score += min(profile.experience_years * 2, 20)
-        factors += 1
-    
+
     if profile.education:
         score += 15
-        factors += 1
-    
+
     if profile.resume_url:
         score += 15
-        factors += 1
-    
+
     return min(score, 100)
 
 
-def _calculate_resume_score(parsed_data: dict) -> tuple[float, List[str], List[str]]:
-    """Calculate resume score based on parsed data."""
-    score = 50.0  # Base score
-    strengths = []
-    weaknesses = []
-    
-    # Check skills
-    skills = parsed_data.get("skills", [])
-    if skills:
-        score += min(len(skills) * 5, 25)
-        strengths.append(f"{len(skills)} skills identified")
-    
-    # Check projects
-    projects = parsed_data.get("projects", [])
-    if projects:
-        score += min(len(projects) * 5, 15)
-        strengths.append(f"{len(projects)} projects documented")
-    
-    # Check experience
-    experience = parsed_data.get("experience", [])
-    if experience:
+def _calculate_resume_score(
+    parsed: ParsedResume,
+) -> tuple[float, List[str], List[str]]:
+    """
+    Derive a 0-100 score plus strengths/weaknesses from a ParsedResume.
+
+    Previously accepted a raw dict from agent_ocr; now accepts the
+    canonical ParsedResume so both Gemini and text-parser results are
+    handled identically.
+    """
+    score = 50.0
+    strengths: List[str] = []
+    weaknesses: List[str] = []
+
+    if parsed.skills:
+        score += min(len(parsed.skills) * 5, 25)
+        strengths.append(f"{len(parsed.skills)} skills identified")
+
+    if parsed.projects:
+        score += min(len(parsed.projects) * 5, 15)
+        strengths.append(f"{len(parsed.projects)} projects documented")
+
+    if parsed.experience:
         score += 10
         strengths.append("Work experience present")
     else:
         weaknesses.append("No work experience mentioned")
-    
-    # Check education
-    education = parsed_data.get("education", [])
-    if education:
+
+    if parsed.education:
         score += 10
     else:
         weaknesses.append("Education details missing")
-    
+
     return min(score, 100), strengths, weaknesses
 
 
@@ -205,26 +185,18 @@ def _calculate_resume_score(parsed_data: dict) -> tuple[float, List[str], List[s
 
 @router.post("/signup", response_model=Token)
 async def candidate_signup(candidate_data: CandidateSignup):
-    """
-    Register a new candidate.
-    Creates a User row and a CandidateProfile row in the database.
-    """
+    """Register a new candidate."""
     from backend.db.database import User
 
     db = SessionLocal()
     try:
-        # Check if email already exists in users table
-        existing_user = db.query(User).filter(
-            User.email == candidate_data.email
-        ).first()
-
+        existing_user = db.query(User).filter(User.email == candidate_data.email).first()
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
+                detail="Email already registered",
             )
 
-        # Create user in users table
         db_user = User(
             email=candidate_data.email,
             password_hash=hash_password(candidate_data.password),
@@ -232,11 +204,10 @@ async def candidate_signup(candidate_data: CandidateSignup):
             role=Role.CANDIDATE,
         )
         db.add(db_user)
-        db.flush()  # get db_user.id before commit
+        db.flush()
 
         user_id = f"candidate-{db_user.id}"
 
-        # Create candidate profile
         profile = CandidateProfile(
             user_id=user_id,
             name=candidate_data.name,
@@ -246,7 +217,6 @@ async def candidate_signup(candidate_data: CandidateSignup):
         db.add(profile)
         db.commit()
 
-        # Issue token
         user_data = {
             "user_id": user_id,
             "email": candidate_data.email,
@@ -266,29 +236,17 @@ async def candidate_signup(candidate_data: CandidateSignup):
 
 @router.get("/profile", response_model=CandidateProfileResponse)
 async def get_candidate_profile(current_user: TokenData = Depends(get_current_user)):
-    """
-    Get current candidate's profile.
-    """
     if current_user.role != Role.CANDIDATE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can access this endpoint"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
+
     db = SessionLocal()
     try:
-        profile = db.query(CandidateProfile).filter(
-            CandidateProfile.user_id == current_user.user_id
-        ).first()
-        
+        profile = db.query(CandidateProfile).filter(CandidateProfile.user_id == current_user.user_id).first()
         if not profile:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profile not found"
-            )
-        
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+
         skills = json.loads(profile.skills) if profile.skills else []
-        
+
         return CandidateProfileResponse(
             id=profile.id,
             user_id=profile.user_id,
@@ -312,30 +270,17 @@ async def get_candidate_profile(current_user: TokenData = Depends(get_current_us
 @router.put("/profile", response_model=CandidateProfileResponse)
 async def update_candidate_profile(
     profile_update: CandidateProfileUpdate,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_current_user),
 ):
-    """
-    Update candidate's profile.
-    """
     if current_user.role != Role.CANDIDATE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can access this endpoint"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
+
     db = SessionLocal()
     try:
-        profile = db.query(CandidateProfile).filter(
-            CandidateProfile.user_id == current_user.user_id
-        ).first()
-        
+        profile = db.query(CandidateProfile).filter(CandidateProfile.user_id == current_user.user_id).first()
         if not profile:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profile not found"
-            )
-        
-        # Update fields
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+
         if profile_update.name is not None:
             profile.name = profile_update.name
         if profile_update.skills is not None:
@@ -348,16 +293,15 @@ async def update_candidate_profile(
             profile.github_url = profile_update.github_url
         if profile_update.linkedin_url is not None:
             profile.linkedin_url = profile_update.linkedin_url
-        
-        # Recalculate profile score
+
         profile.profile_score = _calculate_profile_score(profile)
         profile.updated_at = datetime.utcnow()
-        
+
         db.commit()
         db.refresh(profile)
-        
+
         skills = json.loads(profile.skills) if profile.skills else []
-        
+
         return CandidateProfileResponse(
             id=profile.id,
             user_id=profile.user_id,
@@ -386,110 +330,93 @@ async def update_candidate_profile(
 @router.post("/resume", response_model=ResumeUploadResponse)
 async def upload_resume(
     file: UploadFile = File(...),
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_current_user),
 ):
     """
-    Upload and parse candidate's resume.
-    
-    Uses AI to parse resume and calculate score.
+    Upload and parse a candidate resume.
+
+    Uses the unified ResumeParserService (Gemini primary, text fallback)
+    instead of calling agent_ocr directly.
     """
     if current_user.role != Role.CANDIDATE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can access this endpoint"
-        )
-    
-    # Validate file type
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
+
     allowed_extensions = {".pdf", ".docx", ".doc", ".png", ".jpg", ".jpeg"}
     file_ext = os.path.splitext(file.filename)[1].lower()
-    
+
     if file_ext not in allowed_extensions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid file type. Allowed: PDF, DOCX, DOC, PNG, JPG"
+            detail="Invalid file type. Allowed: PDF, DOCX, DOC, PNG, JPG",
         )
-    
-    # Validate file size (max 10MB)
+
     file.file.seek(0, 2)
     file_size = file.file.tell()
     file.file.seek(0)
-    
+
     if file_size > 10 * 1024 * 1024:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File too large. Maximum size is 10MB."
+            detail="File too large. Maximum size is 10MB.",
         )
-    
+
     db = SessionLocal()
     try:
         profile = db.query(CandidateProfile).filter(
             CandidateProfile.user_id == current_user.user_id
         ).first()
-        
         if not profile:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profile not found"
-            )
-        
-        # Create user-specific upload directory
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+
+        # Save file to disk
         upload_dir = os.path.join(
-            os.path.dirname(__file__), 
-            "..", "..", "uploads", "resumes", current_user.user_id
+            os.path.dirname(__file__), "..", "..", "uploads", "resumes", current_user.user_id
         )
         os.makedirs(upload_dir, exist_ok=True)
-        
-        # Generate unique filename
-        import uuid
+
         unique_filename = f"{uuid.uuid4().hex}_{file.filename}"
         file_path = os.path.join(upload_dir, unique_filename)
-        
-        # Save the uploaded file
+
         content = await file.read()
         with open(file_path, "wb") as f:
             f.write(content)
-        
-        # Parse resume
+
+        # ----------------------------------------------------------------
+        # Parse via unified service - single call regardless of file type.
+        # parse_resume_from_upload reads the bytes that were just consumed
+        # by await file.read(); we need to re-seek first.
+        # ----------------------------------------------------------------
+        file.file.seek(0)
         try:
-            # Reset file pointer because we already consumed it while persisting to disk.
-            file.file.seek(0)
-            _, parsed_data = parse_resume(file)
-        except Exception as e:
-            # If parsing fails, still save the file but return error
+            parsed: ParsedResume = parse_resume_from_upload(file)
+        except Exception:
             logger.exception("Resume parsing failed in candidate upload")
-            parsed_data = {"skills": [], "projects": [], "experience": [], "education": []}
-        
-        # Calculate resume score
-        resume_score, strengths, weaknesses = _calculate_resume_score(parsed_data)
-        
-        # Extract skills
-        skills = parsed_data.get("skills", [])
-        
-        # Save resume URL (relative path for serving)
+            parsed = ParsedResume()
+
+        resume_score, strengths, weaknesses = _calculate_resume_score(parsed)
+
         resume_url = f"/uploads/resumes/{current_user.user_id}/{unique_filename}"
-        
-        # Update profile
+
         profile.resume_url = resume_url
         profile.resume_score = resume_score
-        profile.skills = json.dumps(skills)
+        profile.skills = json.dumps(parsed.skills)
         profile.profile_score = _calculate_profile_score(profile)
         profile.updated_at = datetime.utcnow()
-        
+
         db.commit()
-        
-        # Create notification
+
         notification = Notification(
             user_id=current_user.user_id,
             type="resume_analyzed",
-            message=f"Your resume has been analyzed. Score: {resume_score:.0f}%"
+            message=f"Your resume has been analyzed. Score: {resume_score:.0f}%",
         )
         db.add(notification)
         db.commit()
-        
+
         return ResumeUploadResponse(
             resume_url=resume_url,
             resume_score=resume_score,
-            skills=skills,
+            skills=parsed.skills,
             strengths=strengths,
             weaknesses=weaknesses,
         )
@@ -504,42 +431,27 @@ async def upload_resume(
 
 @router.post("/mock-interview/start", response_model=MockInterviewStartResponse)
 async def start_mock_interview(current_user: TokenData = Depends(get_current_user)):
-    """
-    Start a new mock interview.
-    
-    Candidates get 3 free AI interviews.
-    """
     if current_user.role != Role.CANDIDATE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can access this endpoint"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
+
     db = SessionLocal()
     try:
         profile = db.query(CandidateProfile).filter(
             CandidateProfile.user_id == current_user.user_id
         ).first()
-        
         if not profile:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profile not found"
-            )
-        
-        # Check if interviews remaining
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+
         if profile.mock_interviews_remaining <= 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No mock interviews remaining. Upgrade to get more."
+                detail="No mock interviews remaining. Upgrade to get more.",
             )
-        
-        # Count existing interviews
+
         existing_count = db.query(MockInterview).filter(
             MockInterview.candidate_id == profile.id
         ).count()
-        
-        # Create new mock interview
+
         session_id = f"mock-{uuid.uuid4().hex}"
         mock_interview = MockInterview(
             candidate_id=profile.id,
@@ -548,13 +460,12 @@ async def start_mock_interview(current_user: TokenData = Depends(get_current_use
             interview_number=existing_count + 1,
         )
         db.add(mock_interview)
-        
-        # Decrement remaining interviews
+
         profile.mock_interviews_remaining -= 1
-        
+
         db.commit()
         db.refresh(mock_interview)
-        
+
         return MockInterviewStartResponse(
             session_id=session_id,
             message="Mock interview started. Connect to WebSocket for the interview.",
@@ -566,42 +477,38 @@ async def start_mock_interview(current_user: TokenData = Depends(get_current_use
 
 @router.get("/mock-interview/history", response_model=List[MockInterviewResponse])
 async def get_mock_interview_history(current_user: TokenData = Depends(get_current_user)):
-    """
-    Get candidate's mock interview history.
-    """
     if current_user.role != Role.CANDIDATE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can access this endpoint"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
+
     db = SessionLocal()
     try:
         profile = db.query(CandidateProfile).filter(
             CandidateProfile.user_id == current_user.user_id
         ).first()
-        
         if not profile:
             return []
-        
-        interviews = db.query(MockInterview).filter(
-            MockInterview.candidate_id == profile.id
-        ).order_by(MockInterview.created_at.desc()).all()
-        
+
+        interviews = (
+            db.query(MockInterview)
+            .filter(MockInterview.candidate_id == profile.id)
+            .order_by(MockInterview.created_at.desc())
+            .all()
+        )
+
         return [
             MockInterviewResponse(
-                id=interview.id,
-                session_id=interview.session_id,
-                score=interview.score,
-                technical_score=interview.technical_score,
-                communication_score=interview.communication_score,
-                reasoning_score=interview.reasoning_score,
-                status=interview.status,
-                interview_number=interview.interview_number,
-                created_at=interview.created_at,
-                completed_at=interview.completed_at,
+                id=i.id,
+                session_id=i.session_id,
+                score=i.score,
+                technical_score=i.technical_score,
+                communication_score=i.communication_score,
+                reasoning_score=i.reasoning_score,
+                status=i.status,
+                interview_number=i.interview_number,
+                created_at=i.created_at,
+                completed_at=i.completed_at,
             )
-            for interview in interviews
+            for i in interviews
         ]
     finally:
         db.close()
@@ -610,40 +517,26 @@ async def get_mock_interview_history(current_user: TokenData = Depends(get_curre
 @router.get("/mock-interview/{interview_id}", response_model=MockInterviewResponse)
 async def get_mock_interview(
     interview_id: int,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_current_user),
 ):
-    """
-    Get specific mock interview details.
-    """
     if current_user.role != Role.CANDIDATE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can access this endpoint"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
+
     db = SessionLocal()
     try:
         profile = db.query(CandidateProfile).filter(
             CandidateProfile.user_id == current_user.user_id
         ).first()
-        
         if not profile:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profile not found"
-            )
-        
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+
         interview = db.query(MockInterview).filter(
             MockInterview.id == interview_id,
-            MockInterview.candidate_id == profile.id
+            MockInterview.candidate_id == profile.id,
         ).first()
-        
         if not interview:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Interview not found"
-            )
-        
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
+
         return MockInterviewResponse(
             id=interview.id,
             session_id=interview.session_id,
@@ -667,21 +560,19 @@ async def get_mock_interview(
 
 @router.get("/notifications", response_model=List[NotificationResponse])
 async def get_notifications(current_user: TokenData = Depends(get_current_user)):
-    """
-    Get candidate's notifications.
-    """
     if current_user.role != Role.CANDIDATE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can access this endpoint"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
+
     db = SessionLocal()
     try:
-        notifications = db.query(Notification).filter(
-            Notification.user_id == current_user.user_id
-        ).order_by(Notification.created_at.desc()).limit(50).all()
-        
+        notifications = (
+            db.query(Notification)
+            .filter(Notification.user_id == current_user.user_id)
+            .order_by(Notification.created_at.desc())
+            .limit(50)
+            .all()
+        )
+
         return [
             NotificationResponse(
                 id=n.id,
@@ -699,33 +590,23 @@ async def get_notifications(current_user: TokenData = Depends(get_current_user))
 @router.post("/notifications/{notification_id}/read")
 async def mark_notification_read(
     notification_id: int,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_current_user),
 ):
-    """
-    Mark a notification as read.
-    """
     if current_user.role != Role.CANDIDATE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can access this endpoint"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
+
     db = SessionLocal()
     try:
         notification = db.query(Notification).filter(
             Notification.id == notification_id,
-            Notification.user_id == current_user.user_id
+            Notification.user_id == current_user.user_id,
         ).first()
-        
         if not notification:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Notification not found"
-            )
-        
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+
         notification.is_read = True
         db.commit()
-        
+
         return {"message": "Notification marked as read"}
     finally:
         db.close()
@@ -738,59 +619,56 @@ async def mark_notification_read(
 
 @router.get("/dashboard", response_model=DashboardResponse)
 async def get_candidate_dashboard(current_user: TokenData = Depends(get_current_user)):
-    """
-    Get candidate's dashboard data.
-    """
     if current_user.role != Role.CANDIDATE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can access this endpoint"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
+
     db = SessionLocal()
     try:
         profile = db.query(CandidateProfile).filter(
             CandidateProfile.user_id == current_user.user_id
         ).first()
-        
         if not profile:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profile not found"
-            )
-        
-        # Get recent activity
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+
         recent_activity = []
-        
-        # Check for recent interview
-        recent_interview = db.query(MockInterview).filter(
-            MockInterview.candidate_id == profile.id,
-            MockInterview.status == "completed"
-        ).order_by(MockInterview.completed_at.desc()).first()
-        
+
+        recent_interview = (
+            db.query(MockInterview)
+            .filter(
+                MockInterview.candidate_id == profile.id,
+                MockInterview.status == "completed",
+            )
+            .order_by(MockInterview.completed_at.desc())
+            .first()
+        )
+
         if recent_interview:
-            recent_activity.append(f"Mock Interview #{recent_interview.interview_number} completed - Score: {recent_interview.score:.0f}")
-        
-        # Check for resume
+            recent_activity.append(
+                f"Mock Interview #{recent_interview.interview_number} completed - Score: {recent_interview.score:.0f}"
+            )
+
         if profile.resume_url:
             recent_activity.append("Resume analyzed")
-        
-        # Check for profile completion
+
         if profile.profile_score and profile.profile_score >= 50:
             recent_activity.append("Profile updated")
-        
-        # Calculate mock interview score (average of completed interviews)
-        completed_interviews = db.query(MockInterview).filter(
-            MockInterview.candidate_id == profile.id,
-            MockInterview.status == "completed",
-            MockInterview.score.isnot(None)
-        ).all()
-        
-        if completed_interviews:
-            mock_interview_score = sum(i.score for i in completed_interviews) / len(completed_interviews)
-        else:
-            mock_interview_score = 0.0
-        
+
+        completed_interviews = (
+            db.query(MockInterview)
+            .filter(
+                MockInterview.candidate_id == profile.id,
+                MockInterview.status == "completed",
+                MockInterview.score.isnot(None),
+            )
+            .all()
+        )
+
+        mock_interview_score = (
+            sum(i.score for i in completed_interviews) / len(completed_interviews)
+            if completed_interviews
+            else 0.0
+        )
+
         return DashboardResponse(
             profile_score=profile.profile_score or 0.0,
             resume_score=profile.resume_score or 0.0,
@@ -800,4 +678,3 @@ async def get_candidate_dashboard(current_user: TokenData = Depends(get_current_
         )
     finally:
         db.close()
-
