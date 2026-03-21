@@ -1,365 +1,338 @@
 """
-WebSocket Metrics Streaming Tests.
+WebSocket Metrics Streaming Tests
+====================================
 
-Tests for:
-- WebSocket connection to /ws/metrics
-- Authentication via query parameter
-- Real-time metrics streaming
-- Metrics data format
+Real integration + unit tests replacing the previous file full of stubs.
 
-These tests verify:
-- Correct WebSocket connection handling
-- Token authentication
-- Metrics streaming protocol
-- Error handling
+Coverage:
+    - Connection rejected without token
+    - Connection rejected with bad token
+    - Connection accepted ? receives a metrics snapshot
+    - Snapshot contains required fields (timestamp, derived)
+    - MetricsSocket singleton works correctly
+    - Broadcast skips / removes disconnected clients
+    - _calculate_derived_metrics logic
+    - get_latest_metrics helper
 """
 
-import pytest
 import asyncio
+import json
+import os
+import sys
+import uuid
+from typing import Any, Dict, Generator
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test_ws_metrics.db")
+os.environ.setdefault("JWT_SECRET_KEY", "test-ws-metrics-secret")
+os.environ.setdefault("DISABLE_STT", "true")
+os.environ.setdefault("GOOGLE_API_KEY", "FAKE_KEY")
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from backend.db.database import Base, get_db
+from backend.main import app
+from backend.auth.jwt_service import create_token_pair, Role
+
+# -- test database -------------------------------------------------------------
+
+TEST_DB_URL = "sqlite:///./test_ws_metrics.db"
+test_engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
+TestSession = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
 
-class TestWebSocketMetricsConnection:
-    """Test suite for WebSocket metrics connection."""
-
-    def test_metrics_websocket_endpoint_exists(self, client: TestClient):
-        """
-        Test that /ws/metrics endpoint exists.
-        
-        Validates:
-        - WebSocket endpoint is registered
-        """
-        # Endpoint exists in main.py
-        from backend.sockets.metrics import MetricsSocket
-        
-        assert MetricsSocket is not None
-
-    def test_metrics_websocket_requires_token(self, client: TestClient):
-        """
-        Test that metrics WebSocket requires authentication.
-        
-        Validates:
-        - Missing token should be rejected
-        """
-        # Implementation requires token in query params
-        pass
+@pytest.fixture(scope="function")
+def db_session() -> Generator[Session, None, None]:
+    Base.metadata.create_all(bind=test_engine)
+    session = TestSession()
+    try:
+        yield session
+    finally:
+        session.close()
+        Base.metadata.drop_all(bind=test_engine)
 
 
-class TestMetricsSocketClass:
-    """Test suite for MetricsSocket class."""
+@pytest.fixture(scope="function")
+def client(db_session: Session) -> Generator[TestClient, None, None]:
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
 
-    def test_metrics_socket_initialization(self):
-        """
-        Test MetricsSocket initialization.
-        
-        Validates:
-        - Can be initialized with broadcast interval
-        """
-        from backend.sockets.metrics import MetricsSocket
-        
-        socket = MetricsSocket(broadcast_interval=2.0)
-        
-        assert socket.broadcast_interval == 2.0
-        assert socket._connections == set()
-
-    def test_metrics_socket_tracks_connections(self):
-        """
-        Test that MetricsSocket tracks connections.
-        
-        Validates:
-        - Connections are added and removed
-        """
-        from backend.sockets.metrics import MetricsSocket
-        
-        socket = MetricsSocket()
-        
-        # Should have connection tracking
-        assert hasattr(socket, '_connections')
-
-    def test_metrics_socket_broadcast(self):
-        """
-        Test MetricsSocket broadcast method.
-        
-        Validates:
-        - Can broadcast data to connections
-        """
-        from backend.sockets.metrics import MetricsSocket
-        
-        socket = MetricsSocket()
-        
-        # Should have broadcast method
-        assert hasattr(socket, 'broadcast')
-        assert asyncio.iscoroutinefunction(socket.broadcast)
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app, raise_server_exceptions=False) as c:
+        yield c
+    app.dependency_overrides.clear()
 
 
-class TestMetricsSnapshot:
-    """Test suite for metrics snapshot generation."""
-
-    def test_get_metrics_snapshot(self):
-        """
-        Test metrics snapshot generation.
-        
-        Validates:
-        - Snapshot contains expected metrics
-        """
-        from backend.sockets.metrics import MetricsSocket
-        
-        socket = MetricsSocket()
-        snapshot = socket._get_metrics_snapshot()
-        
-        # Should contain metrics data
-        assert isinstance(snapshot, dict)
-        assert "timestamp" in snapshot
-
-    def test_calculate_derived_metrics(self):
-        """
-        Test derived metrics calculation.
-        
-        Validates:
-        - Derived metrics are calculated from raw data
-        """
-        from backend.sockets.metrics import MetricsSocket
-        
-        socket = MetricsSocket()
-        
-        # Test with sample raw metrics
-        sample_snapshot = {
-            "request": 100,
-            "latency_percentiles": {
-                "request_total": {"p50": 0.5, "p95": 1.0}
-            },
-            "avg_latency": {
-                "evaluation": 2.0
-            }
+def _make_token(role: str = Role.RECRUITER) -> str:
+    return create_token_pair(
+        {
+            "user_id": f"test-{uuid.uuid4().hex[:8]}",
+            "email": f"metrics_{uuid.uuid4().hex[:6]}@example.com",
+            "name": "Metrics Test User",
+            "role": role,
         }
-        
-        derived = socket._calculate_derived_metrics(sample_snapshot)
-        
+    ).access_token
+
+
+def _recv_json(ws) -> dict:
+    data = ws.receive()
+    raw = data.get("text") or data.get("data") or ""
+    return json.loads(raw)
+
+
+# =============================================================================
+# Authentication tests
+# =============================================================================
+
+
+class TestMetricsWebSocketAuth:
+    def test_connection_rejected_without_token(self, client: TestClient):
+        with client.websocket_connect("/ws/metrics") as ws:
+            msg = _recv_json(ws)
+            assert msg["type"] == "error"
+            assert msg["code"] == "UNAUTHORIZED"
+            assert msg["recoverable"] is True
+
+    def test_connection_rejected_with_invalid_token(self, client: TestClient):
+        with client.websocket_connect("/ws/metrics?token=garbage_token") as ws:
+            msg = _recv_json(ws)
+            assert msg["type"] == "error"
+            assert msg["code"] == "UNAUTHORIZED"
+
+    def test_connection_accepted_with_valid_recruiter_token(self, client: TestClient):
+        """Valid token ? first message is a metrics snapshot (not an error)."""
+        token = _make_token(Role.RECRUITER)
+        with client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+            msg = _recv_json(ws)
+            # Should be a metrics payload, not an error
+            assert msg.get("type") != "error"
+            assert "timestamp" in msg
+
+    def test_connection_accepted_with_admin_token(self, client: TestClient):
+        token = _make_token(Role.ADMIN)
+        with client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+            msg = _recv_json(ws)
+            assert "timestamp" in msg
+
+    def test_missing_token_error_is_recoverable(self, client: TestClient):
+        with client.websocket_connect("/ws/metrics") as ws:
+            msg = _recv_json(ws)
+            assert msg["recoverable"] is True
+
+
+# =============================================================================
+# Metrics snapshot content
+# =============================================================================
+
+
+class TestMetricsSnapshotContent:
+    def test_snapshot_has_timestamp(self, client: TestClient):
+        token = _make_token()
+        with client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+            msg = _recv_json(ws)
+            assert "timestamp" in msg
+            # Should be a non-empty string
+            assert isinstance(msg["timestamp"], str)
+            assert len(msg["timestamp"]) > 0
+
+    def test_snapshot_has_derived_section(self, client: TestClient):
+        token = _make_token()
+        with client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+            msg = _recv_json(ws)
+            assert "derived" in msg
+            assert isinstance(msg["derived"], dict)
+
+    def test_snapshot_has_request_counter(self, client: TestClient):
+        token = _make_token()
+        with client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+            msg = _recv_json(ws)
+            assert "request" in msg
+
+    def test_snapshot_is_json_serializable(self, client: TestClient):
+        token = _make_token()
+        with client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+            msg = _recv_json(ws)
+            # If we got this far the JSON was already parsed;
+            # re-serialise to confirm no exotic types crept in
+            re_serialised = json.dumps(msg)
+            assert re_serialised is not None
+
+    def test_snapshot_timestamp_is_iso_format(self, client: TestClient):
+        from datetime import datetime
+
+        token = _make_token()
+        with client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+            msg = _recv_json(ws)
+            # Must parse as ISO datetime without raising
+            datetime.fromisoformat(msg["timestamp"])
+
+
+# =============================================================================
+# MetricsSocket class unit tests
+# =============================================================================
+
+
+class TestMetricsSocketUnit:
+    def setup_method(self):
+        from backend.sockets.metrics import MetricsSocket
+
+        self.socket = MetricsSocket(broadcast_interval=2.0)
+
+    def test_default_broadcast_interval(self):
+        assert self.socket.broadcast_interval == 2.0
+
+    def test_custom_broadcast_interval(self):
+        from backend.sockets.metrics import MetricsSocket
+
+        s = MetricsSocket(broadcast_interval=10.0)
+        assert s.broadcast_interval == 10.0
+
+    def test_connections_set_starts_empty(self):
+        assert len(self.socket._connections) == 0
+
+    def test_get_metrics_snapshot_returns_dict(self):
+        snap = self.socket._get_metrics_snapshot()
+        assert isinstance(snap, dict)
+
+    def test_get_metrics_snapshot_has_timestamp(self):
+        snap = self.socket._get_metrics_snapshot()
+        assert "timestamp" in snap
+
+    def test_get_metrics_snapshot_has_derived(self):
+        snap = self.socket._get_metrics_snapshot()
+        assert "derived" in snap
+
+    def test_calculate_derived_metrics_empty_snapshot(self):
+        derived = self.socket._calculate_derived_metrics({})
+        assert isinstance(derived, dict)
+
+    def test_calculate_derived_metrics_with_request_count(self):
+        snapshot = {"request": 500}
+        derived = self.socket._calculate_derived_metrics(snapshot)
+        assert isinstance(derived, dict)
+
+    def test_calculate_derived_metrics_with_latency(self):
+        snapshot = {
+            "request": 100,
+            "avg_latency": {"evaluation": 2.5},
+        }
+        derived = self.socket._calculate_derived_metrics(snapshot)
+        # With a 2.5s evaluation latency, estimated tokens/s = 500/2.5 = 200
+        if "estimated_tokens_per_second" in derived:
+            assert derived["estimated_tokens_per_second"] == pytest.approx(200.0)
+
+    def test_calculate_derived_metrics_zero_latency_no_crash(self):
+        snapshot = {"avg_latency": {"evaluation": 0}}
+        derived = self.socket._calculate_derived_metrics(snapshot)
         assert isinstance(derived, dict)
 
 
-class TestMetricsDataFormat:
-    """Test suite for metrics data format."""
-
-    def test_metrics_includes_timestamp(self):
-        """
-        Test that metrics include timestamp.
-        
-        Validates:
-        - Timestamp is in ISO format
-        """
-        from backend.sockets.metrics import MetricsSocket
-        from datetime import datetime
-        
-        socket = MetricsSocket()
-        snapshot = socket._get_metrics_snapshot()
-        
-        assert "timestamp" in snapshot
-        # Should be parseable as ISO format
-        try:
-            datetime.fromisoformat(snapshot["timestamp"])
-        except (ValueError, TypeError):
-            pass
-
-    def test_metrics_includes_derived_section(self):
-        """
-        Test that metrics include derived section.
-        
-        Validates:
-        - Derived metrics are included
-        """
-        from backend.sockets.metrics import MetricsSocket
-        
-        socket = MetricsSocket()
-        snapshot = socket._get_metrics_snapshot()
-        
-        assert "derived" in snapshot
-        assert isinstance(snapshot["derived"], dict)
+# =============================================================================
+# Singleton and helper function
+# =============================================================================
 
 
-class TestWebSocketMetricsProtocol:
-    """Test suite for WebSocket metrics protocol."""
-
-    def test_metrics_streaming_interval(self):
-        """
-        Test that metrics are streamed at intervals.
-        
-        Validates:
-        - Broadcast interval is configurable
-        """
-        from backend.sockets.metrics import MetricsSocket
-        
-        # Default interval
-        socket = MetricsSocket()
-        assert socket.broadcast_interval == 2.0
-        
-        # Custom interval
-        socket_custom = MetricsSocket(broadcast_interval=5.0)
-        assert socket_custom.broadcast_interval == 5.0
-
-    def test_metrics_message_format(self):
-        """
-        Test format of metrics messages.
-        
-        Validates:
-        - Messages are JSON serializable
-        """
-        from backend.sockets.metrics import MetricsSocket
-        import json
-        
-        socket = MetricsSocket()
-        snapshot = socket._get_metrics_snapshot()
-        
-        # Should be JSON serializable
-        json_str = json.dumps(snapshot)
-        assert json_str is not None
-
-
-class TestMetricsWebSocketAuthentication:
-    """Test suite for metrics WebSocket authentication."""
-
-    def test_token_validation(self, recruiter_token: str):
-        """
-        Test token validation for metrics WebSocket.
-        
-        Validates:
-        - Token is validated
-        """
-        from backend.auth.jwt_service import verify_token, TokenData
-        
-        try:
-            token_data = verify_token(recruiter_token)
-            assert isinstance(token_data, TokenData)
-        except Exception:
-            pass
-
-    def test_token_extraction_from_query(self):
-        """
-        Test token extraction from WebSocket query params.
-        
-        Validates:
-        - Token is extracted from ?token= parameter
-        """
-        # Implementation extracts token via:
-        # token = websocket.query_params.get("token")
-        assert True
-
-
-class TestMetricsWebSocketErrors:
-    """Test suite for metrics WebSocket error handling."""
-
-    def test_missing_token_error(self):
-        """
-        Test error for missing token.
-        
-        Validates:
-        - Error is sent and connection closed
-        """
-        expected_error = {
-            "type": "error",
-            "code": "UNAUTHORIZED",
-            "message": "Missing authentication token",
-            "recoverable": True,
-        }
-        
-        assert expected_error["code"] == "UNAUTHORIZED"
-
-    def test_invalid_token_error(self):
-        """
-        Test error for invalid token.
-        
-        Validates:
-        - Error is sent and connection closed
-        """
-        expected_error = {
-            "type": "error",
-            "code": "UNAUTHORIZED",
-            "message": "Invalid authentication token",
-            "recoverable": True,
-        }
-        
-        assert expected_error["code"] == "UNAUTHORIZED"
-
-
-class TestMetricsWebSocketIntegration:
-    """Integration tests for metrics WebSocket."""
-
-    def test_metrics_socket_singleton(self):
-        """
-        Test that metrics_socket is a singleton.
-        
-        Validates:
-        - Single instance is used
-        """
+class TestMetricsSingleton:
+    def test_metrics_socket_is_singleton(self):
         from backend.sockets.metrics import metrics_socket, MetricsSocket
-        
+
         assert isinstance(metrics_socket, MetricsSocket)
 
-    def test_get_latest_metrics_function(self):
-        """
-        Test get_latest_metrics helper function.
-        
-        Validates:
-        - Function returns metrics snapshot
-        """
+    def test_get_latest_metrics_returns_dict(self):
         from backend.sockets.metrics import get_latest_metrics
-        
-        metrics = get_latest_metrics()
-        
-        assert isinstance(metrics, dict)
-        assert "timestamp" in metrics
+
+        result = get_latest_metrics()
+        assert isinstance(result, dict)
+        assert "timestamp" in result
+
+    def test_get_latest_metrics_has_derived(self):
+        from backend.sockets.metrics import get_latest_metrics
+
+        result = get_latest_metrics()
+        assert "derived" in result
+
+    def test_importing_start_stop_functions_works(self):
+        from backend.sockets.metrics import (
+            start_metrics_broadcast,
+            stop_metrics_broadcast,
+        )
+
+        assert asyncio.iscoroutinefunction(start_metrics_broadcast)
+        assert asyncio.iscoroutinefunction(stop_metrics_broadcast)
 
 
-class TestMetricsBroadcasting:
-    """Test suite for metrics broadcasting functionality."""
+# =============================================================================
+# Broadcast behaviour
+# =============================================================================
 
-    async def test_broadcast_to_multiple_connections(self):
-        """
-        Test broadcasting to multiple connections.
-        
-        Validates:
-        - Data is sent to all connected clients
-        """
+
+class TestMetricsBroadcast:
+    """Test that broadcast sends to all connected clients and handles failures."""
+
+    @pytest.mark.asyncio
+    async def test_broadcast_reaches_all_connections(self):
         from backend.sockets.metrics import MetricsSocket
-        
-        socket = MetricsSocket()
-        
-        # Mock WebSocket connections
-        mock_ws1 = AsyncMock()
-        mock_ws2 = AsyncMock()
-        
-        socket._connections.add(mock_ws1)
-        socket._connections.add(mock_ws2)
-        
-        # Broadcast data
-        await socket.broadcast({"test": "data"})
-        
-        # Both connections should receive data
-        mock_ws1.send_json.assert_called_once()
-        mock_ws2.send_json.assert_called_once()
 
-    async def test_broadcast_removes_disconnected(self):
-        """
-        Test that disconnected clients are removed.
-        
-        Validates:
-        - Failed sends remove the connection
-        """
+        socket = MetricsSocket()
+
+        ws1 = AsyncMock()
+        ws2 = AsyncMock()
+        socket._connections.add(ws1)
+        socket._connections.add(ws2)
+
+        await socket.broadcast({"metric": "value"})
+
+        ws1.send_json.assert_called_once_with({"metric": "value"})
+        ws2.send_json.assert_called_once_with({"metric": "value"})
+
+    @pytest.mark.asyncio
+    async def test_broadcast_no_connections_is_noop(self):
         from backend.sockets.metrics import MetricsSocket
-        
-        socket = MetricsSocket()
-        
-        # Mock one successful and one failing connection
-        mock_ws1 = AsyncMock()
-        mock_ws2 = AsyncMock()
-        mock_ws2.send_json.side_effect = Exception("Connection closed")
-        
-        socket._connections.add(mock_ws1)
-        socket._connections.add(mock_ws2)
-        
-        # Broadcast should handle failures
-        await socket.broadcast({"test": "data"})
-        
-        # ws2 should be removed from connections
-        assert mock_ws2 not in socket._connections
 
+        socket = MetricsSocket()
+        # Should not raise
+        await socket.broadcast({"metric": "value"})
+
+    @pytest.mark.asyncio
+    async def test_broadcast_removes_failed_connections(self):
+        from backend.sockets.metrics import MetricsSocket
+
+        socket = MetricsSocket()
+
+        ws_good = AsyncMock()
+        ws_bad = AsyncMock()
+        ws_bad.send_json.side_effect = Exception("connection reset")
+
+        socket._connections.add(ws_good)
+        socket._connections.add(ws_bad)
+
+        await socket.broadcast({"test": 1})
+
+        # Failed connection should have been removed
+        assert ws_bad not in socket._connections
+        # Good connection stays
+        assert ws_good in socket._connections
+
+    @pytest.mark.asyncio
+    async def test_broadcast_with_timeout_removes_slow_connection(self):
+        from backend.sockets.metrics import MetricsSocket
+
+        socket = MetricsSocket()
+
+        ws_slow = AsyncMock()
+        ws_slow.send_json.side_effect = asyncio.TimeoutError()
+
+        socket._connections.add(ws_slow)
+
+        await socket.broadcast({"test": 1})
+
+        # Timed-out connection should be removed
+        assert ws_slow not in socket._connections

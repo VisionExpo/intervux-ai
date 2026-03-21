@@ -64,6 +64,7 @@ from backend.api.routes.auth_routes import router as auth_router
 from backend.auth.rbac import require_recruiter, require_admin
 from backend.middleware.rate_limiter import RateLimitMiddleware
 from backend.api.routes.candidate_routes import router as candidate_router
+from backend.api.routes.resume_routes import router as resume_router
 
 logger = get_logger(__name__)
 interview_gateway = InterviewGateway(total_questions=2)
@@ -153,6 +154,7 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 
 # Include candidate portal router
 app.include_router(candidate_router, prefix="/api/candidate", tags=["candidate"])
+app.include_router(resume_router, prefix="/api/resume", tags=["resume"])
 
 
 @app.middleware("http")
