@@ -166,7 +166,7 @@ class InterviewSession:
         Expected format:
             {"type": "resume_upload", "file_name": "...", "file_bytes": "<b64>"}
         """
-        self.state.transition_to(InterviewPhase.WAITING_RESUME)
+        self.state.transition_to(InterviewPhase.PROCESSING_RESUME)
 
         data = message.get("data", {})
         file_name = data.get("file_name", "")

@@ -63,7 +63,7 @@ export default function MockInterview() {
       // ---------------------------------------------------------------
       sessionStorage.setItem("mock_session_id", response.session_id);
 
-      window.location.hash = "#/interview-session";
+      window.location.hash = `#/interview-session?mock_session_id=${encodeURIComponent(response.session_id)}`;
     } catch (err) {
       console.error("Failed to start interview:", err);
       setError(err instanceof Error ? err.message : "Failed to start interview");

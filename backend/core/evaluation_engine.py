@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict
 
 from backend.core.llm_brain import _run_json_task
@@ -205,6 +206,14 @@ def _format_dual_payload(
 
 def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | None = None, **_kwargs: Any) -> Dict[str, Any]:
     try:
+        def _run_coro(coro: Any) -> Any:
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                return asyncio.run(coro)
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                return executor.submit(lambda: asyncio.run(coro)).result()
+
         def _evaluate_with_reasoning(
             q: str, a: str, p: Dict[str, Any] | None
         ) -> Dict[str, Any]:
@@ -228,28 +237,24 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
                 )
             return base
 
-        async def _evaluate_concurrent(
+        def _evaluate_concurrent(
             q: str, a: str, p: Dict[str, Any] | None
         ) -> Dict[str, Any]:
-            loop = asyncio.get_running_loop()
-            base_eval, reasoning = await asyncio.gather(
-                loop.run_in_executor(
-                    None,
-                    lambda: _dual_eval_engine.evaluate(question=q, answer=a, profile=p),
-                ),
-                loop.run_in_executor(
-                    None,
-                    lambda: _reasoning_analyzer.analyze(question=q, answer=a),
-                ),
-            )
-            consistency = await loop.run_in_executor(
-                None,
-                lambda: _consistency_checker.check(
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                base_future = executor.submit(
+                    _dual_eval_engine.evaluate, question=q, answer=a, profile=p
+                )
+                reasoning_future = executor.submit(
+                    _reasoning_analyzer.analyze, question=q, answer=a
+                )
+                base_eval = base_future.result()
+                reasoning = reasoning_future.result()
+
+            consistency = _consistency_checker.check(
                     question=q,
                     answer=a,
                     reasoning_steps=reasoning.get("steps", []),
-                ),
-            )
+                )
             base_eval["reasoning"] = reasoning
             base_eval["consistency"] = consistency
             adjustment_factor = float(
@@ -265,7 +270,7 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
                 )
             return base_eval
 
-        combined = asyncio.run(_evaluate_concurrent(question, answer, profile))
+        combined = _evaluate_concurrent(question, answer, profile)
         reasoning = combined.get("reasoning", {})
         consistency = combined.get("consistency", {})
         tech = combined["technical"]
@@ -303,7 +308,7 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
             return result
 
         if SELF_CONSISTENCY_PARALLEL:
-            aggregate = asyncio.run(
+            aggregate = _run_coro(
                 _self_consistency.evaluate_parallel(
                     _evaluate_with_reasoning, question, answer, profile
                 )

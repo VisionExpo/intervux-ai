@@ -18,6 +18,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_tables = set(inspector.get_table_names())
+
     # Create job_posts table
     op.create_table(
         'job_posts',
@@ -45,12 +49,41 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['job_post_id'], ['job_posts.id']),
         sa.PrimaryKeyConstraint('id')
     )
-    
-    # Add new columns to candidates table
-    op.add_column('candidates', sa.Column('status', sa.String(), nullable=False, server_default='invited'))
-    op.add_column('candidates', sa.Column('job_post_id', sa.String(), nullable=True))
-    op.add_column('candidates', sa.Column('interview_link', sa.String(), nullable=True))
-    op.add_column('candidates', sa.Column('interview_link_expires_at', sa.DateTime(), nullable=True))
+
+    # Ensure candidates table exists for fresh databases.
+    if 'candidates' not in existing_tables:
+        op.create_table(
+            'candidates',
+            sa.Column('id', sa.String(), nullable=False),
+            sa.Column('name', sa.String(), nullable=False),
+            sa.Column('email', sa.String(), nullable=False),
+            sa.Column('role', sa.String(), nullable=False),
+            sa.Column('resume_url', sa.String(), nullable=True),
+            sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('email'),
+        )
+        existing_columns = set()
+    else:
+        existing_columns = {
+            column["name"] for column in inspector.get_columns("candidates")
+        }
+
+    # Add new columns to candidates table if missing.
+    if "status" not in existing_columns:
+        op.add_column(
+            'candidates',
+            sa.Column('status', sa.String(), nullable=False, server_default='invited'),
+        )
+    if "job_post_id" not in existing_columns:
+        op.add_column('candidates', sa.Column('job_post_id', sa.String(), nullable=True))
+    if "interview_link" not in existing_columns:
+        op.add_column('candidates', sa.Column('interview_link', sa.String(), nullable=True))
+    if "interview_link_expires_at" not in existing_columns:
+        op.add_column(
+            'candidates',
+            sa.Column('interview_link_expires_at', sa.DateTime(), nullable=True),
+        )
 
 
 def downgrade() -> None:

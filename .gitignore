@@ -21,6 +21,7 @@ wheels/
 .installed.cfg
 *.egg
 .env
+.env.docker
 # Virtual Environment
 myenv/
 myenv/Lib/site-packages

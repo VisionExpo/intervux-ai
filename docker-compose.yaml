@@ -101,7 +101,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: intervux-flower
-    command: celery -A backend.core.celery_app:celery_app flower --port=5555
+    command: celery -A backend.core.celery_app:celery_app flower --port=5555 --basic_auth=${FLOWER_BASIC_AUTH:-admin:admin}
     env_file:
       - .env.docker
     ports:

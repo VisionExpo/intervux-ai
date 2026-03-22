@@ -40,7 +40,12 @@ const MAX_RECONNECT_ATTEMPTS = 6;
  */
 function getWebSocketUrl(): string {
   const token = localStorage.getItem("auth_token") ?? "";
-  const mockSessionId = sessionStorage.getItem("mock_session_id") ?? "";
+  const hash = window.location.hash ?? "";
+  const hashQuery = hash.includes("?") ? hash.split("?", 2)[1] ?? "" : "";
+  const hashParams = new URLSearchParams(hashQuery);
+  const mockSessionIdFromHash = hashParams.get("mock_session_id") ?? "";
+  const mockSessionId =
+    mockSessionIdFromHash || sessionStorage.getItem("mock_session_id") || "";
 
   const params = new URLSearchParams();
   if (token) params.set("token", token);

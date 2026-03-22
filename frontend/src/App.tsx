@@ -14,12 +14,14 @@ import "./App.css";
 
 function App() {
   const { user, isAuthenticated, isLoading } = useAuth();
-  const [hash, setHash] = useState(() => window.location.hash.replace("#", "") || "/profile");
+  const currentRoute = () =>
+    (window.location.hash.replace("#", "").split("?")[0] || "/profile");
+  const [hash, setHash] = useState(currentRoute);
 
   // Listen for hash changes
   useEffect(() => {
     const handleHashChange = () => {
-      const newHash = window.location.hash.replace("#", "") || "/profile";
+      const newHash = currentRoute();
       setHash(newHash);
     };
 

@@ -11,11 +11,13 @@ This module provides API endpoints for:
 
 import json
 import os
+import time
 import uuid
 from datetime import datetime
+from threading import Lock
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel
 
 from backend.auth.jwt_service import (
@@ -33,6 +35,24 @@ from backend.utils.logger import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+SIGNUP_RATE_LIMIT_WINDOW_S = int(os.getenv("SIGNUP_RATE_LIMIT_WINDOW_S", "300"))
+SIGNUP_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv("SIGNUP_RATE_LIMIT_MAX_ATTEMPTS", "10"))
+_signup_hits: dict[str, list[float]] = {}
+_signup_lock = Lock()
+
+
+def _allow_signup_attempt(ip: str) -> bool:
+    now = time.time()
+    window_start = now - SIGNUP_RATE_LIMIT_WINDOW_S
+    with _signup_lock:
+        attempts = [ts for ts in _signup_hits.get(ip, []) if ts >= window_start]
+        if len(attempts) >= SIGNUP_RATE_LIMIT_MAX_ATTEMPTS:
+            _signup_hits[ip] = attempts
+            return False
+        attempts.append(now)
+        _signup_hits[ip] = attempts
+        return True
 
 
 # =========================================================
@@ -184,9 +204,16 @@ def _calculate_resume_score(
 
 
 @router.post("/signup", response_model=Token)
-async def candidate_signup(candidate_data: CandidateSignup):
+async def candidate_signup(candidate_data: CandidateSignup, request: Request):
     """Register a new candidate."""
     from backend.db.database import User
+
+    client_ip = request.client.host if request.client and request.client.host else "unknown"
+    if not _allow_signup_attempt(client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many signup attempts. Please try again later.",
+        )
 
     db = SessionLocal()
     try:

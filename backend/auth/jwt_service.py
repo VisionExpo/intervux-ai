@@ -24,11 +24,13 @@ from typing import Any, Dict, Optional, Set
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from passlib.context import CryptContext
 from pydantic import BaseModel, ConfigDict
 from backend.db.database import RevokedToken, SessionLocal
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Configuration - should be set via environment variables
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
@@ -474,14 +476,7 @@ def hash_password(password: str) -> str:
     Returns:
         Hashed password
     """
-    try:
-        from passlib.context import CryptContext
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        return pwd_context.hash(password)
-    except Exception:
-        # Fallback for development when passlib/bcrypt backend is unavailable.
-        import hashlib
-        return hashlib.sha256(password.encode()).hexdigest()
+    return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -495,18 +490,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Returns:
         True if password matches
     """
-    # SHA256 fallback hashes are 64-char hex strings.
-    if len(hashed_password) == 64 and all(c in "0123456789abcdef" for c in hashed_password.lower()):
-        import hashlib
-        return hashlib.sha256(plain_password.encode()).hexdigest() == hashed_password
-
     try:
-        from passlib.context import CryptContext
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         return pwd_context.verify(plain_password, hashed_password)
     except Exception:
-        import hashlib
-        return hashlib.sha256(plain_password.encode()).hexdigest() == hashed_password
+        return False
 
 
 # =========================================================
@@ -565,16 +552,32 @@ DEMO_USERS = {
         "email": "admin@intervux.ai",
         "name": "Admin User",
         "role": Role.ADMIN,
-        "password_hash": hash_password("admin123"),
+        "password": "admin123",
+        "password_hash": None,
     },
     "recruiter@intervux.ai": {
         "id": "recruiter-001",
         "email": "recruiter@intervux.ai",
         "name": "Recruiter User",
         "role": Role.RECRUITER,
-        "password_hash": hash_password("recruiter123"),
+        "password": "recruiter123",
+        "password_hash": None,
     },
 }
+
+
+def _get_demo_password_hash(user: Dict[str, Any]) -> str:
+    cached_hash = user.get("password_hash")
+    if isinstance(cached_hash, str) and cached_hash:
+        return cached_hash
+
+    plain_password = str(user.get("password") or "")
+    if not plain_password:
+        return ""
+
+    hashed = hash_password(plain_password)
+    user["password_hash"] = hashed
+    return hashed
 
 
 def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
@@ -585,7 +588,7 @@ def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
     # Check hardcoded demo users first
     user = DEMO_USERS.get(email)
     if user:
-        if not verify_password(password, user["password_hash"]):
+        if not verify_password(password, _get_demo_password_hash(user)):
             return None
         return {
             "user_id": user["id"],
@@ -625,12 +628,13 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     # Check hardcoded demo users first
     user = DEMO_USERS.get(email)
     if user:
+        password_hash = _get_demo_password_hash(user)
         return {
             "user_id": user["id"],
             "email": user["email"],
             "name": user["name"],
             "role": user["role"],
-            "password_hash": user.get("password_hash", ""),
+            "password_hash": password_hash,
         }
 
     # Fall back to database
