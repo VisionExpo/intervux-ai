@@ -25,6 +25,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel, ConfigDict
+from backend.db.database import RevokedToken, SessionLocal
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -188,9 +189,18 @@ def verify_token(token: str) -> TokenData:
         email: str = payload.get("email")
         name: str = payload.get("name")
         role: str = payload.get("role", "viewer")
-        
+
         if user_id is None or email is None:
             raise credentials_exception
+
+        jti = payload.get("jti") or payload.get("user_id", "")
+        if jti:
+            db = SessionLocal()
+            try:
+                if db.query(RevokedToken).filter(RevokedToken.jti == jti).first():
+                    raise credentials_exception
+            finally:
+                db.close()
             
         token_data = TokenData(
             user_id=user_id,

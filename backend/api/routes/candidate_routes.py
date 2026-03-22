@@ -197,25 +197,29 @@ async def candidate_signup(candidate_data: CandidateSignup):
                 detail="Email already registered",
             )
 
-        db_user = User(
-            email=candidate_data.email,
-            password_hash=hash_password(candidate_data.password),
-            name=candidate_data.name,
-            role=Role.CANDIDATE,
-        )
-        db.add(db_user)
-        db.flush()
+        try:
+            db_user = User(
+                email=candidate_data.email,
+                password_hash=hash_password(candidate_data.password),
+                name=candidate_data.name,
+                role=Role.CANDIDATE,
+            )
+            db.add(db_user)
+            db.flush()
 
-        user_id = f"candidate-{db_user.id}"
+            user_id = f"candidate-{db_user.id}"
 
-        profile = CandidateProfile(
-            user_id=user_id,
-            name=candidate_data.name,
-            skills="[]",
-            mock_interviews_remaining=3,
-        )
-        db.add(profile)
-        db.commit()
+            profile = CandidateProfile(
+                user_id=user_id,
+                name=candidate_data.name,
+                skills="[]",
+                mock_interviews_remaining=3,
+            )
+            db.add(profile)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Signup failed, please try again")
 
         user_data = {
             "user_id": user_id,

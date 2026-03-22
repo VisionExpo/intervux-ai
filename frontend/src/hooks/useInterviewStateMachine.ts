@@ -93,6 +93,8 @@ export function interviewReducer(
       switch (action.type) {
         case "QUESTION_RECEIVED":
           return "ASKING_QUESTION";
+        case "INTERVIEW_COMPLETE":
+          return "INTERVIEW_COMPLETE";
         default:
           return state;
       }
