@@ -24,7 +24,7 @@ type QueuedAudioChunk = {
   visemes: VisemeCue[];
 };
 
-const WS_BASE_URL = "ws://localhost:8000/ws/interview";
+const WS_BASE_URL = `${import.meta.env.VITE_WS_URL ?? "ws://localhost:8000"}/ws/interview`;
 const MAX_RECONNECT_ATTEMPTS = 6;
 
 /**
