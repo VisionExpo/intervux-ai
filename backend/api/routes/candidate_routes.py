@@ -9,6 +9,7 @@ This module provides API endpoints for:
 - Notifications
 """
 
+import asyncio
 import json
 import os
 import time
@@ -38,8 +39,12 @@ logger = get_logger(__name__)
 
 SIGNUP_RATE_LIMIT_WINDOW_S = int(os.getenv("SIGNUP_RATE_LIMIT_WINDOW_S", "300"))
 SIGNUP_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv("SIGNUP_RATE_LIMIT_MAX_ATTEMPTS", "10"))
+RESUME_RATE_LIMIT_WINDOW_S = int(os.getenv("RESUME_RATE_LIMIT_WINDOW_S", "60"))
+RESUME_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv("RESUME_RATE_LIMIT_MAX_ATTEMPTS", "5"))
 _signup_hits: dict[str, list[float]] = {}
 _signup_lock = Lock()
+_resume_hits: dict[str, list[float]] = {}
+_resume_lock = Lock()
 
 
 def _allow_signup_attempt(ip: str) -> bool:
@@ -52,6 +57,20 @@ def _allow_signup_attempt(ip: str) -> bool:
             return False
         attempts.append(now)
         _signup_hits[ip] = attempts
+        return True
+
+
+def _allow_resume_attempt(user_id: str) -> bool:
+    """Per-user rate limit for resume uploads to protect parser/API budget."""
+    now = time.time()
+    window_start = now - RESUME_RATE_LIMIT_WINDOW_S
+    with _resume_lock:
+        attempts = [ts for ts in _resume_hits.get(user_id, []) if ts >= window_start]
+        if len(attempts) >= RESUME_RATE_LIMIT_MAX_ATTEMPTS:
+            _resume_hits[user_id] = attempts
+            return False
+        attempts.append(now)
+        _resume_hits[user_id] = attempts
         return True
 
 
@@ -360,6 +379,7 @@ async def update_candidate_profile(
 
 @router.post("/resume", response_model=ResumeUploadResponse)
 async def upload_resume(
+    request: Request,
     file: UploadFile = File(...),
     current_user: TokenData = Depends(get_current_user),
 ):
@@ -371,6 +391,12 @@ async def upload_resume(
     """
     if current_user.role != Role.CANDIDATE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
+
+    if not _allow_resume_attempt(current_user.user_id):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many resume uploads. Maximum {RESUME_RATE_LIMIT_MAX_ATTEMPTS} per {RESUME_RATE_LIMIT_WINDOW_S}s.",
+        )
 
     allowed_extensions = {".pdf", ".docx", ".doc", ".png", ".jpg", ".jpeg"}
     file_ext = os.path.splitext(file.filename)[1].lower()
@@ -412,14 +438,10 @@ async def upload_resume(
         with open(file_path, "wb") as f:
             f.write(content)
 
-        # ----------------------------------------------------------------
-        # Parse via unified service - single call regardless of file type.
-        # parse_resume_from_upload reads the bytes that were just consumed
-        # by await file.read(); we need to re-seek first.
-        # ----------------------------------------------------------------
+        # Parse via unified service in threadpool to avoid blocking event loop.
         file.file.seek(0)
         try:
-            parsed: ParsedResume = parse_resume_from_upload(file)
+            parsed: ParsedResume = await asyncio.to_thread(parse_resume_from_upload, file)
         except Exception:
             logger.exception("Resume parsing failed in candidate upload")
             parsed = ParsedResume()

@@ -14,6 +14,7 @@ class InterviewPhase(Enum):
     """
     CONNECTING = "CONNECTING"
     WAITING_RESUME = "WAITING_RESUME"
+    PROCESSING_RESUME = "PROCESSING_RESUME"
     QUESTION = "QUESTION"
     LISTENING = "LISTENING"
     PROCESSING = "PROCESSING"
@@ -24,6 +25,7 @@ class InterviewPhase(Enum):
         """Check if current phase can receive this message type."""
         transitions = {
             InterviewPhase.WAITING_RESUME: {"resume_upload"},
+            InterviewPhase.PROCESSING_RESUME: set(),
             InterviewPhase.LISTENING: {"audio_chunk", "stream_end", "audio_end"},
             InterviewPhase.PROCESSING: set(),  # No messages during processing
             InterviewPhase.QUESTION: {"audio_chunk"},

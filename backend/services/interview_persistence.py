@@ -182,11 +182,26 @@ def complete_mock_interview(
 
 
 def fail_mock_interview(session_id: str, reason: str = "error") -> bool:
-    """Mark in-progress MockInterview rows as abandoned."""
+    """
+    Mark an in-progress MockInterview row as abandoned.
+
+    FIX: Guard added — if the row is already 'completed' (set by
+    complete_mock_interview just before cleanup() runs), do not overwrite it.
+    Without this guard a race between complete_mock_interview and the
+    finally-block cleanup() call would reset a completed row to 'abandoned'.
+    """
     db = SessionLocal()
     try:
         interview = db.query(MockInterview).filter(MockInterview.session_id == session_id).first()
         if not interview:
+            return False
+
+        # FIX: never downgrade a completed row
+        if interview.status == "completed":
+            logger.info(
+                "fail_mock_interview: skipped — row already completed",
+                extra={"extra_data": {"session_id": session_id, "reason": reason}},
+            )
             return False
 
         if interview.status != "in_progress":
