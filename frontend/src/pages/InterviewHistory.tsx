@@ -97,10 +97,10 @@ export default function InterviewHistory() {
                       <td>Interview #{interview.interview_number}</td>
                       <td>{new Date(interview.created_at).toLocaleDateString()}</td>
                       <td><span className={`status-badge ${className}`}>{label}</span></td>
-                      <td>{interview.score              !== null ? interview.score.toFixed(0)              : "—"}</td>
-                      <td>{interview.technical_score    !== null ? interview.technical_score.toFixed(0)    : "—"}</td>
-                      <td>{interview.communication_score !== null ? interview.communication_score.toFixed(0) : "—"}</td>
-                      <td>{interview.reasoning_score    !== null ? interview.reasoning_score.toFixed(0)    : "—"}</td>
+                      <td>{interview.score              !== null ? interview.score.toFixed(0)              : "-"}</td>
+                      <td>{interview.technical_score    !== null ? interview.technical_score.toFixed(0)    : "-"}</td>
+                      <td>{interview.communication_score !== null ? interview.communication_score.toFixed(0) : "-"}</td>
+                      <td>{interview.reasoning_score    !== null ? interview.reasoning_score.toFixed(0)    : "-"}</td>
                     </tr>
                   );
                 })}
@@ -140,12 +140,12 @@ export default function InterviewHistory() {
                   borderRadius: 8, padding: "0.75rem", color: "#6c5a3d",
                   fontSize: "0.9rem", margin: "1rem 0",
                 }}>
-                  This interview was interrupted before completion — no scores were
+                  This interview was interrupted before completion - no scores were
                   recorded. You can start a new interview from the Mock Interview page.
                 </p>
               )}
 
-              {/* Score bars — completed only */}
+              {/* Score bars - completed only */}
               {selectedInterview.status === "completed" && selectedInterview.score !== null && (
                 <div className="score-breakdown">
                   <h4>Score Breakdown</h4>
