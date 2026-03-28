@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session, sessionmaker
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_ws_interview.db")
 os.environ.setdefault("JWT_SECRET_KEY", "test-ws-secret-key")
 os.environ.setdefault("DISABLE_STT", "true")          # no Whisper in CI
+os.environ.setdefault("DISABLE_TTS", "true")          # avoid network TTS in CI
 os.environ.setdefault("GOOGLE_API_KEY", "FAKE_KEY")   # no Gemini calls in CI
 os.environ.setdefault("MAX_CONCURRENT_SESSIONS", "5")
 os.environ.setdefault("RATE_LIMIT_WS_PER_MINUTE", "30")
