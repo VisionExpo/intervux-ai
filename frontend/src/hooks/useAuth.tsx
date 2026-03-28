@@ -170,7 +170,7 @@ export async function authFetch<T>(
     if (response.status === 401) {
       // Token expired or invalid
       localStorage.removeItem("auth_token");
-      window.location.href = "/login";
+      window.location.hash = "#/login";
       throw new Error("Unauthorized");
     }
     const error = await response.json().catch(() => ({ detail: "Request failed" }));

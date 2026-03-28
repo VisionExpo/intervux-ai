@@ -72,6 +72,42 @@ Dashboards provide experiment tracking, analytics, and decision support.
 
 ---
 
+# Developer Quickstart ⚡
+
+## Local backend setup
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+pytest -vv
+```
+
+## Frontend setup
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Docker setup (full stack)
+
+```bash
+docker compose up --build
+```
+
+## Common failures and fixes
+
+- **Pytest collection fails with encoding errors**
+  - Run `python backend/scripts/check_utf8.py` to detect non-UTF-8 tracked files.
+- **Auth redirects to a blank/non-matching page**
+  - Ensure navigation uses hash routes such as `#/login`, `#/profile`, `#/dashboard`.
+- **Frontend cannot reach API locally**
+  - Set `VITE_API_URL` in frontend env to your backend host (default backend is `http://localhost:8000`).
+
+---
+
 # System Architecture 🏗️
 
 ## High-Level System Flow
