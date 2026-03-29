@@ -121,6 +121,7 @@ export function useInterview() {
     stageRef.current = stage;
   }, [stage]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (socketInitialized.current) return;
     socketInitialized.current = true;

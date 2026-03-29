@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback } from "react";
 
 interface AudioStreamHandlerProps {
   isActive: boolean;
@@ -76,7 +76,7 @@ export default function AudioStreamHandler({
 
       // Start recording with small chunks
       recorder.start(300);
-      setIsListening(true);
+      isListeningRef.current = true;
 
       // Start audio level monitoring for VAD
       const checkAudioLevel = () => {
@@ -89,7 +89,6 @@ export default function AudioStreamHandler({
         const sum = dataArray.reduce((a, b) => a + b, 0);
         const avg = sum / dataArray.length;
         const normalizedLevel = avg / 255;
-        setAudioLevel(normalizedLevel);
 
         // Check for silence
         if (normalizedLevel < silenceThreshold) {
@@ -122,16 +121,16 @@ export default function AudioStreamHandler({
 
   // Start/stop based on isActive prop
   useEffect(() => {
-    if (isActive && !isListening) {
-      startStream();
-    } else if (!isActive && isListening) {
+    if (isActive && !isListeningRef.current) {
+      void startStream();
+    } else if (!isActive && isListeningRef.current) {
       stopStream();
     }
 
     return () => {
       stopStream();
     };
-  }, [isActive, isListening, startStream, stopStream]);
+  }, [isActive, startStream, stopStream]);
 
   // Expose audio level for UI visualization
   useEffect(() => {

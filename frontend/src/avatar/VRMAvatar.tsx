@@ -24,7 +24,7 @@ export default function VRMAvatar({
 }: VRMAvatarProps) {
   const vrmRef = useRef<VRM | null>(null);
   const headRef = useRef<Object3D | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [scene, setScene] = useState<Object3D | null>(null);
 
   useEffect(() => {
     const loader = new GLTFLoader();
@@ -39,7 +39,7 @@ export default function VRMAvatar({
           const vrm = gltf.userData.vrm as VRM | undefined;
           if (!vrm || cancelled) {
             if (!cancelled && !vrm) {
-              setLoaded(false);
+              setScene(null);
               onLoadError?.();
             }
             return;
@@ -50,10 +50,10 @@ export default function VRMAvatar({
           headRef.current =
             (vrm.humanoid as { getNormalizedBoneNode?: (name: string) => Object3D | null })
               ?.getNormalizedBoneNode?.("head") ?? null;
-          setLoaded(true);
+          setScene(vrm.scene);
         } catch {
           if (!cancelled) {
-            setLoaded(false);
+            setScene(null);
             onLoadError?.();
           }
         }
@@ -61,7 +61,7 @@ export default function VRMAvatar({
       undefined,
       () => {
         if (!cancelled) {
-          setLoaded(false);
+          setScene(null);
           onLoadError?.();
         }
       }
@@ -70,7 +70,7 @@ export default function VRMAvatar({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [onLoadError]);
 
   useFrame((state, delta) => {
     const vrm = vrmRef.current;
@@ -82,9 +82,9 @@ export default function VRMAvatar({
     vrm.update(delta);
   });
 
-  if (!loaded || !vrmRef.current) return null;
+  if (!scene) return null;
 
-  return <primitive object={vrmRef.current.scene} scale={1.4} />;
+  return <primitive object={scene} scale={1.4} />;
 }
 
 function applyAvatarBehavior(

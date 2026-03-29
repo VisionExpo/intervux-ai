@@ -31,19 +31,24 @@ export default function AvatarInterviewer({
   // Handle state transitions with animation
   useEffect(() => {
     if (displayState !== avatarState) {
-      setIsTransitioning(true);
-      onStateTransition?.(displayState, avatarState);
+      const initTimer = setTimeout(() => {
+        setIsTransitioning(true);
+        setPulseEffect(true);
+        onStateTransition?.(displayState, avatarState);
+      }, 0);
       
-      // Add pulse effect on state change
-      setPulseEffect(true);
-      setTimeout(() => setPulseEffect(false), 500);
+      const pulseEndTimer = setTimeout(() => setPulseEffect(false), 500);
       
-      const timer = setTimeout(() => {
+      const stateTimer = setTimeout(() => {
         setDisplayState(avatarState);
         setIsTransitioning(false);
       }, 300);
       
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(initTimer);
+        clearTimeout(pulseEndTimer);
+        clearTimeout(stateTimer);
+      };
     }
   }, [avatarState, displayState, onStateTransition]);
 

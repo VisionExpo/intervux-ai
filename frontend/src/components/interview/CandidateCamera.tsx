@@ -12,6 +12,7 @@ export default function CandidateCamera({ isEnabled = true }: CandidateCameraPro
 
   useEffect(() => {
     if (!isEnabled) return;
+    const currentVideo = videoRef.current;
 
     async function initCamera() {
       try {
@@ -42,8 +43,8 @@ export default function CandidateCamera({ isEnabled = true }: CandidateCameraPro
 
     return () => {
       // Cleanup: stop all tracks
-      if (videoRef.current?.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
+      if (currentVideo?.srcObject) {
+        const stream = currentVideo.srcObject as MediaStream;
         stream.getTracks().forEach((track) => track.stop());
       }
     };
