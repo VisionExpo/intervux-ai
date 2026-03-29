@@ -61,6 +61,7 @@ media/local_cache/*
 # Logs
 *.log
 logs/
+lint_results.txt
 
 # Test coverage
 coverage/
