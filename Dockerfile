@@ -54,11 +54,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # -----------------------------------------------------------------------------
 COPY backend/ ./backend/
 COPY alembic.ini .
+COPY docker/entrypoint.sh /app/entrypoint.sh
 
 # -----------------------------------------------------------------------------
 # Create necessary directories
 # -----------------------------------------------------------------------------
 RUN mkdir -p /app/logs /app/uploads && \
+    sed -i 's/\r$//' /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh && \
     chown -R appuser:appgroup /app
 
 # -----------------------------------------------------------------------------
@@ -81,5 +84,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # -----------------------------------------------------------------------------
 # Run FastAPI using uvicorn
 # -----------------------------------------------------------------------------
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
 

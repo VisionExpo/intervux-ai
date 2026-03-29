@@ -3,6 +3,8 @@ import uuid
 import asyncio
 import os
 import json as _json
+import subprocess
+import sys
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
 
@@ -72,6 +74,60 @@ runtime_monitor = RuntimeMonitor(interview_socket=interview_gateway)
 thread_pool: ThreadPoolExecutor | None = None
 
 
+def _is_sqlite(url: str) -> bool:
+    return url.startswith("sqlite")
+
+
+def _run_alembic_migrations() -> None:
+    """
+    Run 'alembic upgrade head' as a subprocess.
+
+    Falls back to create_all for SQLite/dev environments.
+    """
+    db_url = os.getenv("DATABASE_URL", "")
+    if _is_sqlite(db_url):
+        logger.info("SQLite detected — using create_all for dev/test environment")
+        Base.metadata.create_all(bind=engine)
+        return
+
+    logger.info("Running Alembic migrations...")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode != 0:
+            logger.error(f"Alembic migration failed:\n{result.stderr}")
+            raise RuntimeError(f"Alembic migration failed: {result.stderr}")
+        logger.info(f"Alembic migrations complete:\n{result.stdout}")
+    except FileNotFoundError:
+        logger.warning("alembic not found — falling back to create_all (run migrations manually)")
+        Base.metadata.create_all(bind=engine)
+
+
+def _validate_cors_origins(origins: list[str]) -> None:
+    """
+    Warn if localhost CORS origins are used with a non-local postgres setup.
+    """
+    db_url = os.getenv("DATABASE_URL", "")
+    is_postgres = "postgres" in db_url or "postgresql" in db_url
+
+    localhost_origins = [o for o in origins if "localhost" in o or "127.0.0.1" in o]
+
+    if is_postgres and localhost_origins:
+        logger.warning(
+            "CORS is configured with localhost origins but DATABASE_URL points to a "
+            "remote PostgreSQL instance. This will block all browser clients not on "
+            "localhost. Set CORS_ALLOW_ORIGINS to your frontend domain(s) in .env.docker."
+        )
+        print(
+            "[WARN] CORS localhost mismatch — set CORS_ALLOW_ORIGINS to your frontend URL",
+            file=sys.stderr,
+        )
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     global thread_pool
@@ -91,7 +147,7 @@ async def lifespan(_app: FastAPI):
     if not db_ready:
         logger.warning("Database was not ready during startup warmup window")
 
-    Base.metadata.create_all(bind=engine)
+    _run_alembic_migrations()
     loop = asyncio.get_running_loop()
     thread_pool = ThreadPoolExecutor(max_workers=workers)
     loop.set_default_executor(thread_pool)
@@ -112,8 +168,13 @@ app = FastAPI(title="Intervux-AI", version="1.0.0", lifespan=lifespan)
 _cors_raw = os.getenv("CORS_ALLOW_ORIGINS", '["http://localhost:5173"]')
 try:
     _cors_origins = _json.loads(_cors_raw)
-except Exception:
+    if not isinstance(_cors_origins, list):
+        raise ValueError("CORS_ALLOW_ORIGINS must be a JSON array")
+except Exception as exc:
+    logger.error(f"Invalid CORS_ALLOW_ORIGINS value '{_cors_raw}': {exc} — falling back to localhost")
     _cors_origins = ["http://localhost:5173"]
+
+_validate_cors_origins(_cors_origins)
 
 # Add CORS middleware
 app.add_middleware(
