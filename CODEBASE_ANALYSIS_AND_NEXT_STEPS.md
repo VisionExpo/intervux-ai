@@ -1,6 +1,6 @@
 # Codebase Analysis and Next Steps
 
-_Last updated: 2026-03-28_
+_Last updated: 2026-03-29_
 
 ## Executive Summary
 
@@ -47,6 +47,8 @@ Intervux AI already has a strong full-stack baseline: FastAPI + WebSocket interv
    - Add a pre-commit or CI guard to reject non-UTF-8 source/test files.
 2. **Turn current `pytest` run into a CI gate**
    - Ensure full suite executes on each PR and branch push.
+   - Status: Implemented via GitHub Actions workflow `.github/workflows/tests.yml` (`CI Gate` / `test-gate (python-3.10)`).
+   - Branch protection: mark this status check as **required** on protected branches.
 3. **Document local runbook**
    - Add a short "dev quickstart + common failures" section to README.
 
