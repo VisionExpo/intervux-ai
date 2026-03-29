@@ -27,7 +27,7 @@ Return JSON only:
   "problem_solving": 0
 }
 Question: {question}
-Answer: {answer}
+Answer: <candidate_answer>{answer}</candidate_answer>
 """.strip()
 
 BEHAVIOR_PROMPT_TEMPLATE = """
@@ -38,7 +38,7 @@ Return JSON only:
   "confidence": 0,
   "structure": 0
 }
-Answer: {answer}
+Answer: <candidate_answer>{answer}</candidate_answer>
 """.strip()
 
 

@@ -239,16 +239,17 @@ class InterviewSession:
         ):
             self._last_partial_at = now
 
-            from functools import partial
-            from backend.services.stt_service import transcribe_audio_bytes
+            from backend.core.celery_tasks import transcribe_audio_task
+            import base64
+            
+            b64_audio = base64.b64encode(self.audio_buffer.bytes()).decode('ascii')
+            suffix = self.engine._detect_audio_suffix(self.audio_buffer.bytes())
 
-            partial_text = await asyncio.to_thread(
-                partial(
-                    transcribe_audio_bytes,
-                    audio_bytes=self.audio_buffer.bytes(),
-                    suffix=self.engine._detect_audio_suffix(self.audio_buffer.bytes()),
-                )
-            )
+            task = transcribe_audio_task.delay(b64_audio, suffix)
+            while not task.ready():
+                await asyncio.sleep(0.1)
+                
+            partial_text = task.result
 
             if partial_text:
                 self._partial_transcript = partial_text

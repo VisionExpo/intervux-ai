@@ -1,84 +1,78 @@
 """
-Session Registry - Global registry for managing active interview sessions.
+Session Registry - Stateless Redis registry for managing active interview sessions.
 """
 
-import asyncio
-from typing import Dict, Optional
+import os
+import json
+import logging
+import redis.asyncio as redis
+from typing import Dict, Optional, Any
 
-from backend.sessions.interview_session import InterviewSession
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-class SessionRegistry:
+class RedisSessionRegistry:
     """
-    Global registry for managing active interview sessions.
-    
-    Provides:
-    - Session registration/removal
-    - Session lookup
-    - Active session count
+    Stateless Global registry using Redis to manage active interview sessions.
+    Provides cluster-safe session tracking.
     """
 
     def __init__(self):
-        self._sessions: Dict[str, InterviewSession] = {}
-        self._lock = asyncio.Lock()
+        self.redis = redis.from_url(REDIS_URL, decode_responses=True)
 
-    async def register(self, session_id: str, session: InterviewSession) -> None:
-        """Register a new session."""
-        async with self._lock:
-            self._sessions[session_id] = session
-            logger.info(
-                "Session registered",
-                extra={"extra_data": {"session_id": session_id, "active_count": len(self._sessions)}}
-            )
+    async def register(self, session_id: str, payload: dict) -> None:
+        """Register a new session to Redis."""
+        try:
+            # 3 hours max TTL for stray sessions
+            await self.redis.setex(f"session:{session_id}", 10800, json.dumps(payload))
+            await self.redis.incr("session_cluster_count")
+            count = await self.count()
+            logger.info("Session registered to Redis", extra={"extra_data": {"session_id": session_id, "active_count": count}})
+        except Exception as e:
+            logger.error(f"Redis register error: {e}")
 
     async def unregister(self, session_id: str) -> None:
-        """Remove a session from registry."""
-        async with self._lock:
-            removed = self._sessions.pop(session_id, None)
-            if removed:
-                logger.info(
-                    "Session unregistered",
-                    extra={"extra_data": {"session_id": session_id, "active_count": len(self._sessions)}}
-                )
+        """Remove a session from Redis."""
+        try:
+            deleted = await self.redis.delete(f"session:{session_id}")
+            if deleted:
+                await self.redis.decr("session_cluster_count")
+                count = await self.count()
+                logger.info("Session unregistered from Redis", extra={"extra_data": {"session_id": session_id, "active_count": count}})
+        except Exception as e:
+            logger.error(f"Redis unregister error: {e}")
 
-    def get(self, session_id: str) -> Optional[InterviewSession]:
-        """Get session by ID."""
-        return self._sessions.get(session_id)
+    async def get(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Get session state from Redis."""
+        try:
+            data = await self.redis.get(f"session:{session_id}")
+            return json.loads(data) if data else None
+        except Exception:
+            return None
 
-    def get_all(self) -> Dict[str, InterviewSession]:
-        """Get all active sessions."""
-        return dict(self._sessions)
+    async def count(self) -> int:
+        """Get number of active sessions globally."""
+        try:
+            count = await self.redis.get("session_cluster_count")
+            return int(count) if count else 0
+        except Exception:
+            return 0
 
-    @property
-    def count(self) -> int:
-        """Get number of active sessions."""
-        return len(self._sessions)
+    async def save_state(self, session_id: str, payload: dict) -> None:
+        """Save mid-interview state to Redis."""
+        try:
+            await self.redis.setex(f"session:{session_id}", 10800, json.dumps(payload))
+        except Exception as e:
+            logger.error(f"Redis save_state error: {e}")
 
-    async def cleanup_all(self) -> None:
-        """Clean up all sessions."""
-        async with self._lock:
-            for session_id in list(self._sessions.keys()):
-                try:
-                    session = self._sessions.get(session_id)
-                    if session:
-                        await session.cleanup()
-                except Exception as e:
-                    logger.error(f"Error cleaning up session {session_id}: {e}")
-            
-            self._sessions.clear()
+_registry: Optional[RedisSessionRegistry] = None
 
-
-# Global registry instance
-_registry: Optional[SessionRegistry] = None
-
-
-def get_session_registry() -> SessionRegistry:
-    """Get the global session registry."""
+def get_session_registry() -> RedisSessionRegistry:
+    """Get the global stateless session registry."""
     global _registry
     if _registry is None:
-        _registry = SessionRegistry()
+        _registry = RedisSessionRegistry()
     return _registry
-

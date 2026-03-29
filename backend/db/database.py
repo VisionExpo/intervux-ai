@@ -3,8 +3,9 @@ import os
 from datetime import datetime
 
 from dotenv import load_dotenv
-from sqlalchemy import Column, DateTime, Float, Integer, String, create_engine, Text, Boolean
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy import Column, DateTime, Float, Integer, String, Text, Boolean
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.orm import declarative_base
 
 load_dotenv()
 
@@ -13,8 +14,11 @@ DATABASE_URL = os.getenv(
     "postgresql://postgres:postgres@localhost:5432/intervux"
 )
 
-engine = create_engine(
-    DATABASE_URL,
+# Convert sync URL to asyncpg driver natively
+async_db_url = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+
+engine = create_async_engine(
+    async_db_url,
     pool_pre_ping=True,
     pool_recycle=int(os.getenv("DB_POOL_RECYCLE_S", "1800")),
     pool_size=int(os.getenv("DB_POOL_SIZE", "10")),
@@ -22,21 +26,18 @@ engine = create_engine(
     pool_timeout=int(os.getenv("DB_POOL_TIMEOUT_S", "30")),
 )
 
-SessionLocal = sessionmaker(
+AsyncSessionLocal = async_sessionmaker(
     autocommit=False,
     autoflush=False,
-    bind=engine
+    bind=engine,
+    expire_on_commit=False,
 )
 
 Base = declarative_base()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        yield session
 
 # =========================================================
 # User Model
@@ -120,4 +121,3 @@ class Experiment(Base):
     accuracy = Column(Float, nullable=True)
     latency_ms = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
