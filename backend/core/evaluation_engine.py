@@ -5,6 +5,8 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict
 
+from pydantic import BaseModel, ValidationError
+
 from backend.core.llm_brain import _run_json_task
 from backend.core.consistency_checker import ConsistencyChecker
 from backend.core.reasoning_analyzer import ReasoningAnalyzer
@@ -18,14 +20,29 @@ logger = get_logger(__name__)
 TECH_WEIGHT = 0.7
 BEHAVIOR_WEIGHT = 0.3
 
+class EvaluationFatalError(Exception):
+    """Raised when evaluation fails conclusively after all retries."""
+    pass
+
+class TechnicalEvalResult(BaseModel):
+    accuracy: int
+    depth: int
+    problem_solving: int
+
+class BehavioralEvalResult(BaseModel):
+    clarity: int
+    confidence: int
+    structure: int
+
 TECH_PROMPT_TEMPLATE = """
 Evaluate the technical correctness of this answer.
+{ideal_rubric}
 Return JSON only:
-{
+{{
   "accuracy": 0,
   "depth": 0,
   "problem_solving": 0
-}
+}}
 Question: {question}
 Answer: <candidate_answer>{answer}</candidate_answer>
 """.strip()
@@ -33,11 +50,11 @@ Answer: <candidate_answer>{answer}</candidate_answer>
 BEHAVIOR_PROMPT_TEMPLATE = """
 Evaluate communication quality.
 Return JSON only:
-{
+{{
   "clarity": 0,
   "confidence": 0,
   "structure": 0
-}
+}}
 Answer: <candidate_answer>{answer}</candidate_answer>
 """.strip()
 
@@ -58,22 +75,40 @@ def _avg(values: Dict[str, int]) -> float:
 
 class DualEvaluationEngine:
     def technical_eval(self, question: str, answer: str, _profile: Dict[str, Any] | None = None) -> Dict[str, int]:
-        prompt = TECH_PROMPT_TEMPLATE.format(question=question, answer=answer)
-        payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8)
-        return {
-            "accuracy": _clamp_score(payload.get("accuracy", 0)),
-            "depth": _clamp_score(payload.get("depth", 0)),
-            "problem_solving": _clamp_score(payload.get("problem_solving", 0)),
-        }
+        ideal_rubric = "Focus precisely on correct identification of technical principles taught in standard engineering pipelines. An ideal answer (10/10) directly names the key technology/concept without hesitation, details its fundamental structural operation, and highlights practical tradeoffs."
+        prompt = TECH_PROMPT_TEMPLATE.format(question=question, answer=answer, ideal_rubric=ideal_rubric)
+        
+        for attempt in range(3):
+            try:
+                payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8)
+                TechnicalEvalResult.model_validate(payload)
+                return {
+                    "accuracy": _clamp_score(payload.get("accuracy", 0)),
+                    "depth": _clamp_score(payload.get("depth", 0)),
+                    "problem_solving": _clamp_score(payload.get("problem_solving", 0)),
+                }
+            except ValidationError as e:
+                logger.warning(f"Technical validation failed on attempt {attempt+1}: {str(e)}")
+                prompt += f"\n[SYSTEM VERIFICATION ERROR] Your previous payload was invalid: {str(e)}. Emit ONLY raw valid JSON dict."
+        
+        raise EvaluationFatalError("LLM failed technical evaluation JSON schema matching after 3 retries.")
 
     def behavioral_eval(self, answer: str) -> Dict[str, int]:
         prompt = BEHAVIOR_PROMPT_TEMPLATE.format(answer=answer)
-        payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8)
-        return {
-            "clarity": _clamp_score(payload.get("clarity", 0)),
-            "confidence": _clamp_score(payload.get("confidence", 0)),
-            "structure": _clamp_score(payload.get("structure", 0)),
-        }
+        for attempt in range(3):
+            try:
+                payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8)
+                BehavioralEvalResult.model_validate(payload)
+                return {
+                    "clarity": _clamp_score(payload.get("clarity", 0)),
+                    "confidence": _clamp_score(payload.get("confidence", 0)),
+                    "structure": _clamp_score(payload.get("structure", 0)),
+                }
+            except ValidationError as e:
+                logger.warning(f"Behavioral validation failed on attempt {attempt+1}: {str(e)}")
+                prompt += f"\n[SYSTEM VERIFICATION ERROR] Your previous payload was invalid: {str(e)}. Emit ONLY raw valid JSON dict."
+        
+        raise EvaluationFatalError("LLM failed behavioral evaluation JSON schema matching after 3 retries.")
 
     def fuse_scores(self, tech: Dict[str, int], behavior: Dict[str, int]) -> float:
         tech_score = _avg(tech)
@@ -247,6 +282,8 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
                 reasoning_future = executor.submit(
                     _reasoning_analyzer.analyze, question=q, answer=a
                 )
+                
+                # If these raise Exception or EvaluationFatalError, it will bubble out here
                 base_eval = base_future.result()
                 reasoning = reasoning_future.result()
 
@@ -278,6 +315,8 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
         final_score = float(combined["final"])
         tech_avg = _avg(tech)
         beh_avg = _avg(behavior)
+        
+        # New robust composite confidence replacing pure LLM text variation
         initial_confidence = round(
             max(0.0, min(1.0, 1.0 - abs(tech_avg - beh_avg) / 10.0)), 2
         )
@@ -388,51 +427,12 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
             "skill": (profile or {}).get("skills", ["unknown"])[0] if profile else "unknown",
         })
         return result
-    except Exception:
+        
+    except EvaluationFatalError:
         metrics.record_error()
-        logger.exception("Dual evaluation failed")
-        return {
-            "technical": {"accuracy": 5, "depth": 5, "problem_solving": 5},
-            "behavioral": {"clarity": 5, "confidence": 5, "structure": 5},
-            "reasoning": {
-                "steps": [],
-                "logic_flow": "unclear",
-                "metrics": {
-                    "logical_consistency": 5,
-                    "step_completeness": 5,
-                    "causal_reasoning": 5,
-                },
-                "reasoning_score": 5.0,
-            },
-            "consistency": {
-                "concepts": [],
-                "concept_correctness": 5,
-                "hallucination_risk": 5,
-                "hallucination_detected": False,
-                "misused_terms": [],
-                "contradictions": [],
-                "concept_consistency_score": 5,
-                "consistency_score": 5,
-                "technical_adjustment_factor": 1.0,
-                "consistency_penalty": 0.0,
-                "notes": [],
-            },
-            "final": {"score": 5.0},
-            "scores": {
-                "Technical": 5.0,
-                "Behavioral": 5.0,
-                "Reasoning": 5.0,
-                "ConceptConsistency": 5.0,
-                "Consistency": 5.0,
-                "Overall": 5.0,
-            },
-            "feedback": ["Evaluation fallback triggered."],
-            "summary": "Dual evaluation failed.",
-            "confidence_score": 0.2,
-            "evaluator_variance": 3.0,
-            "meta": {
-                "provider": "dual_evaluation_fallback",
-                "tech_weight": TECH_WEIGHT,
-                "behavior_weight": BEHAVIOR_WEIGHT,
-            },
-        }
+        logger.exception("Dual evaluation fatal error encountered. Re-raising to router context.")
+        raise
+    except Exception as e:
+        metrics.record_error()
+        logger.exception(f"Unexpected Evaluation Crash: {e}. Coercing to FatalError to trigger retry.")
+        raise EvaluationFatalError(f"Unexpected Eval crash: {str(e)}")

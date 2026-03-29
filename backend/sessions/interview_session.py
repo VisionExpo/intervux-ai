@@ -24,6 +24,7 @@ from backend.services.interview_persistence import (
     complete_mock_interview,
     fail_mock_interview,
 )
+from backend.core.evaluation_engine import EvaluationFatalError
 from backend.utils.logger import get_logger
 from backend.utils.metrics import metrics
 
@@ -278,16 +279,24 @@ class InterviewSession:
         audio_bytes = self.audio_buffer.bytes()
 
         # Evaluate the answer
-        eval_result = await self.engine.evaluate_answer(
-            state=self.state,
-            audio_bytes=audio_bytes,
-            transcript=self._partial_transcript or "",
-            question=question,
-            session_policy=self.session_policy,
-            eval_context_cache=self.eval_context_cache,
-            draft_transcript=self._partial_transcript,
-            early_eval_task=self._early_eval_task,
-        )
+        try:
+            eval_result = await self.engine.evaluate_answer(
+                state=self.state,
+                audio_bytes=audio_bytes,
+                transcript=self._partial_transcript or "",
+                question=question,
+                session_policy=self.session_policy,
+                eval_context_cache=self.eval_context_cache,
+                draft_transcript=self._partial_transcript,
+                early_eval_task=self._early_eval_task,
+            )
+        except EvaluationFatalError:
+            logger.warning(f"EvaluationFatalError raised for session {self.session_id}. Requesting candidate repeat.")
+            return {
+                "type": "system_message",
+                "text": "I didn't quite catch the logic in that response. Could you explain it one more time?",
+            }
+
 
         # Reset audio state
         self.audio_buffer.clear()

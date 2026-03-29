@@ -69,23 +69,10 @@ class InterviewEngine:
         file_bytes_b64: str,
         session_policy: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """
-        Initialize interview with resume.
-        
-        Args:
-            state: Interview state object
-            file_name: Resume file name
-            file_bytes_b64: Base64-encoded resume bytes
-            session_policy: Session load policy
-            
-        Returns:
-            Response with first question
-        """
         logger.info("Resume received")
         logger.info(f"Resume size: {len(file_bytes_b64)}")
         state.transition_to(InterviewState.phase.__class__.WAITING_RESUME)
         
-        # Parse resume
         logger.info("Starting resume parsing")
         resume_start = time.time()
         parsed_resume = await self._parse_resume(file_name, file_bytes_b64)
@@ -109,7 +96,6 @@ class InterviewEngine:
             
         metrics.record_latency("resume_parsing", time.time() - resume_start)
         
-        # Initialize question generation
         logger.info("Generating first question")
         question_start = time.time()
         state.target_question_count = int(session_policy.get("question_count", 2))
@@ -123,7 +109,6 @@ class InterviewEngine:
         state.skill_max_difficulty = {}
         seed_memory_projects(state.memory, state.profile.model_dump())
         
-        # Generate initial question
         initial_memory_context = build_memory_context(state.memory)
         (
             first_question,
@@ -151,20 +136,7 @@ class InterviewEngine:
         state.current_index = 0
         
         metrics.record_latency("question_generation", time.time() - question_start)
-        
         state.transition_to(InterviewState.phase.__class__.QUESTION)
-        
-        logger.info(
-            "Interview initialized",
-            extra={
-                "extra_data": {
-                    "skills_count": len(state.profile.skills),
-                    "questions_count": state.target_question_count,
-                    "first_skill": first_skill,
-                    "first_topic": first_topic,
-                }
-            },
-        )
         
         return {
             "type": "question",
@@ -183,23 +155,7 @@ class InterviewEngine:
         draft_transcript: str = "",
         early_eval_task: Any = None,
     ) -> Dict[str, Any]:
-        """
-        Process audio answer and transcribe.
-        
-        Args:
-            state: Interview state
-            audio_bytes: Raw audio data
-            question: Current question being answered
-            profile: Candidate profile
-            session_policy: Session policy
-            draft_transcript: Partial transcript from streaming
-            early_eval_task: Early evaluation task if running
-            
-        Returns:
-            Transcript and audio metadata
-        """
         stt_start = time.time()
-        
         if audio_bytes:
             transcript = await self._transcribe_audio(
                 audio_bytes,
@@ -210,7 +166,6 @@ class InterviewEngine:
             
         stt_duration = time.time() - stt_start
         metrics.record_latency("stt", stt_duration)
-        
         if not transcript:
             transcript = "(No transcript captured)"
             
@@ -232,22 +187,6 @@ class InterviewEngine:
         draft_transcript: str = "",
         early_eval_task: Any = None,
     ) -> Dict[str, Any]:
-        """
-        Evaluate an answer and prepare next question.
-        
-        Args:
-            state: Interview state
-            audio_bytes: Audio data
-            transcript: Transcribed answer
-            question: Question that was asked
-            session_policy: Session policy
-            eval_context_cache: Evaluation context cache
-            draft_transcript: Partial transcript from streaming
-            early_eval_task: Early evaluation task
-            
-        Returns:
-            Evaluation results
-        """
         state.transition_to(InterviewState.phase.__class__.PROCESSING)
         
         current_index = state.current_index
@@ -257,7 +196,6 @@ class InterviewEngine:
         concept = state.concepts[current_index] if current_index < len(state.concepts) else topic
         concept_difficulty = state.concept_difficulties[current_index] if current_index < len(state.concept_difficulties) else state.current_difficulty
         
-        # Get evaluation
         eval_start = time.time()
         evaluation = await self._evaluate(
             question=question,
@@ -272,10 +210,16 @@ class InterviewEngine:
         eval_duration = time.time() - eval_start
         metrics.record_latency("evaluation", eval_duration)
         
-        # Normalize scores
-        evaluation = self._normalize_scores(evaluation, state.answers)
+        # Anomaly Detection Optimization
+        current_score = float(evaluation.get("final", {}).get("score", 0.0))
+        historical_scores = [float(ans.get("evaluation", {}).get("final", {}).get("score", 0.0)) for ans in state.answers[-3:]]
         
-        # Update topic scores and memory
+        if historical_scores:
+            rolling_avg = sum(historical_scores) / len(historical_scores)
+            if abs(current_score - rolling_avg) > 3.0:
+                logger.warning(f"Anomaly Detected! Score {current_score} deviates from rolling average {rolling_avg} by >3 points.")
+                evaluation.setdefault("meta", {})["anomaly_flagged"] = True
+        
         update_topic_scores(state.topic_scores, topic, evaluation)
         update_memory(
             state.memory,
@@ -285,7 +229,6 @@ class InterviewEngine:
             topic=topic,
         )
         
-        # Store answer
         state.answers.append({
             "question": question,
             "skill": skill,
@@ -297,7 +240,6 @@ class InterviewEngine:
             "evaluation": evaluation,
         })
         
-        # Update skill coverage
         if state.skill_coverage is not None:
             state.skill_coverage.update(skill)
         state.skill_max_difficulty[skill] = max(
@@ -328,29 +270,16 @@ class InterviewEngine:
         last_evaluation: dict,
         session_policy: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
-        """
-        Generate the next question based on evaluation.
-        
-        Args:
-            state: Interview state
-            last_evaluation: Last answer evaluation
-            session_policy: Session policy
-            
-        Returns:
-            Next question response or None if interview complete
-        """
         if not self._should_continue(state):
             return None
             
         state.transition_to(InterviewState.phase.__class__.NEXT_QUESTION)
         
-        # Get last answer details
         last_answer = state.answers[-1] if state.answers else {}
         topic = last_answer.get("topic", "general")
         skill = last_answer.get("skill", "Machine Learning")
         question = last_answer.get("question", "")
         
-        # Update difficulty
         score_value = sum(last_evaluation.get("scores", {}).values()) / max(1, len(last_evaluation.get("scores", {})))
         confidence_value = float(last_evaluation.get("confidence_score", 0.7) or 0.7)
         
@@ -359,9 +288,7 @@ class InterviewEngine:
                 score_value, confidence_value
             )
         
-        # Generate next question
         memory_context = build_memory_context(state.memory)
-        # Derive current_concept from session state before generating next question
         current_concept = state.concepts[-1] if state.concepts else ""
 
         (
@@ -409,29 +336,17 @@ class InterviewEngine:
         self,
         state: InterviewState,
     ) -> Dict[str, Any]:
-        """
-        Generate final report and complete interview.
-        
-        Args:
-            state: Interview state
-            
-        Returns:
-            Interview complete response with report
-        """
         state.transition_to(InterviewState.phase.__class__.COMPLETE)
-        
         report_start = time.time()
         report = await self._generate_report(
             profile=state.profile.model_dump(),
             answers=state.answers,
         )
-        
         if isinstance(report, dict):
             report["skill_performance"] = self._build_skill_performance_summary(state)
             
         metrics.record_latency("final_report", time.time() - report_start)
         metrics.record_interview_completed()
-        
         state.final_report = report
         
         return {
@@ -440,21 +355,17 @@ class InterviewEngine:
         }
 
     def _should_continue(self, state: InterviewState) -> bool:
-        """Check if interview should continue."""
         if state.current_index >= self.max_questions_hard_cap:
             return False
-
         under_target = state.current_index < state.target_question_count
         if state.skill_coverage is None:
             return under_target
-            
         coverage_met = state.skill_coverage.meets_minimum(self.min_questions_per_skill)
         return under_target or (not coverage_met)
 
     # ==================== Private Helper Methods ====================
 
     async def _parse_resume(self, file_name: str, file_bytes_b64: str) -> ParsedResume:
-        """Parse resume bytes."""
         try:
             return await asyncio.to_thread(parse_resume_from_b64, file_name, file_bytes_b64)
         except Exception:
@@ -469,7 +380,6 @@ class InterviewEngine:
         memory_context: str,
         start_difficulty: int,
     ) -> Tuple[str, str, str, str, int, str, int]:
-        """Generate initial interview question."""
         return await asyncio.to_thread(
             partial(
                 generate_initial_question,
@@ -497,7 +407,6 @@ class InterviewEngine:
         memory_context: str,
         current_concept: str,
     ) -> Tuple[str, str, str, str, int, str, int]:
-        """Generate next question."""
         return await asyncio.to_thread(
             partial(
                 build_next_question,
@@ -518,7 +427,6 @@ class InterviewEngine:
         )
 
     async def _transcribe_audio(self, audio_bytes: bytes, suffix: str) -> str:
-        """Transcribe audio bytes."""
         return await asyncio.to_thread(
             partial(
                 transcribe_audio_bytes,
@@ -538,7 +446,6 @@ class InterviewEngine:
         draft_transcript: str = "",
         early_eval_task: Any = None,
     ) -> dict:
-        """Evaluate answer."""
         return await asyncio.to_thread(
             partial(
                 self.evaluation_service.evaluate_full,
@@ -550,7 +457,6 @@ class InterviewEngine:
         )
 
     async def _generate_report(self, profile: dict, answers: list) -> dict:
-        """Generate final report."""
         return await asyncio.to_thread(
             partial(
                 generate_final_report,
@@ -560,53 +466,8 @@ class InterviewEngine:
         )
 
     @staticmethod
-    def _normalize_scores(evaluation: dict, previous_answers: list) -> dict:
-        """Normalize scores based on session history."""
-        scores = evaluation.get("scores")
-        if not isinstance(scores, dict) or not scores:
-            return evaluation
-
-        history_values: Dict[str, list] = {}
-        for answer in previous_answers:
-            prev_scores = answer.get("evaluation", {}).get("scores", {})
-            if not isinstance(prev_scores, dict):
-                continue
-            for key, value in prev_scores.items():
-                try:
-                    history_values.setdefault(key, []).append(float(value))
-                except Exception:
-                    continue
-
-        if not history_values:
-            return evaluation
-
-        normalized = dict(scores)
-        for key, value in scores.items():
-            try:
-                raw = float(value)
-            except Exception:
-                continue
-
-            history = history_values.get(key, [])
-            if not history:
-                normalized[key] = int(max(0, min(10, round(raw))))
-                continue
-
-            avg = sum(history) / len(history)
-            target = 7.5
-            factor = max(0.75, min(1.0, target / avg)) if avg > 0 else 1.0
-            adjusted = raw * factor
-            normalized[key] = int(max(0, min(10, round(adjusted))))
-
-        evaluation["scores"] = normalized
-        evaluation.setdefault("meta", {})["normalized"] = True
-        return evaluation
-
-    @staticmethod
     def _build_skill_performance_summary(state: InterviewState) -> Dict[str, Dict[str, float]]:
-        """Build skill performance summary."""
         summary: Dict[str, Dict[str, float]] = {}
-        
         for answer in state.answers:
             skill = answer.get("skill")
             if not isinstance(skill, str) or not skill.strip():
@@ -641,7 +502,6 @@ class InterviewEngine:
 
     @staticmethod
     def _detect_audio_suffix(audio_bytes: bytes) -> str:
-        """Detect audio format from bytes."""
         if audio_bytes.startswith(b"RIFF"):
             return ".wav"
         if audio_bytes.startswith(b"\x1a\x45\xdf\xa3"):
@@ -652,11 +512,6 @@ class InterviewEngine:
 
     @staticmethod
     def _estimate_speech_duration(audio_bytes: bytes) -> float:
-        """Estimate speech duration from audio bytes."""
-        # Simple estimation - assumes ~16kHz mono 16-bit
-        if len(audio_bytes) < 44:  # WAV header
+        if len(audio_bytes) < 44:
             return 0.0
-        return len(audio_bytes) / 32000  # ~16kHz * 2 bytes per sample
-
-
-
+        return len(audio_bytes) / 32000

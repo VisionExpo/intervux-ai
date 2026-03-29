@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import threading
 import time
 import urllib.error
@@ -75,9 +76,8 @@ Strategy: {strategy}
 Preferred Skill: {preferred_skill}
 Allowed Skills: {allowed_skills_json}
 Previous Question: {previous_question}
-Evaluation Summary: {evaluation_summary}
-Memory Context:
-{memory_context}
+Evaluation Summary: <evaluation_summary>{evaluation_summary}</evaluation_summary>
+Memory Context: <memory_context>{memory_context}</memory_context>
 Generate a question that can reference earlier candidate statements when relevant.
 """.strip()
 
@@ -117,7 +117,12 @@ _CB_STATE: Dict[str, Dict[str, float]] = {}
 
 
 def _safe_json_loads(payload: str, expected_type: type):
-    parsed = json.loads(payload)
+    clean_payload = payload.strip()
+    match = re.search(r"```(?:json)?\s*(.*?)\s*```", clean_payload, flags=re.DOTALL | re.IGNORECASE)
+    if match:
+        clean_payload = match.group(1).strip()
+    
+    parsed = json.loads(clean_payload)
     if not isinstance(parsed, expected_type):
         raise ValueError(
             f"Expected {expected_type.__name__}, got {type(parsed).__name__}"
