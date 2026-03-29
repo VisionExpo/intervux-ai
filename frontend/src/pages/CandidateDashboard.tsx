@@ -58,7 +58,7 @@ export default function CandidateDashboard() {
 
   return (
     <div className="page-container">
-      <div className="dashboard-header">
+      <div className="dashboard-header animate-fade-up">
         <h1>Welcome {profile?.name || user?.name || "Candidate"}</h1>
         <div className="nav-links">
           <a href="#/profile">Profile</a>
@@ -68,7 +68,7 @@ export default function CandidateDashboard() {
         </div>
       </div>
 
-      <div className="dashboard-status-cards">
+      <div className="dashboard-status-cards animate-fade-up stagger-1">
         <div className="status-card">
           <h3>Resume uploaded</h3>
           <div className="status-indicator">
@@ -89,7 +89,7 @@ export default function CandidateDashboard() {
         </div>
       </div>
 
-      <div className="dashboard-cards">
+      <div className="dashboard-cards animate-fade-up stagger-2">
         <div className="score-card">
           <h3>Profile Score</h3>
           <div className="score-value">{dashboard?.profile_score.toFixed(0) || 0}</div>
@@ -106,7 +106,7 @@ export default function CandidateDashboard() {
         </div>
       </div>
 
-      <div className="dashboard-section">
+      <div className="dashboard-section animate-fade-up stagger-3">
         <h2>Recent Activity</h2>
         {dashboard?.recent_activity && dashboard.recent_activity.length > 0 ? (
           <ul className="activity-list">
@@ -119,7 +119,7 @@ export default function CandidateDashboard() {
         )}
       </div>
 
-      <div className="dashboard-actions">
+      <div className="dashboard-actions animate-fade-up stagger-4">
         {dashboard?.mock_interviews_remaining !== undefined && dashboard.mock_interviews_remaining > 0 ? (
           <a href="#/mock-interview" className="action-button primary">
             Start Mock Interview

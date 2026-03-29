@@ -1,14 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "./abandoned-status.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  line-height: 1.4;
+  /* Core Typography */
+  --font-primary: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  
+  /* Color Palette - Premium Light/Glass */
+  --color-bg-mesh-1: #e0eafd;
+  --color-bg-mesh-2: #f2e3f5;
+  --color-bg-mesh-3: #fef5d8;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-primary-base: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-accent: #8b5cf6;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+  
+  /* Glass Surfaces */
+  --surface-glass: rgba(255, 255, 255, 0.65);
+  --border-glass: rgba(255, 255, 255, 0.4);
+  --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 20px 40px -5px rgba(0, 0, 0, 0.08), 0 10px 20px -5px rgba(0, 0, 0, 0.04);
+  --blur-md: blur(12px);
+  --blur-lg: blur(20px);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family: var(--font-primary);
   font-weight: 400;
-  color: #1a2940;
-  background-color: #f2efe8;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-mesh-1);
+  background-image: 
+    radial-gradient(at 0% 0%, var(--color-bg-mesh-1) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, var(--color-bg-mesh-2) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, var(--color-bg-mesh-3) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, #eff6ff 0px, transparent 50%);
+  background-attachment: fixed;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -19,12 +53,20 @@
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  background: radial-gradient(circle at top left, #f7d2b4 0%, #f2efe8 45%, #dce9f7 100%);
+/* Base Animations & Utilities */
+@keyframes fadeUp {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
+
+.animate-fade-up {
+  animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
 
 /* Interview Layout Styles */
 .interview-layout {
