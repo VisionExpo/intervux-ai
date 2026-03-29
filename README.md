@@ -120,10 +120,10 @@ Once the terminal logs calm down, the servers are running!
 ```powershell
 python -m venv myenv
 .\myenv\Scripts\activate
-pip install -r requirements/requirements.txt
+pip install -r backend/requirements.txt
 ```
 
-*(Windows developers only: `pip install -r requirements/requirements-windows.txt`)*
+*(Windows developers only: `pip install -r requirements/windows.txt`)*
 
 Create a local `.env` copy and connect it to your local Postgres/Redis instances:
 ```env
@@ -206,7 +206,7 @@ flowchart TD
 To validate system reliability before a deployment, run the unified tracking suite.
 
 ```powershell
-pip install -r requirements/requirements-test.txt
+pip install -r requirements/test.txt
 pytest -v
 ```
 
