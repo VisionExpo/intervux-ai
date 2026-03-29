@@ -20,9 +20,7 @@ export default function AudioStreamHandler({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const silenceTimerRef = useRef<number | null>(null);
-  const [isListening, setIsListening] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_audioLevel, setAudioLevel] = useState(0);
+  const isListeningRef = useRef(false);
 
   const stopStream = useCallback(() => {
     if (silenceTimerRef.current) {
@@ -44,8 +42,7 @@ export default function AudioStreamHandler({
       audioContextRef.current = null;
     }
 
-    setIsListening(false);
-    setAudioLevel(0);
+    isListeningRef.current = false;
   }, []);
 
   const startStream = useCallback(async () => {

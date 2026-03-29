@@ -69,11 +69,8 @@ function App() {
       case "/notifications":
         return <CandidateNotifications />;
       case "/logout":
-        // Handle logout
-        localStorage.removeItem("auth_token");
-        window.location.hash = "#/login";
-        window.location.reload();
-        return <Login />;
+        // Use a wrapper component to handle side effects
+        return <LogoutRedirect />;
       default:
         return <CandidateProfile />;
     }
@@ -84,3 +81,12 @@ function App() {
 }
 
 export default App;
+
+function LogoutRedirect() {
+  useEffect(() => {
+    localStorage.removeItem("auth_token");
+    window.location.hash = "#/login";
+    window.location.reload();
+  }, []);
+  return <div className="login-page"><div className="login-container"><p>Logging out...</p></div></div>;
+}

@@ -84,9 +84,14 @@ export default function InterviewPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (stage === "INTERVIEW_COMPLETE" && finalReport) {
+      sessionStorage.setItem("interview_report", JSON.stringify(finalReport));
+      window.location.hash = "#/report";
+    }
+  }, [stage, finalReport]);
+
   if (stage === "INTERVIEW_COMPLETE" && finalReport) {
-    sessionStorage.setItem("interview_report", JSON.stringify(finalReport));
-    window.location.hash = "#/report";
     return null;
   }
 
