@@ -124,6 +124,7 @@ export default function InterviewHistory() {
                 </tr>
               </thead>
               <tbody>
+<<<<<<< HEAD
                 {interviews.map((interview) => (
                   <tr
                     key={interview.id}
@@ -148,6 +149,26 @@ export default function InterviewHistory() {
                     </td>
                   </tr>
                 ))}
+=======
+                {interviews.map((interview) => {
+                  const { label, className } = statusMeta(interview.status);
+                  return (
+                    <tr
+                      key={interview.id}
+                      onClick={() => setSelectedInterview(interview)}
+                      className={selectedInterview?.id === interview.id ? "selected" : ""}
+                    >
+                      <td>Interview #{interview.interview_number}</td>
+                      <td>{new Date(interview.created_at).toLocaleDateString()}</td>
+                      <td><span className={`status-badge ${className}`}>{label}</span></td>
+                      <td>{interview.score              !== null ? interview.score.toFixed(0)              : "-"}</td>
+                      <td>{interview.technical_score    !== null ? interview.technical_score.toFixed(0)    : "-"}</td>
+                      <td>{interview.communication_score !== null ? interview.communication_score.toFixed(0) : "-"}</td>
+                      <td>{interview.reasoning_score    !== null ? interview.reasoning_score.toFixed(0)    : "-"}</td>
+                    </tr>
+                  );
+                })}
+>>>>>>> 95c2f149078e6e1493dde90169c0aae0273e022c
               </tbody>
             </table>
           </div>
@@ -165,10 +186,49 @@ export default function InterviewHistory() {
                 <label>Date</label>
                 <span>{new Date(selected.interview.created_at).toLocaleString()}</span>
               </div>
+<<<<<<< HEAD
               {selected.interview.completed_at && (
                 <div className="detail-item">
                   <label>Completed</label>
                   <span>{new Date(selected.interview.completed_at).toLocaleString()}</span>
+=======
+
+              {/* Explain abandoned rows clearly */}
+              {selectedInterview.status === "abandoned" && (
+                <p style={{
+                  background: "#f3ede1", border: "1px solid #d9c9b0",
+                  borderRadius: 8, padding: "0.75rem", color: "#6c5a3d",
+                  fontSize: "0.9rem", margin: "1rem 0",
+                }}>
+                  This interview was interrupted before completion - no scores were
+                  recorded. You can start a new interview from the Mock Interview page.
+                </p>
+              )}
+
+              {/* Score bars - completed only */}
+              {selectedInterview.status === "completed" && selectedInterview.score !== null && (
+                <div className="score-breakdown">
+                  <h4>Score Breakdown</h4>
+                  <div className="score-bars">
+                    {([
+                      ["Overall",       selectedInterview.score],
+                      ["Technical",     selectedInterview.technical_score ?? 0],
+                      ["Communication", selectedInterview.communication_score ?? 0],
+                      ["Reasoning",     selectedInterview.reasoning_score ?? 0],
+                    ] as [string, number][]).map(([label, value]) => (
+                      <div key={label} className="score-bar-item">
+                        <span className="score-label">{label}</span>
+                        <div className="score-bar">
+                          <div className="score-fill" style={{ width: `${value}%` }} />
+                        </div>
+                        <span className="score-number">{value.toFixed(0)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ textAlign: "center", marginTop: "1rem" }}>
+                    <a href="#/report" className="action-button primary">View Full Report</a>
+                  </div>
+>>>>>>> 95c2f149078e6e1493dde90169c0aae0273e022c
                 </div>
               )}
               <div className="detail-item">

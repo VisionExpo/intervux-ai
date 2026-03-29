@@ -23,6 +23,9 @@ class InterviewPhase(Enum):
 
     def can_receive(self, message_type: str) -> bool:
         """Check if current phase can receive this message type."""
+        if message_type == "ping":
+            return True
+
         transitions = {
             InterviewPhase.WAITING_RESUME: {"resume_upload"},
             InterviewPhase.PROCESSING_RESUME: set(),

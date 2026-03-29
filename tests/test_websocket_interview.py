@@ -6,7 +6,7 @@ These are real integration tests that open an actual WebSocket connection
 against a TestClient-backed FastAPI app with a SQLite test database.
 
 Each test that exercises the protocol sends real JSON/binary messages and
-asserts on the responses the server returns — replacing the previous file
+asserts on the responses the server returns - replacing the previous file
 full of `pass` and `assert True` stubs.
 
 Coverage:
@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session, sessionmaker
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_ws_interview.db")
 os.environ.setdefault("JWT_SECRET_KEY", "test-ws-secret-key")
 os.environ.setdefault("DISABLE_STT", "true")          # no Whisper in CI
+os.environ.setdefault("DISABLE_TTS", "true")          # avoid network TTS in CI
 os.environ.setdefault("GOOGLE_API_KEY", "FAKE_KEY")   # no Gemini calls in CI
 os.environ.setdefault("MAX_CONCURRENT_SESSIONS", "5")
 os.environ.setdefault("RATE_LIMIT_WS_PER_MINUTE", "30")
@@ -158,7 +159,7 @@ class TestWebSocketAuthentication:
             assert len(msg["text"]) > 0
 
     def test_connection_accepted_with_recruiter_token(self, client: TestClient):
-        """Recruiter token is also a valid JWT — gateway accepts any valid token."""
+        """Recruiter token is also a valid JWT - gateway accepts any valid token."""
         token = _make_token(Role.RECRUITER)
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             msg = _drain_until(ws, "avatar_sync")
@@ -191,11 +192,11 @@ class TestWebSocketGreeting:
             )
 
     def test_greeting_is_followed_by_waiting_state(self, client: TestClient):
-        """After the greeting the server waits — no question arrives yet."""
+        """After the greeting the server waits - no question arrives yet."""
         token = _make_token()
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             _drain_until(ws, "avatar_sync")
-            # Send a ping — server should respond with pong, NOT a question
+            # Send a ping - server should respond with pong, NOT a question
             ws.send_text(json.dumps({"type": "ping"}))
             msg = _drain_until(ws, "pong")
             assert msg["type"] == "pong"

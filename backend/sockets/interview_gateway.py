@@ -468,6 +468,9 @@ class InterviewGateway:
         return "unknown"
 
     def _synthesize_tts_chunks(self, text: str) -> list:
+        if os.getenv("DISABLE_TTS", "false").lower() == "true":
+            return []
+
         chunks = []
         for segment in self._split_sentences(text):
             audio_bytes, visemes = synthesize_speech_with_visemes(segment)

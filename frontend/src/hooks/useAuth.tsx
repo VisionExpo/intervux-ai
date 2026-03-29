@@ -26,6 +26,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
 
 interface LoginResponse {
   access_token: string;
@@ -40,6 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return localStorage.getItem("auth_token");
   });
   const [isLoading, setIsLoading] = useState(true);
+  const resetAuthState = useCallback(() => {
+    setToken(null);
+    setUser(null);
+  }, []);
 
   // Fetch user profile on mount if token exists
   useEffect(() => {
@@ -64,15 +69,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else {
             // Token invalid, clear it
             localStorage.removeItem("auth_token");
+            resetAuthState();
           }
         } catch {
           localStorage.removeItem("auth_token");
+          resetAuthState();
         }
       }
       setIsLoading(false);
     };
     void initAuth();
-  }, []);
+  }, [resetAuthState]);
 
   const login = useCallback(async (email: string, password: string) => {
     const formData = new URLSearchParams();
@@ -119,9 +126,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem("auth_token");
-    setToken(null);
-    setUser(null);
-  }, []);
+    resetAuthState();
+  }, [resetAuthState]);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      resetAuthState();
+    };
+
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+    return () => {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+    };
+  }, [resetAuthState]);
 
   return (
     <AuthContext.Provider
@@ -170,7 +187,8 @@ export async function authFetch<T>(
     if (response.status === 401) {
       // Token expired or invalid
       localStorage.removeItem("auth_token");
-      window.location.href = "/login";
+      window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
+      window.location.hash = "#/login";
       throw new Error("Unauthorized");
     }
     const error = await response.json().catch(() => ({ detail: "Request failed" }));
@@ -179,4 +197,3 @@ export async function authFetch<T>(
 
   return response.json();
 }
-
