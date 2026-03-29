@@ -209,7 +209,25 @@ def _should_fallback(exc: Exception) -> bool:
         "too many requests",
         "429",
     ]
-    return any(marker in msg for marker in quota_markers)
+    provider_unavailable_markers = [
+        "not configured",
+        "missing",
+        "api key",
+        "connection refused",
+        "connection reset",
+        "network is unreachable",
+        "timed out",
+        "temporary failure",
+        "name or service not known",
+        "service unavailable",
+        "bad gateway",
+        "502",
+        "503",
+        "504",
+        "invalid json",
+        "empty response",
+    ]
+    return any(marker in msg for marker in quota_markers + provider_unavailable_markers)
 
 
 def _provider_order() -> List[str]:
@@ -293,6 +311,8 @@ def _run_json_task(
             elapsed = time.time() - provider_start
             _record_provider_success(provider, elapsed)
             metrics.record_latency(f"llm_provider_{provider}_latency", elapsed)
+            if index > 0:
+                metrics.increment_counter("llm_fallback_success")
             parsed = _safe_json_loads(raw, expected_type)
             return parsed, provider
         except Exception as exc:
@@ -315,6 +335,8 @@ def _run_json_task(
             )
 
             if can_try_next:
+                metrics.increment_counter("llm_fallback_attempts")
+                metrics.increment_counter(f"llm_fallback_from_{provider}")
                 continue
             raise
 
@@ -610,23 +632,40 @@ def prewarm_llm():
     Best-effort prewarm to reduce first request latency.
     """
     prompt = '{"status":"ok"}'
-    try:
-        providers = _provider_order()
-        for provider in providers:
-            if _is_circuit_open(provider):
-                continue
-            started = time.time()
+    providers = _provider_order()
+    last_error: Exception | None = None
+
+    for index, provider in enumerate(providers):
+        if _is_circuit_open(provider):
+            continue
+
+        started = time.time()
+        try:
             raw = _call_provider(provider, prompt, temperature=0.0)
             parsed = _safe_json_loads(raw, dict)
             if parsed.get("status") != "ok":
                 raise ValueError("Prewarm response missing status=ok")
-            _record_provider_success(provider, time.time() - started)
-            metrics.record_latency("llm_prewarm", time.time() - started)
+
+            elapsed = time.time() - started
+            _record_provider_success(provider, elapsed)
+            metrics.record_latency("llm_prewarm", elapsed)
+            if index > 0:
+                metrics.increment_counter("llm_fallback_success")
             logger.info(
                 "LLM prewarm successful",
                 extra={"extra_data": {"provider": provider}},
             )
             return
-    except Exception:
-        metrics.record_error()
-        logger.exception("LLM prewarm failed")
+        except Exception as exc:
+            last_error = exc
+            _record_provider_failure(provider)
+            if index < len(providers) - 1 and _should_fallback(exc):
+                metrics.increment_counter("llm_fallback_attempts")
+                metrics.increment_counter(f"llm_fallback_from_{provider}")
+                continue
+
+    metrics.record_error()
+    logger.error(
+        "LLM prewarm failed",
+        extra={"extra_data": {"error": str(last_error) if last_error else "unknown"}},
+    )

@@ -6,6 +6,8 @@ _Last updated: 2026-03-29_
 
 Intervux AI already has a strong full-stack baseline: FastAPI + WebSocket interview runtime, React candidate/recruiter UI, candidate auth flows, and an established test suite (`173` tests discovered). The highest near-term opportunity is to improve delivery confidence by stabilizing the automated test pipeline, then focus on production-readiness hardening and frontend routing consistency.
 
+Recent progress: the LLM fallback system is now hardened to fail over on provider availability/configuration failures (not only quota scenarios), with dedicated unit coverage.
+
 ## Current Snapshot
 
 ### Architecture & Stack
