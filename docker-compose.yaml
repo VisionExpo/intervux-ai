@@ -38,7 +38,7 @@ services:
     container_name: intervux-backend
     # FIX: entrypoint runs `alembic upgrade head` before uvicorn starts.
     # Previously create_all ran inside lifespan and silently skipped column additions.
-    entrypoint: ["/app/docker-entrypoint.sh"]
+    entrypoint: ["/app/entrypoint.sh"]
     env_file:
       - .env.docker
     ports:
@@ -51,7 +51,7 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
-      - ./docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
+      - ./docker/entrypoint.sh:/app/entrypoint.sh:ro
     mem_limit: 2g
     memswap_limit: 2g
     healthcheck:
@@ -67,7 +67,7 @@ services:
       dockerfile: Dockerfile
     container_name: intervux-worker
     # FIX: worker also runs migrations so it is never ahead/behind the API server.
-    entrypoint: ["/app/docker-entrypoint.sh"]
+    entrypoint: ["/app/entrypoint.sh"]
     command: celery -A backend.core.celery_app:celery_app worker -l info --concurrency=2
     env_file:
       - .env.docker
@@ -79,7 +79,7 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
-      - ./docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
+      - ./docker/entrypoint.sh:/app/entrypoint.sh:ro
     mem_limit: 1g
     memswap_limit: 1g
     healthcheck:
