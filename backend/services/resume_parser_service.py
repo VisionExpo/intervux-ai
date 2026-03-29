@@ -5,7 +5,7 @@ This shim keeps service-style imports stable:
     from backend.services.resume_parser_service import parse_resume_from_b64
 """
 
-from backend.resume_parser.services import (  # noqa: F401
+from backend.ai.resume_parser.services import (  # noqa: F401
     ParsedExperience,
     ParsedProject,
     ParsedResume,

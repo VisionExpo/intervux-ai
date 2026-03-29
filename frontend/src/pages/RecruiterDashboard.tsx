@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 
-import AIEvaluationDashboard from "./AIEvaluationDashboard";
-import CandidateComparison from "./CandidateComparison";
-import CandidateList from "./CandidateList";
-import InterviewReplay from "./InterviewReplay";
-import InterviewReport from "./InterviewReport";
-import SkillAnalytics from "./SkillAnalytics";
+import AIEvaluationDashboard from "../components/dashboard/AIEvaluationDashboard";
+import CandidateComparison from "../components/dashboard/CandidateComparison";
+import CandidateList from "../components/dashboard/CandidateList";
+import InterviewReplay from "../components/dashboard/InterviewReplay";
+import InterviewReport from "../components/dashboard/InterviewReport";
+import SkillAnalytics from "../components/dashboard/SkillAnalytics";
 import { authFetch, useAuth } from "../hooks/useAuth";
 import type {
   CandidateComparisonRow,
@@ -14,7 +14,7 @@ import type {
   DashboardTab,
   EvaluationDashboardResponse,
   SkillAnalyticsResponse,
-} from "./types";
+} from "../types";
 
 export default function RecruiterDashboard() {
   const { logout, user } = useAuth();

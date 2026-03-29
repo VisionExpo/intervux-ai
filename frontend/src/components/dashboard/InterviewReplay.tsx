@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import type { ReplaySegment } from "./types";
+import type { ReplaySegment } from "../../types";
 
 interface InterviewReplayProps {
   segments: ReplaySegment[];

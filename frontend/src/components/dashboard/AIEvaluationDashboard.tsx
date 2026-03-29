@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 
-import type { EvaluationDashboardResponse } from "./types";
+import type { EvaluationDashboardResponse } from "../../types";
 
 interface AIEvaluationDashboardProps {
   data: EvaluationDashboardResponse | null;

@@ -17,7 +17,7 @@ import json
 import time
 from typing import Any, Dict, Optional
 
-from backend.engines.interview_engine import InterviewEngine
+from backend.ai.engines.interview_engine import InterviewEngine
 from backend.models.interview import InterviewPhase, InterviewState
 from backend.services.audio_buffer import AudioBuffer
 from backend.services.interview_persistence import (

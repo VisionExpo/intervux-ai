@@ -7,7 +7,7 @@ import {
   Tooltip,
 } from "recharts";
 
-import type { SkillAnalyticsResponse } from "./types";
+import type { SkillAnalyticsResponse } from "../../types";
 
 interface SkillAnalyticsProps {
   analytics: SkillAnalyticsResponse | null;

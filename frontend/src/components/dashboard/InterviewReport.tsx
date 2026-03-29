@@ -1,4 +1,4 @@
-import type { CandidateInterviewReport } from "./types";
+import type { CandidateInterviewReport } from "../../types";
 
 interface InterviewReportProps {
   report: CandidateInterviewReport | null;

@@ -106,7 +106,7 @@ def parse_resume_from_text(self, resume_text: str, file_type: str = "txt") -> Di
     logger.info(f"Parsing resume from text, type: {file_type}")
 
     try:
-        from backend.resume_parser.services import extract_entities
+        from backend.ai.resume_parser.services import extract_entities
 
         profile = extract_entities(resume_text or "")
 

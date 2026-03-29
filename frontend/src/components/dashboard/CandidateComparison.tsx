@@ -1,4 +1,4 @@
-import type { CandidateComparisonRow } from "./types";
+import type { CandidateComparisonRow } from "../../types";
 
 interface CandidateComparisonProps {
   rows: CandidateComparisonRow[];
