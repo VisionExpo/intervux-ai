@@ -340,6 +340,67 @@ class TestWebSocketCapacity:
 
 
 # =============================================================================
+# Stress / resilience tests
+# =============================================================================
+
+
+class TestWebSocketStress:
+    """
+    Lightweight stress tests designed to be CI-safe:
+    - rapid reconnect loop
+    - malformed JSON flood on a live connection
+    """
+
+    def test_rapid_reconnects_do_not_leak_session_slots(self, client: TestClient):
+        from backend.main import interview_gateway
+
+        before = interview_gateway._active_sessions
+        original_rate_limit = interview_gateway.rate_limit_per_minute
+
+        # Avoid false positives from per-IP rate limiting in this stress loop.
+        interview_gateway.rate_limit_per_minute = 10_000
+
+        try:
+            reconnect_count = 25
+            for _ in range(reconnect_count):
+                token = _make_token()
+                with client.websocket_connect(f"/ws/interview?token={token}") as ws:
+                    msg = _drain_until(ws, "avatar_sync")
+                    assert msg["type"] == "avatar_sync"
+        finally:
+            interview_gateway.rate_limit_per_minute = original_rate_limit
+
+        after = interview_gateway._active_sessions
+        assert after == before
+
+    def test_malformed_json_flood_stays_recoverable(self, client: TestClient):
+        from backend.main import interview_gateway
+
+        original_rate_limit = interview_gateway.rate_limit_per_minute
+        interview_gateway.rate_limit_per_minute = 10_000
+
+        try:
+            token = _make_token()
+            with client.websocket_connect(f"/ws/interview?token={token}") as ws:
+                _drain_until(ws, "avatar_sync")
+
+                invalid_count = 20
+                for _ in range(invalid_count):
+                    ws.send_text("{{ invalid json payload")
+                    msg = _recv_json(ws, skip_types=("avatar_visemes", "avatar_sync", "phase"))
+                    assert msg["type"] == "error"
+                    assert msg["code"] == "INVALID_JSON"
+                    assert msg["recoverable"] is True
+
+                # Connection should still be alive and responsive.
+                ws.send_text(json.dumps({"type": "ping"}))
+                pong = _drain_until(ws, "pong")
+                assert pong["type"] == "pong"
+        finally:
+            interview_gateway.rate_limit_per_minute = original_rate_limit
+
+
+# =============================================================================
 # Gateway unit tests (no network)
 # =============================================================================
 

@@ -63,6 +63,7 @@ Intervux AI already has a strong full-stack baseline: FastAPI + WebSocket interv
 
 6. **Strengthen WebSocket resilience tests**
    - Add tests for reconnect behavior, malformed frames, and prolonged session handling.
+   - Status: Partially implemented in `tests/test_websocket_interview.py` (`TestWebSocketStress`) with rapid reconnect and malformed JSON flood coverage.
 7. **Improve observability SLOs**
    - Define SLO targets (e.g., interview turn latency, WS disconnect rate, evaluation completion rate) and alert thresholds.
 8. **Resume parsing strategy consolidation**
