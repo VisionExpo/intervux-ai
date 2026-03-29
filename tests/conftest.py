@@ -29,7 +29,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 # Set test environment variables before imports
-os.environ["DATABASE_URL"] = "sqlite:///./test_intervux.db"
+os.environ["DATABASE_URL"] = "sqlite:///./tests/data/test_intervux.db"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-testing-only"
 os.environ["RUNTIME_THREADPOOL_WORKERS"] = "2"
 
@@ -59,7 +59,7 @@ from backend.models.recruiter_dashboard_models import (
 # Test Database Engine
 # =========================================================
 
-TEST_DATABASE_URL = "sqlite:///./test_intervux.db"
+TEST_DATABASE_URL = "sqlite:///./tests/data/test_intervux.db"
 
 test_engine = create_engine(
     TEST_DATABASE_URL,
