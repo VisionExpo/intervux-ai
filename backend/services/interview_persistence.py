@@ -107,81 +107,82 @@ def _build_transcript(answers: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def complete_mock_interview(
+async def complete_mock_interview(
     session_id: str,
     final_report: Dict[str, Any],
     answers: List[Dict[str, Any]],
 ) -> bool:
     """Mark a MockInterview row as completed and persist scores/transcript/evaluation."""
-    db = SessionLocal()
-    try:
-        interview = db.query(MockInterview).filter(MockInterview.session_id == session_id).first()
-        if not interview:
-            logger.warning(
-                "complete_mock_interview: no MockInterview found for session_id=%s",
-                session_id,
+    from backend.db.database import AsyncSessionLocal
+    from sqlalchemy import select
+    async with AsyncSessionLocal() as db:
+        try:
+            result = await db.execute(select(MockInterview).filter(MockInterview.session_id == session_id))
+            interview = result.scalar_one_or_none()
+            if not interview:
+                logger.warning(
+                    "complete_mock_interview: no MockInterview found for session_id=%s",
+                    session_id,
+                )
+                return False
+
+            avg = _average_scores(answers)
+
+            interview.status = "completed"
+            interview.completed_at = datetime.utcnow()
+            interview.score = avg["overall"]
+            interview.technical_score = avg["technical"]
+            interview.communication_score = avg["behavioral"]
+            interview.reasoning_score = avg["reasoning"]
+            interview.transcript = _build_transcript(answers)
+
+            try:
+                interview.evaluation = json.dumps(
+                    {
+                        "final_report": final_report,
+                        "per_question": [
+                            {
+                                "question": answer.get("question"),
+                                "skill": answer.get("skill"),
+                                "scores": (answer.get("evaluation") or {}).get("scores"),
+                                "summary": (answer.get("evaluation") or {}).get("summary"),
+                            }
+                            for answer in answers
+                        ],
+                    },
+                    default=str,
+                )
+            except Exception:
+                logger.warning("Could not serialize evaluation payload; skipping")
+
+            await db.commit()
+
+            logger.info(
+                "MockInterview completed",
+                extra={
+                    "extra_data": {
+                        "session_id": session_id,
+                        "interview_id": interview.id,
+                        "overall": avg["overall"],
+                        "technical": avg["technical"],
+                        "behavioral": avg["behavioral"],
+                        "reasoning": avg["reasoning"],
+                        "answers_count": len(answers),
+                    }
+                },
             )
+            return True
+
+        except Exception:
+            logger.exception("Failed to persist MockInterview for session_id=%s", session_id)
+            try:
+                await db.rollback()
+            except Exception:
+                pass
             return False
 
-        avg = _average_scores(answers)
 
-        interview.status = "completed"
-        interview.completed_at = datetime.utcnow()
-        interview.score = avg["overall"]
-        interview.technical_score = avg["technical"]
-        interview.communication_score = avg["behavioral"]
-        interview.reasoning_score = avg["reasoning"]
-        interview.transcript = _build_transcript(answers)
-
-        try:
-            interview.evaluation = json.dumps(
-                {
-                    "final_report": final_report,
-                    "per_question": [
-                        {
-                            "question": answer.get("question"),
-                            "skill": answer.get("skill"),
-                            "scores": (answer.get("evaluation") or {}).get("scores"),
-                            "summary": (answer.get("evaluation") or {}).get("summary"),
-                        }
-                        for answer in answers
-                    ],
-                },
-                default=str,
-            )
-        except Exception:
-            logger.warning("Could not serialize evaluation payload; skipping")
-
-        db.commit()
-
-        logger.info(
-            "MockInterview completed",
-            extra={
-                "extra_data": {
-                    "session_id": session_id,
-                    "interview_id": interview.id,
-                    "overall": avg["overall"],
-                    "technical": avg["technical"],
-                    "behavioral": avg["behavioral"],
-                    "reasoning": avg["reasoning"],
-                    "answers_count": len(answers),
-                }
-            },
-        )
-        return True
-
-    except Exception:
-        logger.exception("Failed to persist MockInterview for session_id=%s", session_id)
-        try:
-            db.rollback()
-        except Exception:
-            pass
-        return False
-    finally:
-        db.close()
-
-
-def fail_mock_interview(session_id: str, reason: str = "error") -> bool:
+async def fail_mock_interview(session_id: str, reason: str = "error") -> bool:
     """
     Mark an in-progress MockInterview row as abandoned.
 
@@ -190,39 +191,40 @@ def fail_mock_interview(session_id: str, reason: str = "error") -> bool:
     Without this guard a race between complete_mock_interview and the
     finally-block cleanup() call would reset a completed row to 'abandoned'.
     """
-    db = SessionLocal()
-    try:
-        interview = db.query(MockInterview).filter(MockInterview.session_id == session_id).first()
-        if not interview:
-            return False
+    from backend.db.database import AsyncSessionLocal
+    from sqlalchemy import select
+    async with AsyncSessionLocal() as db:
+        try:
+            result = await db.execute(select(MockInterview).filter(MockInterview.session_id == session_id))
+            interview = result.scalar_one_or_none()
+            if not interview:
+                return False
 
-        # FIX: never downgrade a completed row
-        if interview.status == "completed":
+            # FIX: never downgrade a completed row
+            if interview.status == "completed":
+                logger.info(
+                    "fail_mock_interview: skipped — row already completed",
+                    extra={"extra_data": {"session_id": session_id, "reason": reason}},
+                )
+                return False
+
+            if interview.status != "in_progress":
+                return False
+
+            interview.status = "abandoned"
+            interview.completed_at = datetime.utcnow()
+            await db.commit()
+
             logger.info(
-                "fail_mock_interview: skipped — row already completed",
+                "MockInterview marked abandoned",
                 extra={"extra_data": {"session_id": session_id, "reason": reason}},
             )
-            return False
+            return True
 
-        if interview.status != "in_progress":
-            return False
-
-        interview.status = "abandoned"
-        interview.completed_at = datetime.utcnow()
-        db.commit()
-
-        logger.info(
-            "MockInterview marked abandoned",
-            extra={"extra_data": {"session_id": session_id, "reason": reason}},
-        )
-        return True
-
-    except Exception:
-        logger.exception("Failed to mark MockInterview abandoned for session_id=%s", session_id)
-        try:
-            db.rollback()
         except Exception:
-            pass
-        return False
-    finally:
-        db.close()
+            logger.exception("Failed to mark MockInterview abandoned for session_id=%s", session_id)
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+            return False
