@@ -22,11 +22,12 @@ wheels/
 *.egg
 
 # Virtual Environment
-myenv/
-myenv/Lib/site-packages
-myenv/Scripts
-myenv*/
-.myenv/
+venv/
+.venv/
+env/
+.env/
+venv.cfg
+.python-version
 ENV/
 env.bak/
 venv.bak/
