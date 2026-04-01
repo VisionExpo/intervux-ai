@@ -79,7 +79,7 @@ class InterviewGateway:
             return
 
         try:
-            user_data: TokenData = verify_token(token)
+            user_data: TokenData = await verify_token(token)
         except Exception:
             await ws.accept()
             await self._send_error(ws, "UNAUTHORIZED", "Invalid authentication token", recoverable=True)
@@ -267,6 +267,20 @@ class InterviewGateway:
             "question_temperature": 0.7 if load_ratio < 0.8 else 0.35,
             "evaluation_temperature": 0.1 if load_ratio < 0.8 else 0.08,
             "lightweight_eval": load_ratio >= 0.8,
+        }
+
+    async def shutdown(self) -> None:
+        if getattr(self, "redis", None):
+            await self.redis.close()
+        for ws in list(self._connections):
+            await self._close_ws(ws, 1001)
+        self._connections.clear()
+
+    def runtime_stats(self) -> Dict[str, Any]:
+        return {
+            "active_sessions": len(self._connections),
+            "queue_depth": 0,
+            "max_concurrent_sessions": self.max_concurrent_sessions,
         }
 
     @staticmethod

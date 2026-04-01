@@ -20,6 +20,14 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
 
 from backend.auth.jwt_service import (
     Token,
@@ -103,14 +111,14 @@ async def login_json(credentials: UserLogin):
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh_token(refresh_token: str):
+async def refresh_token(request: RefreshRequest):
     """
     Refresh access token using refresh token.
     
     Send the refresh_token received during login to get new tokens.
     """
     try:
-        return await refresh_access_token(refresh_token)
+        return await refresh_access_token(request.refresh_token)
     except HTTPException:
         raise
     except Exception as e:
@@ -203,8 +211,7 @@ async def logout(
 
 @router.post("/change-password")
 async def change_password(
-    old_password: str,
-    new_password: str,
+    request: ChangePasswordRequest,
     current_user: TokenData = Depends(get_current_user)
 ):
     """
@@ -223,7 +230,7 @@ async def change_password(
     
     # Verify old password
     # In production, this would check against database
-    if not verify_password(old_password, user.get("password_hash", "")):
+    if not verify_password(request.old_password, user.get("password_hash", "")):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect old password"

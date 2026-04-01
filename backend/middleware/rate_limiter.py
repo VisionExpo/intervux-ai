@@ -289,7 +289,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             token = auth_header[7:].strip()
             if token:
                 try:
-                    token_data = verify_token(token)
+                    token_data = await verify_token(token)
                     request.state.user_id = token_data.user_id
                     request.state.user_role = token_data.role
                 except Exception:
