@@ -3,8 +3,16 @@ import uuid
 import asyncio
 import os
 import sys
+from pathlib import Path
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
+
+# Ensure absolute imports like `from backend...` also work when launched
+# from inside the `backend/` directory (e.g., `uvicorn main:app`).
+if __package__ in (None, ""):
+    project_root = Path(__file__).resolve().parents[1]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
 
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
