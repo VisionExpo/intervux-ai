@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select, or_
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.recruiter_dashboard import (
     CandidateComparisonRow,
@@ -34,8 +34,8 @@ from backend.models.recruiter_dashboard_models import (
 )
 
 
-def list_candidates(
-    db: Session,
+async def list_candidates(
+    db: AsyncSession,
     page: int = 1,
     limit: int = 20,
     role: str | None = None,
@@ -45,9 +45,11 @@ def list_candidates(
     safe_limit = max(1, min(limit, 100))
     offset = (safe_page - 1) * safe_limit
 
-    interview_rows = db.query(Interview.candidate_id, Interview.id).all()
-    interview_ids = {candidate_id: interview_id for candidate_id, interview_id in interview_rows}
-    query = db.query(Candidate)
+    result = await db.execute(select(Interview.candidate_id, Interview.id))
+    interview_rows = result.all()
+    interview_ids = {row.candidate_id: row.id for row in interview_rows}
+    
+    query = select(Candidate)
 
     if role:
         query = query.filter(Candidate.role == role)
@@ -55,12 +57,17 @@ def list_candidates(
     if search:
         like_pattern = f"%{search.strip()}%"
         query = query.filter(
-            Candidate.name.ilike(like_pattern)
-            | Candidate.email.ilike(like_pattern)
-            | Candidate.role.ilike(like_pattern)
+            or_(
+                Candidate.name.ilike(like_pattern),
+                Candidate.email.ilike(like_pattern),
+                Candidate.role.ilike(like_pattern)
+            )
         )
 
-    candidates = query.order_by(Candidate.created_at.desc()).offset(offset).limit(safe_limit).all()
+    query = query.order_by(Candidate.created_at.desc()).offset(offset).limit(safe_limit)
+    res = await db.execute(query)
+    candidates = res.scalars().all()
+    
     return [
         {
             "id": candidate.id,
@@ -75,37 +82,41 @@ def list_candidates(
     ]
 
 
-def get_candidates(
-    db: Session,
+async def get_candidates(
+    db: AsyncSession,
     page: int = 1,
     limit: int = 20,
     role: str | None = None,
     search: str | None = None,
 ) -> list[dict]:
-    return list_candidates(db, page=page, limit=limit, role=role, search=search)
+    return await list_candidates(db, page=page, limit=limit, role=role, search=search)
 
 
-def get_interview_report(db: Session, interview_id: str) -> CandidateInterviewReport:
-    interview = db.query(Interview).filter(Interview.id == interview_id).first()
+async def get_interview_report(db: AsyncSession, interview_id: str) -> CandidateInterviewReport:
+    # Intentionally ignoring types on scalar mapping due to dynamic structure
+    interview_res = await db.execute(select(Interview).filter(Interview.id == interview_id))
+    interview: Optional[Interview] = interview_res.scalar_one_or_none()
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
 
-    candidate = db.query(Candidate).filter(Candidate.id == interview.candidate_id).first()
+    candidate_res = await db.execute(select(Candidate).filter(Candidate.id == interview.candidate_id))
+    candidate: Optional[Candidate] = candidate_res.scalar_one_or_none()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
-    questions = (
-        db.query(InterviewQuestion)
+    questions_res = await db.execute(
+        select(InterviewQuestion)
         .filter(InterviewQuestion.interview_id == interview_id)
         .order_by(InterviewQuestion.id.asc())
-        .all()
     )
-    replay_segments = (
-        db.query(InterviewReplaySegment)
+    questions = questions_res.scalars().all()
+    
+    replay_res = await db.execute(
+        select(InterviewReplaySegment)
         .filter(InterviewReplaySegment.interview_id == interview_id)
         .order_by(InterviewReplaySegment.created_at.asc())
-        .all()
     )
+    replay_segments = replay_res.scalars().all()
 
     return CandidateInterviewReport(
         candidate={
@@ -154,25 +165,26 @@ def get_interview_report(db: Session, interview_id: str) -> CandidateInterviewRe
     )
 
 
-def get_interview(db: Session, interview_id: str) -> Interview | None:
-    return db.query(Interview).filter(Interview.id == interview_id).first()
+async def get_interview(db: AsyncSession, interview_id: str) -> Interview | None:
+    res = await db.execute(select(Interview).filter(Interview.id == interview_id))
+    return res.scalar_one_or_none()
 
 
-def get_skill_analytics(db: Session, interview_id: str) -> SkillAnalytics:
-    interview = get_interview(db, interview_id)
+async def get_skill_analytics(db: AsyncSession, interview_id: str) -> SkillAnalytics:
+    interview = await get_interview(db, interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
 
-    analytics = (
-        db.query(
+    res = await db.execute(
+        select(
             func.avg(InterviewQuestion.score).label("avg_score"),
             func.count(InterviewQuestion.id).label("questions"),
             func.max(InterviewQuestion.score).label("best_score"),
             func.min(InterviewQuestion.score).label("lowest_score"),
         )
         .filter(InterviewQuestion.interview_id == interview_id)
-        .first()
     )
+    analytics = res.first()
 
     avg_score = float(analytics.avg_score) if analytics and analytics.avg_score is not None else 0.0
     question_count = int(analytics.questions) if analytics else 0
@@ -194,13 +206,13 @@ def get_skill_analytics(db: Session, interview_id: str) -> SkillAnalytics:
     )
 
 
-def get_interview_analytics(db: Session, interview_id: str) -> SkillAnalytics:
-    return get_skill_analytics(db, interview_id)
+async def get_interview_analytics(db: AsyncSession, interview_id: str) -> SkillAnalytics:
+    return await get_skill_analytics(db, interview_id)
 
 
-def compare_candidates(db: Session) -> list[CandidateComparisonRow]:
-    rows = (
-        db.query(
+async def compare_candidates(db: AsyncSession) -> list[CandidateComparisonRow]:
+    res = await db.execute(
+        select(
             Candidate.id.label("candidate_id"),
             Candidate.name.label("candidate_name"),
             Interview.technical_score.label("technical"),
@@ -209,8 +221,9 @@ def compare_candidates(db: Session) -> list[CandidateComparisonRow]:
         )
         .join(Interview, Candidate.id == Interview.candidate_id)
         .order_by(Interview.overall_score.desc())
-        .all()
     )
+    rows = res.all()
+    
     return [
         CandidateComparisonRow(
             candidate_id=row.candidate_id,
@@ -228,8 +241,8 @@ def compare_candidates(db: Session) -> list[CandidateComparisonRow]:
 # =========================================================
 
 
-def create_job_post(
-    db: Session,
+async def create_job_post(
+    db: AsyncSession,
     job_data: JobPostCreate,
     created_by: str | None = None,
 ) -> JobPost:
@@ -245,7 +258,7 @@ def create_job_post(
         created_by=created_by,
     )
     db.add(db_job)
-    db.flush()  # Get the ID
+    await db.flush()  # Get the ID
 
     # Add skills
     for skill_name in job_data.skills:
@@ -256,11 +269,12 @@ def create_job_post(
         )
         db.add(db_skill)
 
-    db.commit()
-    db.refresh(db_job)
+    await db.commit()
+    await db.refresh(db_job)
 
     # Fetch skills
-    skills = db.query(JobSkillModel).filter(JobSkillModel.job_post_id == db_job.id).all()
+    skills_res = await db.execute(select(JobSkillModel).filter(JobSkillModel.job_post_id == db_job.id))
+    skills = skills_res.scalars().all()
 
     return JobPost(
         id=db_job.id,
@@ -286,8 +300,8 @@ def create_job_post(
     )
 
 
-def list_job_posts(
-    db: Session,
+async def list_job_posts(
+    db: AsyncSession,
     page: int = 1,
     limit: int = 20,
     status: str | None = None,
@@ -297,16 +311,19 @@ def list_job_posts(
     safe_limit = max(1, min(limit, 100))
     offset = (safe_page - 1) * safe_limit
 
-    query = db.query(JobPostModel)
+    query = select(JobPostModel)
 
     if status:
         query = query.filter(JobPostModel.status == status)
 
-    job_posts = query.order_by(JobPostModel.created_at.desc()).offset(offset).limit(safe_limit).all()
+    query = query.order_by(JobPostModel.created_at.desc()).offset(offset).limit(safe_limit)
+    res = await db.execute(query)
+    job_posts = res.scalars().all()
 
     result = []
     for job in job_posts:
-        skills = db.query(JobSkillModel).filter(JobSkillModel.job_post_id == job.id).all()
+        skills_res = await db.execute(select(JobSkillModel).filter(JobSkillModel.job_post_id == job.id))
+        skills = skills_res.scalars().all()
         result.append(
             JobPost(
                 id=job.id,
@@ -335,13 +352,16 @@ def list_job_posts(
     return result
 
 
-def get_job_post(db: Session, job_post_id: str) -> JobPost | None:
+async def get_job_post(db: AsyncSession, job_post_id: str) -> JobPost | None:
     """Get a single job post by ID."""
-    job = db.query(JobPostModel).filter(JobPostModel.id == job_post_id).first()
+    res = await db.execute(select(JobPostModel).filter(JobPostModel.id == job_post_id))
+    job = res.scalar_one_or_none()
+    
     if not job:
         return None
 
-    skills = db.query(JobSkillModel).filter(JobSkillModel.job_post_id == job.id).all()
+    skills_res = await db.execute(select(JobSkillModel).filter(JobSkillModel.job_post_id == job.id))
+    skills = skills_res.scalars().all()
 
     return JobPost(
         id=job.id,
@@ -367,13 +387,14 @@ def get_job_post(db: Session, job_post_id: str) -> JobPost | None:
     )
 
 
-def update_job_post(
-    db: Session,
+async def update_job_post(
+    db: AsyncSession,
     job_post_id: str,
     job_data: JobPostUpdate,
 ) -> JobPost | None:
     """Update an existing job post."""
-    job = db.query(JobPostModel).filter(JobPostModel.id == job_post_id).first()
+    res = await db.execute(select(JobPostModel).filter(JobPostModel.id == job_post_id))
+    job = res.scalar_one_or_none()
     if not job:
         return None
 
@@ -394,7 +415,10 @@ def update_job_post(
     # Update skills if provided
     if job_data.skills is not None:
         # Delete existing skills
-        db.query(JobSkillModel).filter(JobSkillModel.job_post_id == job.id).delete()
+        await db.execute(select(JobSkillModel).filter(JobSkillModel.job_post_id == job.id))
+        # Wait, for delete we should do:
+        from sqlalchemy import delete
+        await db.execute(delete(JobSkillModel).where(JobSkillModel.job_post_id == job.id))
         # Add new skills
         for skill_name in job_data.skills:
             db_skill = JobSkillModel(
@@ -404,10 +428,11 @@ def update_job_post(
             )
             db.add(db_skill)
 
-    db.commit()
-    db.refresh(job)
+    await db.commit()
+    await db.refresh(job)
 
-    skills = db.query(JobSkillModel).filter(JobSkillModel.job_post_id == job.id).all()
+    skills_res = await db.execute(select(JobSkillModel).filter(JobSkillModel.job_post_id == job.id))
+    skills = skills_res.scalars().all()
 
     return JobPost(
         id=job.id,
@@ -433,24 +458,25 @@ def update_job_post(
     )
 
 
-def delete_job_post(db: Session, job_post_id: str) -> bool:
+async def delete_job_post(db: AsyncSession, job_post_id: str) -> bool:
     """Delete a job post and its skills."""
-    job = db.query(JobPostModel).filter(JobPostModel.id == job_post_id).first()
+    res = await db.execute(select(JobPostModel).filter(JobPostModel.id == job_post_id))
+    job = res.scalar_one_or_none()
     if not job:
         return False
 
-    # Delete skills first
-    db.query(JobSkillModel).filter(JobSkillModel.job_post_id == job_post_id).delete()
-    # Delete job
-    db.delete(job)
-    db.commit()
+    from sqlalchemy import delete
+    await db.execute(delete(JobSkillModel).where(JobSkillModel.job_post_id == job_post_id))
+    await db.delete(job)
+    await db.commit()
 
     return True
 
 
-def generate_interview_link(db: Session, candidate_id: str, expires_in_days: int = 7) -> tuple[str, datetime]:
+async def generate_interview_link(db: AsyncSession, candidate_id: str, expires_in_days: int = 7) -> tuple[str, datetime]:
     """Generate an expiring interview link for a candidate."""
-    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    res = await db.execute(select(Candidate).filter(Candidate.id == candidate_id))
+    candidate = res.scalar_one_or_none()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
@@ -462,13 +488,13 @@ def generate_interview_link(db: Session, candidate_id: str, expires_in_days: int
     candidate.interview_link = interview_link
     candidate.interview_link_expires_at = expires_at
 
-    db.commit()
+    await db.commit()
 
     return interview_link, expires_at
 
 
-def invite_candidate(
-    db: Session,
+async def invite_candidate(
+    db: AsyncSession,
     candidate_data: CandidateCreate,
 ) -> Candidate:
     """Invite a candidate to a job post."""
@@ -481,8 +507,8 @@ def invite_candidate(
         status=CandidateStatus.INVITED.value,
     )
     db.add(db_candidate)
-    db.commit()
-    db.refresh(db_candidate)
+    await db.commit()
+    await db.refresh(db_candidate)
 
     return Candidate(
         id=db_candidate.id,
@@ -498,15 +524,16 @@ def invite_candidate(
     )
 
 
-def update_candidate_status(db: Session, candidate_id: str, status: str) -> Candidate | None:
+async def update_candidate_status(db: AsyncSession, candidate_id: str, status: str) -> Candidate | None:
     """Update candidate status."""
-    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    res = await db.execute(select(Candidate).filter(Candidate.id == candidate_id))
+    candidate = res.scalar_one_or_none()
     if not candidate:
         return None
 
     candidate.status = status
-    db.commit()
-    db.refresh(candidate)
+    await db.commit()
+    await db.refresh(candidate)
 
     return Candidate(
         id=candidate.id,
