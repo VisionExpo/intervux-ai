@@ -165,7 +165,7 @@ def create_token_pair(user_data: Dict[str, Any]) -> Token:
     )
 
 
-def verify_token(token: str) -> TokenData:
+async def verify_token(token: str) -> TokenData:
     """
     Verify and decode a JWT token.
     
@@ -197,12 +197,12 @@ def verify_token(token: str) -> TokenData:
 
         jti = payload.get("jti") or payload.get("user_id", "")
         if jti:
-            db = SessionLocal()
-            try:
-                if db.query(RevokedToken).filter(RevokedToken.jti == jti).first():
+            from backend.db.database import AsyncSessionLocal, RevokedToken
+            from sqlalchemy import select
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(select(RevokedToken).filter(RevokedToken.jti == jti))
+                if result.scalar_one_or_none():
                     raise credentials_exception
-            finally:
-                db.close()
             
         token_data = TokenData(
             user_id=user_id,
@@ -258,7 +258,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> TokenData:
     Raises:
         HTTPException: If token is invalid or expired
     """
-    return verify_token(token)
+    return await verify_token(token)
 
 
 async def get_current_active_user(
@@ -501,7 +501,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # =========================================================
 
 
-def refresh_access_token(refresh_token: str) -> Token:
+async def refresh_access_token(refresh_token: str) -> Token:
     """
     Refresh an access token using a refresh token.
     
@@ -514,7 +514,7 @@ def refresh_access_token(refresh_token: str) -> Token:
     Raises:
         HTTPException: If refresh token is invalid
     """
-    token_data = verify_token(refresh_token)
+    token_data = await verify_token(refresh_token)
     
     # Verify it's a refresh token
     payload = jwt.decode(
@@ -580,7 +580,7 @@ def _get_demo_password_hash(user: Dict[str, Any]) -> str:
     return hashed
 
 
-async def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
+async async def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
     """
     Authenticate a user by email and password.
     Checks DEMO_USERS first, then falls back to the database.
@@ -619,7 +619,7 @@ async def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any
         return None
 
 
-async def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+async async def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     """
     Get user by email.
     Checks DEMO_USERS first, then falls back to the database.
@@ -794,7 +794,7 @@ def create_token_pair_with_rotation(user_data: Dict[str, Any]) -> Token:
     )
 
 
-def refresh_access_token_with_rotation(refresh_token: str) -> Token:
+async def refresh_access_token_with_rotation(refresh_token: str) -> Token:
     """
     Refresh an access token using a refresh token with rotation.
     
@@ -820,7 +820,7 @@ def refresh_access_token_with_rotation(refresh_token: str) -> Token:
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    token_data = verify_token(refresh_token)
+    token_data = await verify_token(refresh_token)
     
     # Verify it's a refresh token
     payload = jwt.decode(
