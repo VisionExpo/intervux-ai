@@ -25,7 +25,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from backend.db.database import SessionLocal, LLMMetrics
+from backend.db.database import AsyncSessionLocal, LLMMetrics
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -76,33 +76,32 @@ class EvaluationDBLogger:
             "1", "true", "yes", "on"
         }
     
-    def write(self, payload: Dict[str, Any]):
+    async def write(self, payload: Dict[str, Any]):
         """Write evaluation metrics to PostgreSQL."""
         if not self.enabled:
             return
         
         try:
-            db = SessionLocal()
-            try:
-                metric = LLMMetrics(
-                    model=payload.get("model", "unknown"),
-                    latency_ms=int(payload.get("latency_ms", 0)),
-                    prompt_tokens=int(payload.get("prompt_tokens", 0)),
-                    completion_tokens=int(payload.get("completion_tokens", 0)),
-                    cost_usd=float(payload.get("cost_usd", 0.0)),
-                    accuracy_score=float(payload.get("accuracy_score", 0.0)),
-                    hallucination_score=float(payload.get("hallucination_score", 0.0)),
-                    reasoning_score=float(payload.get("reasoning_score", 0.0)),
-                    consistency_score=float(payload.get("consistency_score", 0.0)),
-                    created_at=datetime.utcnow()
-                )
-                db.add(metric)
-                db.commit()
-            except Exception:
-                db.rollback()
-                logger.exception("Telemetry DB transaction failed; rolled back")
-            finally:
-                db.close()
+            from backend.db.database import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                try:
+                    metric = LLMMetrics(
+                        model=payload.get("model", "unknown"),
+                        latency_ms=int(payload.get("latency_ms", 0)),
+                        prompt_tokens=int(payload.get("prompt_tokens", 0)),
+                        completion_tokens=int(payload.get("completion_tokens", 0)),
+                        cost_usd=float(payload.get("cost_usd", 0.0)),
+                        accuracy_score=float(payload.get("accuracy_score", 0.0)),
+                        hallucination_score=float(payload.get("hallucination_score", 0.0)),
+                        reasoning_score=float(payload.get("reasoning_score", 0.0)),
+                        consistency_score=float(payload.get("consistency_score", 0.0)),
+                        created_at=datetime.utcnow()
+                    )
+                    db.add(metric)
+                    await db.commit()
+                except Exception:
+                    await db.rollback()
+                    logger.exception("Telemetry DB transaction failed; rolled back")
         except Exception:
             logger.exception("Telemetry DB logging failed")
 
@@ -137,7 +136,7 @@ class TelemetryService:
         self.jsonl_logger = EvaluationJSONLLogger()
         self.db_logger = EvaluationDBLogger()
     
-    def log_evaluation(self, payload: Dict[str, Any]):
+    async def log_evaluation(self, payload: Dict[str, Any]):
         """
         Log evaluation metrics to both JSONL and PostgreSQL.
         
@@ -157,9 +156,10 @@ class TelemetryService:
         self.jsonl_logger.write(payload)
         
         # Write to PostgreSQL
-        self.db_logger.write(payload)
+        import asyncio
+        asyncio.create_task(self.db_logger.write(payload))
     
-    def log_evaluation_from_evaluation_result(
+    async def log_evaluation_from_evaluation_result(
         self,
         model: str,
         latency_ms: float,
@@ -206,7 +206,7 @@ class TelemetryService:
             "consistency_score": round(consistency_score / 10.0, 3),
         }
         
-        self.log_evaluation(payload)
+        await self.log_evaluation(payload)
 
 
 # Singleton instance
@@ -230,7 +230,7 @@ def estimate_tokens(text: str) -> int:
     return max(int(round(words * 1.3)), 0)
 
 
-def log_evaluation_metrics(
+async def log_evaluation_metrics(
     model: str,
     latency_seconds: float,
     question: str,
@@ -257,7 +257,7 @@ def log_evaluation_metrics(
     cost_per_1k = get_cost_per_1k_tokens(provider)
     
     # Log via telemetry service
-    telemetry_service.log_evaluation_from_evaluation_result(
+    await telemetry_service.log_evaluation_from_evaluation_result(
         model=model,
         latency_ms=latency_seconds * 1000,
         prompt_tokens=prompt_tokens,
