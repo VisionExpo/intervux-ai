@@ -20,7 +20,8 @@ from sqlalchemy.orm import Session
 class TestMetricsAggregates:
     """Test suite for metrics aggregates endpoint."""
 
-    def test_get_metrics_aggregates_success(
+    @pytest.mark.asyncio
+async def test_get_metrics_aggregates_success(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -30,7 +31,7 @@ class TestMetricsAggregates:
         - HTTP 200 status code
         - Response contains time-based aggregates
         """
-        response = client.get(
+        response = await client.get(
             "/api/metrics/aggregates",
             headers=recruiter_headers,
         )
@@ -40,18 +41,20 @@ class TestMetricsAggregates:
         # Should contain aggregates for different time periods
         assert "last_24h" in data or "last_7d" in data or "last_30d" in data
 
-    def test_get_metrics_aggregates_requires_auth(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_get_metrics_aggregates_requires_auth(self, client: TestClient):
         """
         Test metrics aggregates requires authentication.
         
         Validates:
         - HTTP 401 status code
         """
-        response = client.get("/api/metrics/aggregates")
+        response = await client.get("/api/metrics/aggregates")
         
         assert response.status_code == 401
 
-    def test_get_metrics_aggregates_with_admin_token(
+    @pytest.mark.asyncio
+async def test_get_metrics_aggregates_with_admin_token(
         self, client: TestClient, admin_headers: dict
     ):
         """
@@ -60,14 +63,15 @@ class TestMetricsAggregates:
         Validates:
         - HTTP 200 status code
         """
-        response = client.get(
+        response = await client.get(
             "/api/metrics/aggregates",
             headers=admin_headers,
         )
         
         assert response.status_code == 200
 
-    def test_get_metrics_aggregates_with_candidate_token(
+    @pytest.mark.asyncio
+async def test_get_metrics_aggregates_with_candidate_token(
         self, client: TestClient, candidate_headers: dict
     ):
         """
@@ -76,7 +80,7 @@ class TestMetricsAggregates:
         Validates:
         - HTTP 403 status code (forbidden)
         """
-        response = client.get(
+        response = await client.get(
             "/api/metrics/aggregates",
             headers=candidate_headers,
         )
@@ -87,7 +91,8 @@ class TestMetricsAggregates:
 class TestMetricsTrends:
     """Test suite for metrics trends endpoint."""
 
-    def test_get_metrics_trends_success(
+    @pytest.mark.asyncio
+async def test_get_metrics_trends_success(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -97,7 +102,7 @@ class TestMetricsTrends:
         - HTTP 200 status code
         - Response contains trend data
         """
-        response = client.get(
+        response = await client.get(
             "/api/metrics/trends?days=30",
             headers=recruiter_headers,
         )
@@ -107,7 +112,8 @@ class TestMetricsTrends:
         # Should contain trend arrays
         assert "dates" in data or "latency" in data or "accuracy" in data
 
-    def test_get_metrics_trends_with_custom_days(
+    @pytest.mark.asyncio
+async def test_get_metrics_trends_with_custom_days(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -117,25 +123,27 @@ class TestMetricsTrends:
         - HTTP 200 status code
         - Custom days parameter is accepted
         """
-        response = client.get(
+        response = await client.get(
             "/api/metrics/trends?days=7",
             headers=recruiter_headers,
         )
         
         assert response.status_code == 200
 
-    def test_get_metrics_trends_requires_auth(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_get_metrics_trends_requires_auth(self, client: TestClient):
         """
         Test metrics trends requires authentication.
         
         Validates:
         - HTTP 401 status code
         """
-        response = client.get("/api/metrics/trends")
+        response = await client.get("/api/metrics/trends")
         
         assert response.status_code == 401
 
-    def test_get_metrics_trends_with_candidate_token(
+    @pytest.mark.asyncio
+async def test_get_metrics_trends_with_candidate_token(
         self, client: TestClient, candidate_headers: dict
     ):
         """
@@ -144,7 +152,7 @@ class TestMetricsTrends:
         Validates:
         - HTTP 403 status code (forbidden)
         """
-        response = client.get(
+        response = await client.get(
             "/api/metrics/trends",
             headers=candidate_headers,
         )
@@ -155,7 +163,8 @@ class TestMetricsTrends:
 class TestPublicMetricsEndpoint:
     """Test suite for public metrics endpoint."""
 
-    def test_public_metrics_endpoint(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_public_metrics_endpoint(self, client: TestClient):
         """
         Test public /metrics endpoint.
         
@@ -163,7 +172,7 @@ class TestPublicMetricsEndpoint:
         - HTTP 200 status code
         - No authentication required
         """
-        response = client.get("/metrics")
+        response = await client.get("/metrics")
         
         assert response.status_code == 200
         data = response.json()

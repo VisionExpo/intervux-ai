@@ -21,7 +21,8 @@ from sqlalchemy.orm import Session
 class TestGetInterviewReport:
     """Test suite for retrieving interview reports."""
 
-    def test_get_interview_report_success(
+    @pytest.mark.asyncio
+async def test_get_interview_report_success(
         self,
         client: TestClient,
         recruiter_headers: dict,
@@ -36,7 +37,7 @@ class TestGetInterviewReport:
         - HTTP 200 status code
         - Response contains candidate and interview details
         """
-        response = client.get(
+        response = await client.get(
             f"/api/interview/{test_interview.id}",
             headers=recruiter_headers,
         )
@@ -46,7 +47,8 @@ class TestGetInterviewReport:
         assert "candidate" in data
         assert "interview" in data
 
-    def test_get_interview_report_not_found(
+    @pytest.mark.asyncio
+async def test_get_interview_report_not_found(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -55,14 +57,15 @@ class TestGetInterviewReport:
         Validates:
         - HTTP 404 status code
         """
-        response = client.get(
+        response = await client.get(
             "/api/interview/nonexistent-id",
             headers=recruiter_headers,
         )
         
         assert response.status_code == 404
 
-    def test_get_interview_report_without_auth(
+    @pytest.mark.asyncio
+async def test_get_interview_report_without_auth(
         self, client: TestClient, test_interview
     ):
         """
@@ -71,11 +74,12 @@ class TestGetInterviewReport:
         Validates:
         - HTTP 401 status code
         """
-        response = client.get(f"/api/interview/{test_interview.id}")
+        response = await client.get(f"/api/interview/{test_interview.id}")
         
         assert response.status_code == 401
 
-    def test_get_interview_report_with_candidate_token(
+    @pytest.mark.asyncio
+async def test_get_interview_report_with_candidate_token(
         self, client: TestClient, candidate_headers: dict, test_interview
     ):
         """
@@ -84,7 +88,7 @@ class TestGetInterviewReport:
         Validates:
         - HTTP 403 status code (forbidden)
         """
-        response = client.get(
+        response = await client.get(
             f"/api/interview/{test_interview.id}",
             headers=candidate_headers,
         )
@@ -95,7 +99,8 @@ class TestGetInterviewReport:
 class TestGetInterviewAnalytics:
     """Test suite for retrieving interview analytics."""
 
-    def test_get_interview_analytics_success(
+    @pytest.mark.asyncio
+async def test_get_interview_analytics_success(
         self,
         client: TestClient,
         recruiter_headers: dict,
@@ -108,7 +113,7 @@ class TestGetInterviewAnalytics:
         - HTTP 200 status code
         - Response contains skill metrics
         """
-        response = client.get(
+        response = await client.get(
             f"/api/interview/{test_interview.id}/analytics",
             headers=recruiter_headers,
         )
@@ -118,7 +123,8 @@ class TestGetInterviewAnalytics:
         assert "interview_id" in data
         assert "skills" in data
 
-    def test_get_interview_analytics_not_found(
+    @pytest.mark.asyncio
+async def test_get_interview_analytics_not_found(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -127,14 +133,15 @@ class TestGetInterviewAnalytics:
         Validates:
         - HTTP 404 status code
         """
-        response = client.get(
+        response = await client.get(
             "/api/interview/nonexistent-id/analytics",
             headers=recruiter_headers,
         )
         
         assert response.status_code == 404
 
-    def test_get_interview_analytics_structure(
+    @pytest.mark.asyncio
+async def test_get_interview_analytics_structure(
         self,
         client: TestClient,
         recruiter_headers: dict,
@@ -146,7 +153,7 @@ class TestGetInterviewAnalytics:
         Validates:
         - Skills dictionary contains expected metrics
         """
-        response = client.get(
+        response = await client.get(
             f"/api/interview/{test_interview.id}/analytics",
             headers=recruiter_headers,
         )
@@ -161,7 +168,8 @@ class TestGetInterviewAnalytics:
 class TestDecisionSupport:
     """Test suite for decision support generation."""
 
-    def test_get_interview_decision_success(
+    @pytest.mark.asyncio
+async def test_get_interview_decision_success(
         self,
         client: TestClient,
         recruiter_headers: dict,
@@ -174,7 +182,7 @@ class TestDecisionSupport:
         - HTTP 200 status code
         - Response contains decision data
         """
-        response = client.post(
+        response = await client.post(
             f"/api/interview/{test_interview.id}/decision",
             headers=recruiter_headers,
         )
@@ -184,7 +192,8 @@ class TestDecisionSupport:
         # Should contain decision or recommendation
         assert data is not None
 
-    def test_get_interview_decision_not_found(
+    @pytest.mark.asyncio
+async def test_get_interview_decision_not_found(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -193,14 +202,15 @@ class TestDecisionSupport:
         Validates:
         - HTTP 404 status code
         """
-        response = client.post(
+        response = await client.post(
             "/api/interview/nonexistent-id/decision",
             headers=recruiter_headers,
         )
         
         assert response.status_code == 404
 
-    def test_get_interview_decision_without_auth(
+    @pytest.mark.asyncio
+async def test_get_interview_decision_without_auth(
         self, client: TestClient, test_interview
     ):
         """
@@ -209,7 +219,7 @@ class TestDecisionSupport:
         Validates:
         - HTTP 401 status code
         """
-        response = client.post(f"/api/interview/{test_interview.id}/decision")
+        response = await client.post(f"/api/interview/{test_interview.id}/decision")
         
         assert response.status_code == 401
 
@@ -217,7 +227,8 @@ class TestDecisionSupport:
 class TestCandidateComparison:
     """Test suite for candidate comparison endpoint."""
 
-    def test_compare_candidates_success(
+    @pytest.mark.asyncio
+async def test_compare_candidates_success(
         self,
         client: TestClient,
         recruiter_headers: dict,
@@ -232,7 +243,7 @@ class TestCandidateComparison:
         - HTTP 200 status code
         - Response is a list of candidates
         """
-        response = client.get(
+        response = await client.get(
             "/api/candidates/compare",
             headers=recruiter_headers,
         )
@@ -240,18 +251,20 @@ class TestCandidateComparison:
         # Either returns data or 500 due to DB constraints
         assert response.status_code in [200, 500]
 
-    def test_compare_candidates_requires_auth(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_compare_candidates_requires_auth(self, client: TestClient):
         """
         Test candidate comparison requires authentication.
         
         Validates:
         - HTTP 401 status code
         """
-        response = client.get("/api/candidates/compare")
+        response = await client.get("/api/candidates/compare")
         
         assert response.status_code == 401
 
-    def test_compare_candidates_with_recruiter_role(
+    @pytest.mark.asyncio
+async def test_compare_candidates_with_recruiter_role(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -260,7 +273,7 @@ class TestCandidateComparison:
         Validates:
         - HTTP 200 or 500 (DB constraint)
         """
-        response = client.get(
+        response = await client.get(
             "/api/candidates/compare",
             headers=recruiter_headers,
         )

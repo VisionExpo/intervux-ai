@@ -94,20 +94,23 @@ def _recv_json(ws) -> dict:
 
 
 class TestMetricsWebSocketAuth:
-    def test_connection_rejected_without_token(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_connection_rejected_without_token(self, client: TestClient):
         with client.websocket_connect("/ws/metrics") as ws:
             msg = _recv_json(ws)
             assert msg["type"] == "error"
             assert msg["code"] == "UNAUTHORIZED"
             assert msg["recoverable"] is True
 
-    def test_connection_rejected_with_invalid_token(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_connection_rejected_with_invalid_token(self, client: TestClient):
         with client.websocket_connect("/ws/metrics?token=garbage_token") as ws:
             msg = _recv_json(ws)
             assert msg["type"] == "error"
             assert msg["code"] == "UNAUTHORIZED"
 
-    def test_connection_accepted_with_valid_recruiter_token(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_connection_accepted_with_valid_recruiter_token(self, client: TestClient):
         """Valid token ? first message is a metrics snapshot (not an error)."""
         token = _make_token(Role.RECRUITER)
         with client.websocket_connect(f"/ws/metrics?token={token}") as ws:
@@ -116,13 +119,15 @@ class TestMetricsWebSocketAuth:
             assert msg.get("type") != "error"
             assert "timestamp" in msg
 
-    def test_connection_accepted_with_admin_token(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_connection_accepted_with_admin_token(self, client: TestClient):
         token = _make_token(Role.ADMIN)
         with client.websocket_connect(f"/ws/metrics?token={token}") as ws:
             msg = _recv_json(ws)
             assert "timestamp" in msg
 
-    def test_missing_token_error_is_recoverable(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_missing_token_error_is_recoverable(self, client: TestClient):
         with client.websocket_connect("/ws/metrics") as ws:
             msg = _recv_json(ws)
             assert msg["recoverable"] is True
@@ -134,7 +139,8 @@ class TestMetricsWebSocketAuth:
 
 
 class TestMetricsSnapshotContent:
-    def test_snapshot_has_timestamp(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_snapshot_has_timestamp(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/ws/metrics?token={token}") as ws:
             msg = _recv_json(ws)
@@ -143,20 +149,23 @@ class TestMetricsSnapshotContent:
             assert isinstance(msg["timestamp"], str)
             assert len(msg["timestamp"]) > 0
 
-    def test_snapshot_has_derived_section(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_snapshot_has_derived_section(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/ws/metrics?token={token}") as ws:
             msg = _recv_json(ws)
             assert "derived" in msg
             assert isinstance(msg["derived"], dict)
 
-    def test_snapshot_has_request_counter(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_snapshot_has_request_counter(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/ws/metrics?token={token}") as ws:
             msg = _recv_json(ws)
             assert "request" in msg
 
-    def test_snapshot_is_json_serializable(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_snapshot_is_json_serializable(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/ws/metrics?token={token}") as ws:
             msg = _recv_json(ws)
@@ -165,7 +174,8 @@ class TestMetricsSnapshotContent:
             re_serialised = json.dumps(msg)
             assert re_serialised is not None
 
-    def test_snapshot_timestamp_is_iso_format(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_snapshot_timestamp_is_iso_format(self, client: TestClient):
         from datetime import datetime
 
         token = _make_token()
@@ -186,40 +196,49 @@ class TestMetricsSocketUnit:
 
         self.socket = MetricsSocket(broadcast_interval=2.0)
 
-    def test_default_broadcast_interval(self):
+    @pytest.mark.asyncio
+async def test_default_broadcast_interval(self):
         assert self.socket.broadcast_interval == 2.0
 
-    def test_custom_broadcast_interval(self):
+    @pytest.mark.asyncio
+async def test_custom_broadcast_interval(self):
         from backend.sockets.metrics import MetricsSocket
 
         s = MetricsSocket(broadcast_interval=10.0)
         assert s.broadcast_interval == 10.0
 
-    def test_connections_set_starts_empty(self):
+    @pytest.mark.asyncio
+async def test_connections_set_starts_empty(self):
         assert len(self.socket._connections) == 0
 
-    def test_get_metrics_snapshot_returns_dict(self):
+    @pytest.mark.asyncio
+async def test_get_metrics_snapshot_returns_dict(self):
         snap = self.socket._get_metrics_snapshot()
         assert isinstance(snap, dict)
 
-    def test_get_metrics_snapshot_has_timestamp(self):
+    @pytest.mark.asyncio
+async def test_get_metrics_snapshot_has_timestamp(self):
         snap = self.socket._get_metrics_snapshot()
         assert "timestamp" in snap
 
-    def test_get_metrics_snapshot_has_derived(self):
+    @pytest.mark.asyncio
+async def test_get_metrics_snapshot_has_derived(self):
         snap = self.socket._get_metrics_snapshot()
         assert "derived" in snap
 
-    def test_calculate_derived_metrics_empty_snapshot(self):
+    @pytest.mark.asyncio
+async def test_calculate_derived_metrics_empty_snapshot(self):
         derived = self.socket._calculate_derived_metrics({})
         assert isinstance(derived, dict)
 
-    def test_calculate_derived_metrics_with_request_count(self):
+    @pytest.mark.asyncio
+async def test_calculate_derived_metrics_with_request_count(self):
         snapshot = {"request": 500}
         derived = self.socket._calculate_derived_metrics(snapshot)
         assert isinstance(derived, dict)
 
-    def test_calculate_derived_metrics_with_latency(self):
+    @pytest.mark.asyncio
+async def test_calculate_derived_metrics_with_latency(self):
         snapshot = {
             "request": 100,
             "avg_latency": {"evaluation": 2.5},
@@ -229,7 +248,8 @@ class TestMetricsSocketUnit:
         if "estimated_tokens_per_second" in derived:
             assert derived["estimated_tokens_per_second"] == pytest.approx(200.0)
 
-    def test_calculate_derived_metrics_zero_latency_no_crash(self):
+    @pytest.mark.asyncio
+async def test_calculate_derived_metrics_zero_latency_no_crash(self):
         snapshot = {"avg_latency": {"evaluation": 0}}
         derived = self.socket._calculate_derived_metrics(snapshot)
         assert isinstance(derived, dict)
@@ -241,25 +261,29 @@ class TestMetricsSocketUnit:
 
 
 class TestMetricsSingleton:
-    def test_metrics_socket_is_singleton(self):
+    @pytest.mark.asyncio
+async def test_metrics_socket_is_singleton(self):
         from backend.sockets.metrics import metrics_socket, MetricsSocket
 
         assert isinstance(metrics_socket, MetricsSocket)
 
-    def test_get_latest_metrics_returns_dict(self):
+    @pytest.mark.asyncio
+async def test_get_latest_metrics_returns_dict(self):
         from backend.sockets.metrics import get_latest_metrics
 
         result = get_latest_metrics()
         assert isinstance(result, dict)
         assert "timestamp" in result
 
-    def test_get_latest_metrics_has_derived(self):
+    @pytest.mark.asyncio
+async def test_get_latest_metrics_has_derived(self):
         from backend.sockets.metrics import get_latest_metrics
 
         result = get_latest_metrics()
         assert "derived" in result
 
-    def test_importing_start_stop_functions_works(self):
+    @pytest.mark.asyncio
+async def test_importing_start_stop_functions_works(self):
         from backend.sockets.metrics import (
             start_metrics_broadcast,
             stop_metrics_broadcast,

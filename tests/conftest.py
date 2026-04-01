@@ -24,12 +24,13 @@ from datetime import datetime, timedelta
 from typing import Any, Generator, Optional
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from httpx import AsyncClient, ASGITransport
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+
 
 # Set test environment variables before imports
-os.environ["DATABASE_URL"] = "sqlite:///./tests/data/test_intervux.db"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./tests/data/test_intervux.db"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-testing-only"
 os.environ["RUNTIME_THREADPOOL_WORKERS"] = "2"
 
@@ -59,15 +60,15 @@ from backend.models.recruiter_dashboard_models import (
 # Test Database Engine
 # =========================================================
 
-TEST_DATABASE_URL = "sqlite:///./tests/data/test_intervux.db"
+TEST_DATABASE_URL = "sqlite+aiosqlite:///./tests/data/test_intervux.db"
 
-test_engine = create_engine(
+test_engine = create_async_engine(
     TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
     echo=False,
 )
 
-TestSessionLocal = sessionmaker(
+TestSessionLocal = async_sessionmaker(class_=AsyncSession,
     autocommit=False,
     autoflush=False,
     bind=test_engine,
@@ -79,44 +80,28 @@ TestSessionLocal = sessionmaker(
 # =========================================================
 
 
-@pytest.fixture(scope="function")
-def db_session() -> Generator[Session, None, None]:
-    """
-    Create a fresh database session for each test.
+@pytest_asyncio.fixture(scope="function")
+async def db_session() -> AsyncSession:
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     
-    Yields:
-        SQLAlchemy session for database operations
-    """
-    # Create all tables
-    Base.metadata.create_all(bind=test_engine)
-    
-    session = TestSessionLocal()
-    
-    try:
+    async with TestSessionLocal() as session:
         yield session
-    finally:
-        session.close()
-        # Drop all tables after test
-        Base.metadata.drop_all(bind=test_engine)
+        
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
 
 
-@pytest.fixture(scope="function")
-def client(db_session: Session) -> Generator[TestClient, None, None]:
-    """
-    Create a FastAPI TestClient with test database.
-    
-    Yields:
-        TestClient for making HTTP requests
-    """
-    def override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
+@pytest_asyncio.fixture(scope="function")
+async def client(db_session: AsyncSession) -> AsyncClient:
+    async def override_get_db():
+        yield db_session
     
     app.dependency_overrides[get_db] = override_get_db
     
-    with TestClient(app, raise_server_exceptions=False) as test_client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as test_client:
         yield test_client
     
     app.dependency_overrides.clear()
@@ -209,8 +194,8 @@ def candidate_headers(candidate_token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {candidate_token}"}
 
 
-@pytest.fixture
-def test_job_post(db_session: Session) -> JobPost:
+@pytest_asyncio.fixture
+async def test_job_post(db_session: AsyncSession) -> JobPost:
     """
     Create a test job post in the database.
     
@@ -240,13 +225,13 @@ def test_job_post(db_session: Session) -> JobPost:
     )
     db_session.add(skill)
     
-    db_session.commit()
-    db_session.refresh(job)
+    await db_session.commit()
+    await db_session.refresh(job)
     return job
 
 
-@pytest.fixture
-def test_candidate(db_session: Session, test_job_post: JobPost) -> Candidate:
+@pytest_asyncio.fixture
+async def test_candidate(db_session: AsyncSession, test_job_post: JobPost) -> Candidate:
     """
     Create a test candidate in the database.
     
@@ -264,14 +249,14 @@ def test_candidate(db_session: Session, test_job_post: JobPost) -> Candidate:
         created_at=datetime.utcnow(),
     )
     db_session.add(candidate)
-    db_session.commit()
-    db_session.refresh(candidate)
+    await db_session.commit()
+    await db_session.refresh(candidate)
     return candidate
 
 
-@pytest.fixture
-def test_interview(
-    db_session: Session, 
+@pytest_asyncio.fixture
+async def test_interview(
+    db_session: AsyncSession, 
     test_candidate: Candidate
 ) -> Interview:
     """
@@ -292,8 +277,8 @@ def test_interview(
         completed_at=datetime.utcnow(),
     )
     db_session.add(interview)
-    db_session.commit()
-    db_session.refresh(interview)
+    await db_session.commit()
+    await db_session.refresh(interview)
     return interview
 
 
@@ -302,8 +287,8 @@ def test_interview(
 # =========================================================
 
 
-def create_test_job_post(
-    db: Session,
+async def create_test_job_post(
+    db: AsyncSession,
     title: str = "Test Job Post",
     status: str = JobPostStatus.ACTIVE.value,
     experience_level: str = ExperienceLevel.MID.value,
@@ -333,13 +318,13 @@ def create_test_job_post(
         created_by="test-recruiter-001",
     )
     db.add(job)
-    db.commit()
-    db.refresh(job)
+    await db.commit()
+    await db.refresh(job)
     return job
 
 
-def create_test_candidate(
-    db: Session,
+async def create_test_candidate(
+    db: AsyncSession,
     name: str = "Test Candidate",
     email: Optional[str] = None,
     role: str = "Software Engineer",
@@ -372,13 +357,13 @@ def create_test_candidate(
         created_at=datetime.utcnow(),
     )
     db.add(candidate)
-    db.commit()
-    db.refresh(candidate)
+    await db.commit()
+    await db.refresh(candidate)
     return candidate
 
 
-def create_test_interview(
-    db: Session,
+async def create_test_interview(
+    db: AsyncSession,
     candidate_id: str,
     role: str = "Software Engineer",
     overall_score: float = 75.0,
@@ -413,7 +398,7 @@ def create_test_interview(
         completed_at=datetime.utcnow(),
     )
     db.add(interview)
-    db.commit()
-    db.refresh(interview)
+    await db.commit()
+    await db.refresh(interview)
     return interview
 

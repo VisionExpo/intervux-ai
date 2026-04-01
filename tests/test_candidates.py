@@ -24,7 +24,8 @@ from backend.models.recruiter_dashboard_models import CandidateStatus
 class TestInviteCandidate:
     """Test suite for inviting candidates."""
 
-    def test_invite_candidate_success(
+    @pytest.mark.asyncio
+async def test_invite_candidate_success(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -35,7 +36,7 @@ class TestInviteCandidate:
         - Response contains candidate details
         - Candidate has correct status
         """
-        response = client.post(
+        response = await client.post(
             "/api/candidates/invite",
             headers=recruiter_headers,
             json={
@@ -53,7 +54,8 @@ class TestInviteCandidate:
         assert data["email"] == "john.doe@example.com"
         assert data["status"] == CandidateStatus.INVITED.value
 
-    def test_invite_candidate_with_job_post(
+    @pytest.mark.asyncio
+async def test_invite_candidate_with_job_post(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -66,7 +68,7 @@ class TestInviteCandidate:
         - HTTP 200 status code
         - Candidate is associated with job post
         """
-        response = client.post(
+        response = await client.post(
             "/api/candidates/invite",
             headers=recruiter_headers,
             json={
@@ -81,14 +83,15 @@ class TestInviteCandidate:
         data = response.json()
         assert "id" in data
 
-    def test_invite_candidate_without_auth(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_invite_candidate_without_auth(self, client: TestClient):
         """
         Test candidate invitation without authentication.
         
         Validates:
         - HTTP 401 status code
         """
-        response = client.post(
+        response = await client.post(
             "/api/candidates/invite",
             json={
                 "name": "Test Candidate",
@@ -99,7 +102,8 @@ class TestInviteCandidate:
         
         assert response.status_code == 401
 
-    def test_invite_candidate_with_candidate_token(
+    @pytest.mark.asyncio
+async def test_invite_candidate_with_candidate_token(
         self, client: TestClient, candidate_headers: dict
     ):
         """
@@ -108,7 +112,7 @@ class TestInviteCandidate:
         Validates:
         - HTTP 403 status code (forbidden)
         """
-        response = client.post(
+        response = await client.post(
             "/api/candidates/invite",
             headers=candidate_headers,
             json={
@@ -124,7 +128,8 @@ class TestInviteCandidate:
 class TestListCandidates:
     """Test suite for listing candidates."""
 
-    def test_list_candidates_success(
+    @pytest.mark.asyncio
+async def test_list_candidates_success(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -134,13 +139,14 @@ class TestListCandidates:
         - HTTP 200 status code
         - Response is a list
         """
-        response = client.get("/api/candidates", headers=recruiter_headers)
+        response = await client.get("/api/candidates", headers=recruiter_headers)
         
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
 
-    def test_list_candidates_with_pagination(
+    @pytest.mark.asyncio
+async def test_list_candidates_with_pagination(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -149,14 +155,15 @@ class TestListCandidates:
         Validates:
         - Pagination parameters are accepted
         """
-        response = client.get(
+        response = await client.get(
             "/api/candidates?page=1&limit=10",
             headers=recruiter_headers,
         )
         
         assert response.status_code == 200
 
-    def test_list_candidates_with_role_filter(
+    @pytest.mark.asyncio
+async def test_list_candidates_with_role_filter(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -165,14 +172,15 @@ class TestListCandidates:
         Validates:
         - Role filter parameter is accepted
         """
-        response = client.get(
+        response = await client.get(
             "/api/candidates?role=Python Developer",
             headers=recruiter_headers,
         )
         
         assert response.status_code == 200
 
-    def test_list_candidates_with_search(
+    @pytest.mark.asyncio
+async def test_list_candidates_with_search(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -181,21 +189,22 @@ class TestListCandidates:
         Validates:
         - Search parameter is accepted
         """
-        response = client.get(
+        response = await client.get(
             "/api/candidates?search=John",
             headers=recruiter_headers,
         )
         
         assert response.status_code == 200
 
-    def test_list_candidates_without_auth(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_list_candidates_without_auth(self, client: TestClient):
         """
         Test candidates listing without authentication.
         
         Validates:
         - HTTP 401 status code
         """
-        response = client.get("/api/candidates")
+        response = await client.get("/api/candidates")
         
         assert response.status_code == 401
 
@@ -203,7 +212,8 @@ class TestListCandidates:
 class TestGenerateInterviewLink:
     """Test suite for generating interview links."""
 
-    def test_generate_interview_link_success(
+    @pytest.mark.asyncio
+async def test_generate_interview_link_success(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -217,7 +227,7 @@ class TestGenerateInterviewLink:
         - Response contains interview_link
         - Response contains expires_at
         """
-        response = client.post(
+        response = await client.post(
             f"/api/candidates/{test_candidate.id}/generate-link",
             headers=recruiter_headers,
         )
@@ -227,7 +237,8 @@ class TestGenerateInterviewLink:
         assert "interview_link" in data
         assert "expires_at" in data
 
-    def test_generate_interview_link_with_custom_expiry(
+    @pytest.mark.asyncio
+async def test_generate_interview_link_with_custom_expiry(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -240,14 +251,15 @@ class TestGenerateInterviewLink:
         - HTTP 200 status code
         - Custom expires_days is respected
         """
-        response = client.post(
+        response = await client.post(
             f"/api/candidates/{test_candidate.id}/generate-link?expires_days=14",
             headers=recruiter_headers,
         )
         
         assert response.status_code == 200
 
-    def test_generate_interview_link_not_found(
+    @pytest.mark.asyncio
+async def test_generate_interview_link_not_found(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -256,7 +268,7 @@ class TestGenerateInterviewLink:
         Validates:
         - HTTP 404 status code
         """
-        response = client.post(
+        response = await client.post(
             "/api/candidates/nonexistent-id/generate-link",
             headers=recruiter_headers,
         )
@@ -267,7 +279,8 @@ class TestGenerateInterviewLink:
 class TestUpdateCandidateStatus:
     """Test suite for updating candidate status."""
 
-    def test_update_candidate_status_success(
+    @pytest.mark.asyncio
+async def test_update_candidate_status_success(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -280,7 +293,7 @@ class TestUpdateCandidateStatus:
         - HTTP 200 status code
         - Candidate status is updated
         """
-        response = client.patch(
+        response = await client.patch(
             f"/api/candidates/{test_candidate.id}/status",
             headers=recruiter_headers,
             params={"status": "scheduled"},
@@ -290,7 +303,8 @@ class TestUpdateCandidateStatus:
         data = response.json()
         assert data["status"] == "scheduled"
 
-    def test_update_candidate_status_to_completed(
+    @pytest.mark.asyncio
+async def test_update_candidate_status_to_completed(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -303,7 +317,7 @@ class TestUpdateCandidateStatus:
         - HTTP 200 status code
         - Status is updated to completed
         """
-        response = client.patch(
+        response = await client.patch(
             f"/api/candidates/{test_candidate.id}/status",
             headers=recruiter_headers,
             params={"status": "completed"},
@@ -311,7 +325,8 @@ class TestUpdateCandidateStatus:
         
         assert response.status_code == 200
 
-    def test_update_candidate_status_not_found(
+    @pytest.mark.asyncio
+async def test_update_candidate_status_not_found(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -320,7 +335,7 @@ class TestUpdateCandidateStatus:
         Validates:
         - HTTP 404 status code
         """
-        response = client.patch(
+        response = await client.patch(
             "/api/candidates/nonexistent-id/status",
             headers=recruiter_headers,
             params={"status": "scheduled"},
@@ -332,7 +347,8 @@ class TestUpdateCandidateStatus:
 class TestCandidateCompare:
     """Test suite for candidate comparison."""
 
-    def test_compare_candidates_endpoint_exists(
+    @pytest.mark.asyncio
+async def test_compare_candidates_endpoint_exists(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -341,7 +357,7 @@ class TestCandidateCompare:
         Validates:
         - HTTP 200 or 500 (DB-related)
         """
-        response = client.get(
+        response = await client.get(
             "/api/candidates/compare",
             headers=recruiter_headers,
         )
@@ -349,14 +365,15 @@ class TestCandidateCompare:
         # Either succeeds or fails due to DB constraints
         assert response.status_code in [200, 500]
 
-    def test_compare_candidates_requires_auth(self, client: TestClient):
+    @pytest.mark.asyncio
+async def test_compare_candidates_requires_auth(self, client: TestClient):
         """
         Test candidate comparison requires authentication.
         
         Validates:
         - HTTP 401 status code
         """
-        response = client.get("/api/candidates/compare")
+        response = await client.get("/api/candidates/compare")
         
         assert response.status_code == 401
 
