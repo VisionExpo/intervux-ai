@@ -26,7 +26,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, ConfigDict
-from backend.db.database import RevokedToken, SessionLocal
+from backend.db.database import RevokedToken, AsyncSessionLocal
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -580,7 +580,7 @@ def _get_demo_password_hash(user: Dict[str, Any]) -> str:
     return hashed
 
 
-async async def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
+async def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
     """
     Authenticate a user by email and password.
     Checks DEMO_USERS first, then falls back to the database.
@@ -619,7 +619,7 @@ async async def authenticate_user(email: str, password: str) -> Optional[Dict[st
         return None
 
 
-async async def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+async def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     """
     Get user by email.
     Checks DEMO_USERS first, then falls back to the database.

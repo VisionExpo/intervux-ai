@@ -16,7 +16,11 @@ DATABASE_URL = os.getenv(
 
 if DATABASE_URL.startswith("sqlite"):
     # For testing, map sqlite to the aiosqlite async driver
-    async_db_url = DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://")
+    if "aiosqlite" not in DATABASE_URL:
+        async_db_url = DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://")
+    else:
+        async_db_url = DATABASE_URL
+    print(f"DATABASE_URL={DATABASE_URL!r}, async_db_url={async_db_url!r}")
     connect_args = {"check_same_thread": False}
     engine = create_async_engine(
         async_db_url,

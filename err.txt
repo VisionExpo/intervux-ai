@@ -1,0 +1,21 @@
+Traceback (most recent call last):
+  File "C:\Vishal\intervux-ai\test_conftest.py", line 5, in <module>
+    import tests.conftest
+  File "C:\Vishal\intervux-ai\tests\conftest.py", line 40, in <module>
+    from backend.db.database import Base, get_db
+  File "C:\Vishal\intervux-ai\backend\db\database.py", line 21, in <module>
+    engine = create_async_engine(
+  File "C:\Vishal\intervux-ai\myenv\lib\site-packages\sqlalchemy\ext\asyncio\engine.py", line 120, in create_async_engine
+    sync_engine = _create_engine(url, **kw)
+  File "<string>", line 2, in create_engine
+  File "C:\Vishal\intervux-ai\myenv\lib\site-packages\sqlalchemy\util\deprecations.py", line 281, in warned
+    return fn(*args, **kwargs)  # type: ignore[no-any-return]
+  File "C:\Vishal\intervux-ai\myenv\lib\site-packages\sqlalchemy\engine\create.py", line 550, in create_engine
+    entrypoint = u._get_entrypoint()
+  File "C:\Vishal\intervux-ai\myenv\lib\site-packages\sqlalchemy\engine\url.py", line 758, in _get_entrypoint
+    cls = registry.load(name)
+  File "C:\Vishal\intervux-ai\myenv\lib\site-packages\sqlalchemy\util\langhelpers.py", line 365, in load
+    loader = self.auto_fn(name)
+  File "C:\Vishal\intervux-ai\myenv\lib\site-packages\sqlalchemy\dialects\__init__.py", line 31, in _auto_fn
+    dialect, driver = name.split(".")
+ValueError: too many values to unpack (expected 2)

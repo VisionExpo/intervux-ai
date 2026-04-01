@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 
 
 # Set test environment variables before imports
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./tests/data/test_intervux.db"
+os.environ["DATABASE_URL"] = "sqlite:///./tests/data/test_intervux.db"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-testing-only"
 os.environ["RUNTIME_THREADPOOL_WORKERS"] = "2"
 
