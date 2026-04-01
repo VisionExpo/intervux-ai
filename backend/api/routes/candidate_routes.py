@@ -29,7 +29,8 @@ from backend.auth.jwt_service import (
     get_current_user,
     hash_password,
 )
-from backend.db.database import SessionLocal
+from backend.db.database import AsyncSessionLocal
+from sqlalchemy import select
 from backend.models.candidate_portal import CandidateProfile, MockInterview, Notification
 from backend.services.resume_parser_service import ParsedResume, parse_resume_from_upload
 from backend.utils.logger import get_logger
@@ -234,9 +235,9 @@ async def candidate_signup(candidate_data: CandidateSignup, request: Request):
             detail="Too many signup attempts. Please try again later.",
         )
 
-    db = SessionLocal()
-    try:
-        existing_user = db.query(User).filter(User.email == candidate_data.email).first()
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(select(User).filter(User.email == candidate_data.email))
+        existing_user = res.scalar_one_or_none()
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -251,7 +252,7 @@ async def candidate_signup(candidate_data: CandidateSignup, request: Request):
                 role=Role.CANDIDATE,
             )
             db.add(db_user)
-            db.flush()
+            await db.flush()
 
             user_id = f"candidate-{db_user.id}"
 
@@ -262,9 +263,9 @@ async def candidate_signup(candidate_data: CandidateSignup, request: Request):
                 mock_interviews_remaining=3,
             )
             db.add(profile)
-            db.commit()
+            await db.commit()
         except Exception:
-            db.rollback()
+            await db.rollback()
             raise HTTPException(status_code=500, detail="Signup failed, please try again")
 
         user_data = {
@@ -274,9 +275,6 @@ async def candidate_signup(candidate_data: CandidateSignup, request: Request):
             "role": Role.CANDIDATE,
         }
         return create_token_pair(user_data)
-
-    finally:
-        db.close()
 
 
 # =========================================================
@@ -289,9 +287,9 @@ async def get_candidate_profile(current_user: TokenData = Depends(get_current_us
     if current_user.role != Role.CANDIDATE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
 
-    db = SessionLocal()
-    try:
-        profile = db.query(CandidateProfile).filter(CandidateProfile.user_id == current_user.user_id).first()
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(select(CandidateProfile).filter(CandidateProfile.user_id == current_user.user_id))
+        profile = res.scalar_one_or_none()
         if not profile:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
@@ -313,8 +311,6 @@ async def get_candidate_profile(current_user: TokenData = Depends(get_current_us
             mock_interviews_remaining=profile.mock_interviews_remaining,
             created_at=profile.created_at,
         )
-    finally:
-        db.close()
 
 
 @router.put("/profile", response_model=CandidateProfileResponse)
@@ -325,9 +321,9 @@ async def update_candidate_profile(
     if current_user.role != Role.CANDIDATE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
 
-    db = SessionLocal()
-    try:
-        profile = db.query(CandidateProfile).filter(CandidateProfile.user_id == current_user.user_id).first()
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(select(CandidateProfile).filter(CandidateProfile.user_id == current_user.user_id))
+        profile = res.scalar_one_or_none()
         if not profile:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
@@ -347,8 +343,8 @@ async def update_candidate_profile(
         profile.profile_score = _calculate_profile_score(profile)
         profile.updated_at = datetime.utcnow()
 
-        db.commit()
-        db.refresh(profile)
+        await db.commit()
+        await db.refresh(profile)
 
         skills = json.loads(profile.skills) if profile.skills else []
 
@@ -368,8 +364,6 @@ async def update_candidate_profile(
             mock_interviews_remaining=profile.mock_interviews_remaining,
             created_at=profile.created_at,
         )
-    finally:
-        db.close()
 
 
 # =========================================================
@@ -417,11 +411,11 @@ async def upload_resume(
             detail="File too large. Maximum size is 10MB.",
         )
 
-    db = SessionLocal()
-    try:
-        profile = db.query(CandidateProfile).filter(
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(select(CandidateProfile).filter(
             CandidateProfile.user_id == current_user.user_id
-        ).first()
+        ))
+        profile = res.scalar_one_or_none()
         if not profile:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
@@ -456,7 +450,7 @@ async def upload_resume(
         profile.profile_score = _calculate_profile_score(profile)
         profile.updated_at = datetime.utcnow()
 
-        db.commit()
+        await db.commit()
 
         notification = Notification(
             user_id=current_user.user_id,
@@ -464,7 +458,7 @@ async def upload_resume(
             message=f"Your resume has been analyzed. Score: {resume_score:.0f}%",
         )
         db.add(notification)
-        db.commit()
+        await db.commit()
 
         return ResumeUploadResponse(
             resume_url=resume_url,
@@ -473,8 +467,6 @@ async def upload_resume(
             strengths=strengths,
             weaknesses=weaknesses,
         )
-    finally:
-        db.close()
 
 
 # =========================================================
@@ -487,11 +479,12 @@ async def start_mock_interview(current_user: TokenData = Depends(get_current_use
     if current_user.role != Role.CANDIDATE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
 
-    db = SessionLocal()
-    try:
-        profile = db.query(CandidateProfile).filter(
+    from sqlalchemy import func
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(select(CandidateProfile).filter(
             CandidateProfile.user_id == current_user.user_id
-        ).first()
+        ))
+        profile = res.scalar_one_or_none()
         if not profile:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
@@ -501,9 +494,10 @@ async def start_mock_interview(current_user: TokenData = Depends(get_current_use
                 detail="No mock interviews remaining. Upgrade to get more.",
             )
 
-        existing_count = db.query(MockInterview).filter(
+        count_res = await db.execute(select(func.count(MockInterview.id)).filter(
             MockInterview.candidate_id == profile.id
-        ).count()
+        ))
+        existing_count = count_res.scalar()
 
         session_id = f"mock-{uuid.uuid4().hex}"
         mock_interview = MockInterview(
@@ -516,16 +510,14 @@ async def start_mock_interview(current_user: TokenData = Depends(get_current_use
 
         profile.mock_interviews_remaining -= 1
 
-        db.commit()
-        db.refresh(mock_interview)
+        await db.commit()
+        await db.refresh(mock_interview)
 
         return MockInterviewStartResponse(
             session_id=session_id,
             message="Mock interview started. Connect to WebSocket for the interview.",
             mock_interview_id=mock_interview.id,
         )
-    finally:
-        db.close()
 
 
 @router.get("/mock-interview/history", response_model=List[MockInterviewResponse])
@@ -533,20 +525,18 @@ async def get_mock_interview_history(current_user: TokenData = Depends(get_curre
     if current_user.role != Role.CANDIDATE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
 
-    db = SessionLocal()
-    try:
-        profile = db.query(CandidateProfile).filter(
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(select(CandidateProfile).filter(
             CandidateProfile.user_id == current_user.user_id
-        ).first()
+        ))
+        profile = res.scalar_one_or_none()
         if not profile:
             return []
 
-        interviews = (
-            db.query(MockInterview)
+        i_res = await db.execute(select(MockInterview)
             .filter(MockInterview.candidate_id == profile.id)
-            .order_by(MockInterview.created_at.desc())
-            .all()
-        )
+            .order_by(MockInterview.created_at.desc()))
+        interviews = i_res.scalars().all()
 
         return [
             MockInterviewResponse(
@@ -563,8 +553,6 @@ async def get_mock_interview_history(current_user: TokenData = Depends(get_curre
             )
             for i in interviews
         ]
-    finally:
-        db.close()
 
 
 @router.get("/mock-interview/{interview_id}", response_model=MockInterviewResponse)
@@ -575,18 +563,19 @@ async def get_mock_interview(
     if current_user.role != Role.CANDIDATE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
 
-    db = SessionLocal()
-    try:
-        profile = db.query(CandidateProfile).filter(
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(select(CandidateProfile).filter(
             CandidateProfile.user_id == current_user.user_id
-        ).first()
+        ))
+        profile = res.scalar_one_or_none()
         if not profile:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
-        interview = db.query(MockInterview).filter(
+        i_res = await db.execute(select(MockInterview).filter(
             MockInterview.id == interview_id,
             MockInterview.candidate_id == profile.id,
-        ).first()
+        ))
+        interview = i_res.scalar_one_or_none()
         if not interview:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
 
@@ -602,8 +591,6 @@ async def get_mock_interview(
             created_at=interview.created_at,
             completed_at=interview.completed_at,
         )
-    finally:
-        db.close()
 
 
 # =========================================================
@@ -616,15 +603,12 @@ async def get_notifications(current_user: TokenData = Depends(get_current_user))
     if current_user.role != Role.CANDIDATE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
 
-    db = SessionLocal()
-    try:
-        notifications = (
-            db.query(Notification)
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(select(Notification)
             .filter(Notification.user_id == current_user.user_id)
             .order_by(Notification.created_at.desc())
-            .limit(50)
-            .all()
-        )
+            .limit(50))
+        notifications = res.scalars().all()
 
         return [
             NotificationResponse(
@@ -636,8 +620,6 @@ async def get_notifications(current_user: TokenData = Depends(get_current_user))
             )
             for n in notifications
         ]
-    finally:
-        db.close()
 
 
 @router.post("/notifications/{notification_id}/read")
@@ -648,21 +630,19 @@ async def mark_notification_read(
     if current_user.role != Role.CANDIDATE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
 
-    db = SessionLocal()
-    try:
-        notification = db.query(Notification).filter(
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(select(Notification).filter(
             Notification.id == notification_id,
             Notification.user_id == current_user.user_id,
-        ).first()
+        ))
+        notification = res.scalar_one_or_none()
         if not notification:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
 
         notification.is_read = True
-        db.commit()
+        await db.commit()
 
         return {"message": "Notification marked as read"}
-    finally:
-        db.close()
 
 
 # =========================================================
@@ -675,30 +655,30 @@ async def get_candidate_dashboard(current_user: TokenData = Depends(get_current_
     if current_user.role != Role.CANDIDATE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only candidates can access this endpoint")
 
-    db = SessionLocal()
-    try:
-        profile = db.query(CandidateProfile).filter(
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(select(CandidateProfile).filter(
             CandidateProfile.user_id == current_user.user_id
-        ).first()
+        ))
+        profile = res.scalar_one_or_none()
         if not profile:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
         recent_activity = []
 
-        recent_interview = (
-            db.query(MockInterview)
+        i_res = await db.execute(select(MockInterview)
             .filter(
                 MockInterview.candidate_id == profile.id,
                 MockInterview.status == "completed",
             )
-            .order_by(MockInterview.completed_at.desc())
-            .first()
-        )
+            .order_by(MockInterview.completed_at.desc()))
+        recent_interview = i_res.scalars().first()
 
         if recent_interview:
-            recent_activity.append(
-                f"Mock Interview #{recent_interview.interview_number} completed - Score: {recent_interview.score:.0f}"
-            )
+            if recent_interview.score is not None:
+                recent_activity.append(f"Mock Interview #{recent_interview.interview_number} completed - Score: {recent_interview.score:.0f}")
+            else:
+                recent_activity.append(f"Mock Interview #{recent_interview.interview_number} completed")
+
 
         if profile.resume_url:
             recent_activity.append("Resume analyzed")
@@ -706,15 +686,13 @@ async def get_candidate_dashboard(current_user: TokenData = Depends(get_current_
         if profile.profile_score and profile.profile_score >= 50:
             recent_activity.append("Profile updated")
 
-        completed_interviews = (
-            db.query(MockInterview)
+        ci_res = await db.execute(select(MockInterview)
             .filter(
                 MockInterview.candidate_id == profile.id,
                 MockInterview.status == "completed",
                 MockInterview.score.isnot(None),
-            )
-            .all()
-        )
+            ))
+        completed_interviews = ci_res.scalars().all()
 
         mock_interview_score = (
             sum(i.score for i in completed_interviews) / len(completed_interviews)
@@ -729,5 +707,3 @@ async def get_candidate_dashboard(current_user: TokenData = Depends(get_current_
             mock_interviews_remaining=profile.mock_interviews_remaining,
             recent_activity=recent_activity,
         )
-    finally:
-        db.close()

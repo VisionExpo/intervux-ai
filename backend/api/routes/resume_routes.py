@@ -12,6 +12,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from backend.services.resume_parser_service import parse_resume_from_upload
+import asyncio
 
 router = APIRouter()
 
@@ -47,7 +48,7 @@ async def upload_resume(file: UploadFile = File(...)):
         )
 
     try:
-        parsed = parse_resume_from_upload(file)
+        parsed = await asyncio.to_thread(parse_resume_from_upload, file)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Parsing failed: {exc}") from exc
 

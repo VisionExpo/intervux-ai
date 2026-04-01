@@ -60,7 +60,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     
     Returns access and refresh tokens.
     """
-    user = authenticate_user(form_data.username, form_data.password)
+    user = await authenticate_user(form_data.username, form_data.password)
     
     if not user:
         raise HTTPException(
@@ -82,7 +82,7 @@ async def login_json(credentials: UserLogin):
     
     Alternative login endpoint that accepts JSON body.
     """
-    user = authenticate_user(credentials.email, credentials.password)
+    user = await authenticate_user(credentials.email, credentials.password)
     
     if not user:
         raise HTTPException(
@@ -110,7 +110,7 @@ async def refresh_token(refresh_token: str):
     Send the refresh_token received during login to get new tokens.
     """
     try:
-        return refresh_access_token(refresh_token)
+        return await refresh_access_token(refresh_token)
     except HTTPException:
         raise
     except Exception as e:
@@ -133,7 +133,7 @@ async def get_current_user_profile(current_user: TokenData = Depends(get_current
     
     Returns the profile of the currently authenticated user.
     """
-    user = get_user_by_email(current_user.email)
+    user = await get_user_by_email(current_user.email)
     
     if not user:
         raise HTTPException(
@@ -179,16 +179,17 @@ async def logout(
             if exp_ts
             else datetime.utcnow() + timedelta(hours=12)
         )
-        db = SessionLocal()
-        try:
-            existing = db.query(RevokedToken).filter(RevokedToken.jti == jti).first()
-            if not existing:
-                db.add(RevokedToken(jti=jti, token_type="access", expires_at=expires_at))
-                db.commit()
-        except Exception:
-            db.rollback()
-        finally:
-            db.close()
+        from backend.db.database import AsyncSessionLocal
+        from sqlalchemy import select
+        async with AsyncSessionLocal() as db:
+            try:
+                res = await db.execute(select(RevokedToken).filter(RevokedToken.jti == jti))
+                existing = res.scalar_one_or_none()
+                if not existing:
+                    db.add(RevokedToken(jti=jti, token_type="access", expires_at=expires_at))
+                    await db.commit()
+            except Exception:
+                await db.rollback()
     except Exception:
         logger.exception("Token revocation failed during logout")
 
@@ -212,7 +213,7 @@ async def change_password(
     Requires the current password to be verified before
     setting the new password.
     """
-    user = get_user_by_email(current_user.email)
+    user = await get_user_by_email(current_user.email)
     
     if not user:
         raise HTTPException(
