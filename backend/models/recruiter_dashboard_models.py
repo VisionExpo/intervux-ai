@@ -6,7 +6,7 @@ from enum import Enum
 
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
 
-from backend.db.database import Base
+from backend.infrastructure.database.database import Base
 
 
 class ExperienceLevel(str, Enum):

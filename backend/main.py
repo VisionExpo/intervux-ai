@@ -2,75 +2,38 @@ import time
 import uuid
 import asyncio
 import os
-import json as _json
-import subprocess
 import sys
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import Depends, FastAPI, Request, WebSocket
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
-from backend.models.evaluation_dashboard import (
-    EvaluationDashboardResponse,
-    ExperimentCompareRequest,
-    ExperimentCreateRequest,
-)
-from backend.db.database import Base, engine, get_db
+from backend.infrastructure.database.database import Base, engine
 from backend.core.llm_brain import prewarm_llm
-from backend.models.recruiter_dashboard import (
-    CandidateComparisonRow,
-    CandidateCreate,
-    CandidateInterviewReport,
-    JobPost,
-    JobPostCreate,
-    JobPostUpdate,
-    SkillAnalytics,
-)
-from backend.services.recruiter_dashboard_store import (
-    compare_candidates,
-    create_job_post,
-    get_interview_report,
-    get_job_post,
-    get_skill_analytics,
-    list_candidates,
-    list_job_posts,
-    update_job_post,
-    delete_job_post,
-    generate_interview_link,
-    invite_candidate,
-    update_candidate_status,
-)
-from backend.services.evaluation_dashboard_store import (
-    get_evaluation_dashboard,
-    get_db_metrics_aggregates,
-    get_historical_trends,
-    get_experiments,
-    log_experiment,
-    compare_experiments,
-)
-from backend.services.decision_support_service import generate_full_report
 from backend.models import recruiter_dashboard_models  # noqa: F401
 from backend.models.candidate_portal import CandidateProfile, MockInterview, Notification  # noqa: F401
-from backend.sockets.interview_gateway import InterviewGateway
-from backend.sockets.metrics import metrics_socket
-from backend.utils.logger import get_logger
+from backend.modules.interview.websocket.interview_gateway import InterviewGateway
+from backend.modules.analytics.websocket.metrics_socket import metrics_socket
+from backend.core.logging.logger import get_logger
+from backend.core.config.settings import get_settings
+from backend.core.exceptions import register_exception_handlers
 from backend.utils.metrics import metrics
 from backend.utils.runtime_monitor import RuntimeMonitor
 
 # Auth imports
 from backend.api.routes.auth_routes import router as auth_router
-from backend.auth.rbac import require_recruiter, require_admin
-from backend.middleware.rate_limiter import RateLimitMiddleware
-from backend.api.routes.candidate_routes import router as candidate_router
-from backend.api.routes.resume_routes import router as resume_router
+from backend.api.middleware.rate_limiter import RateLimitMiddleware
+from backend.modules.candidate.routes.candidate_routes import router as candidate_router
+from backend.modules.candidate.routes.resume_routes import router as resume_router
+from backend.modules.recruiter.routes.recruiter_routes import router as recruiter_router
 
 logger = get_logger(__name__)
 interview_gateway = InterviewGateway(total_questions=2)
 runtime_monitor = RuntimeMonitor(interview_socket=interview_gateway)
+settings = get_settings()
 thread_pool: ThreadPoolExecutor | None = None
 
 
@@ -134,7 +97,7 @@ def _validate_cors_origins(origins: list[str]) -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     global thread_pool
-    workers = int(os.getenv("RUNTIME_THREADPOOL_WORKERS", "4"))
+    workers = settings.runtime_threadpool_workers
 
     # Wait for Postgres readiness before metadata/table initialization.
     db_ready = False
@@ -168,21 +131,13 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Intervux-AI", version="1.0.0", lifespan=lifespan)
 
-_cors_raw = os.getenv("CORS_ALLOW_ORIGINS", '["http://localhost:5173"]')
-try:
-    _cors_origins = _json.loads(_cors_raw)
-    if not isinstance(_cors_origins, list):
-        raise ValueError("CORS_ALLOW_ORIGINS must be a JSON array")
-except Exception as exc:
-    logger.error(f"Invalid CORS_ALLOW_ORIGINS value '{_cors_raw}': {exc} — falling back to localhost")
-    _cors_origins = ["http://localhost:5173"]
-
-_validate_cors_origins(_cors_origins)
+register_exception_handlers(app)
+_validate_cors_origins(settings.cors_allow_origins)
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
+    allow_origins=settings.cors_allow_origins,
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -219,6 +174,7 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 # Include candidate portal router
 app.include_router(candidate_router, prefix="/api/candidate", tags=["candidate"])
 app.include_router(resume_router, prefix="/api/resume", tags=["resume"])
+app.include_router(recruiter_router, prefix="/api")
 
 
 @app.middleware("http")
@@ -278,7 +234,7 @@ async def readiness_check():
     # Check database connectivity
     try:
         from sqlalchemy import text
-        from backend.db.database import AsyncSessionLocal
+        from backend.infrastructure.database.database import AsyncSessionLocal
         async with AsyncSessionLocal() as db:
             await db.execute(text("SELECT 1"))
         checks["database"] = "connected"
@@ -299,52 +255,6 @@ def get_metrics():
     return metrics.snapshot()
 
 
-@app.get("/api/evaluation-dashboard", response_model=EvaluationDashboardResponse)
-async def get_ai_evaluation_dashboard(
-    db: AsyncSession = Depends(get_db),
-    user=Depends(require_recruiter)
-):
-    return await get_evaluation_dashboard(db)
-
-
-@app.get("/api/candidates")
-async def get_candidates(
-    user=Depends(require_recruiter),
-    page: int = 1,
-    limit: int = 20,
-    role: str | None = None,
-    search: str | None = None,
-    db: AsyncSession = Depends(get_db),
-):
-    return await list_candidates(db, page=page, limit=limit, role=role, search=search)
-
-
-@app.get("/api/interview/{interview_id}", response_model=CandidateInterviewReport)
-async def get_interview(
-    interview_id: str,
-    user=Depends(require_recruiter),
-    db: AsyncSession = Depends(get_db),
-):
-    return await get_interview_report(db, interview_id)
-
-
-@app.get("/api/interview/{interview_id}/analytics", response_model=SkillAnalytics)
-async def get_interview_analytics(
-    interview_id: str,
-    user=Depends(require_recruiter),
-    db: AsyncSession = Depends(get_db),
-):
-    return await get_skill_analytics(db, interview_id)
-
-
-@app.get("/api/candidates/compare", response_model=list[CandidateComparisonRow])
-async def get_candidate_comparison(
-    user=Depends(require_recruiter),
-    db: AsyncSession = Depends(get_db),
-):
-    return await compare_candidates(db)
-
-
 @app.websocket("/ws/interview")
 async def websocket_interview(ws: WebSocket):
     await interview_gateway.handle(ws)
@@ -357,241 +267,6 @@ async def websocket_metrics(ws: WebSocket):
 
 
 # =========================================================
-# New API Endpoints for Dashboard Enhancements
-# =========================================================
-
-@app.get("/api/metrics/aggregates")
-async def get_metrics_aggregates(
-    user=Depends(require_recruiter),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get aggregated metrics from PostgreSQL (last 24h, 7d, 30d)."""
-    return await get_db_metrics_aggregates(db)
-
-
-@app.get("/api/metrics/trends")
-async def get_metrics_trends(
-    user=Depends(require_recruiter),
-    days: int = 30,
-    db: AsyncSession = Depends(get_db)
-):
-    """Get historical trend data for charts."""
-    return await get_historical_trends(db, days=days)
-
-
-@app.get("/api/experiments")
-async def get_experiment_list(
-    user=Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
-    limit: int = 100
-):
-    """Get list of experiments."""
-    return await get_experiments(db, limit=limit)
-
-
-@app.post("/api/experiments")
-async def create_experiment(
-    payload: ExperimentCreateRequest,
-    user=Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
-):
-    """Log a new experiment result."""
-    return await log_experiment(
-        db,
-        experiment_name=payload.experiment_name,
-        model_version=payload.model_version,
-        prompt_template=payload.prompt_template,
-        accuracy=payload.accuracy,
-        latency_ms=payload.latency_ms,
-    )
-
-
-@app.post("/api/experiments/compare")
-async def compare_experiment_results(
-    payload: ExperimentCompareRequest,
-    user=Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
-):
-    """Compare multiple experiments."""
-    return await compare_experiments(db, payload.experiment_names)
-
-
-@app.post("/api/interview/{interview_id}/decision")
-async def get_interview_decision(
-    interview_id: str,
-    user=Depends(require_recruiter),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get decision support for an interview."""
-    # Get interview report
-    interview = await get_interview_report(db, interview_id)
-
-    if hasattr(interview, "model_dump"):
-        interview_data = interview.model_dump()
-    elif isinstance(interview, dict):
-        interview_data = interview
-    else:
-        interview_data = {}
-
-    answers = interview_data.get("answers")
-    if not isinstance(answers, list):
-        questions = interview_data.get("questions", [])
-        answers = []
-        if isinstance(questions, list):
-            for question_item in questions:
-                if not isinstance(question_item, dict):
-                    continue
-                score = float(question_item.get("score", 0) or 0)
-                answers.append(
-                    {
-                        "question": question_item.get("question", ""),
-                        "answer": question_item.get("answer", ""),
-                        "score": score,
-                        "evaluation": {
-                            "scores": {
-                                "Overall": score,
-                                "Technical": score,
-                                "Behavioral": score,
-                                "Reasoning": score,
-                            }
-                        },
-                    }
-                )
-
-    profile = interview_data.get("profile") or interview_data.get("candidate")
-
-    # Generate decision support report
-    report = generate_full_report(
-        answers=answers,
-        profile=profile,
-    )
-    
-    return report
-
-
-# =========================================================
-# Job Post API Endpoints
-# =========================================================
-
-
-@app.get("/api/job-posts", response_model=list[JobPost])
-async def get_job_posts(
-    user=Depends(require_recruiter),
-    db: AsyncSession = Depends(get_db),
-    page: int = 1,
-    limit: int = 20,
-    status: str | None = None,
-):
-    """Get list of job posts."""
-    return await list_job_posts(db, page=page, limit=limit, status=status)
-
-
-@app.post("/api/job-posts", response_model=JobPost)
-async def create_new_job_post(
-    job_data: JobPostCreate,
-    user=Depends(require_recruiter),
-    db: AsyncSession = Depends(get_db),
-):
-    """Create a new job post."""
-    return await create_job_post(db, job_data, created_by=user.user_id)
-
-
-@app.get("/api/job-posts/{job_post_id}", response_model=JobPost)
-async def get_job(
-    job_post_id: str,
-    user=Depends(require_recruiter),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get a single job post."""
-    job = await get_job_post(db, job_post_id)
-    if not job:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Job post not found")
-    return job
-
-
-@app.put("/api/job-posts/{job_post_id}", response_model=JobPost)
-async def update_job(
-    job_post_id: str,
-    job_data: JobPostUpdate,
-    user=Depends(require_recruiter),
-    db: AsyncSession = Depends(get_db),
-):
-    """Update a job post."""
-    job = await update_job_post(db, job_post_id, job_data)
-    if not job:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Job post not found")
-    return job
-
-
-@app.delete("/api/job-posts/{job_post_id}")
-async def delete_job(
-    job_post_id: str,
-    user=Depends(require_recruiter),
-    db: AsyncSession = Depends(get_db),
-):
-    """Delete a job post."""
-    success = await delete_job_post(db, job_post_id)
-    if not success:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Job post not found")
-    return {"message": "Job post deleted successfully"}
-
-
-# =========================================================
-# Candidate API Endpoints
-# =========================================================
-
-
-@app.post("/api/candidates/invite", response_model=dict)
-async def invite_new_candidate(
-    candidate_data: CandidateCreate,
-    user=Depends(require_recruiter),
-    db: AsyncSession = Depends(get_db),
-):
-    """Invite a candidate to a job."""
-    candidate = await invite_candidate(db, candidate_data)
-    return {
-        "id": candidate.id,
-        "name": candidate.name,
-        "email": candidate.email,
-        "role": candidate.role,
-        "status": candidate.status,
-    }
-
-
-@app.post("/api/candidates/{candidate_id}/generate-link")
-async def create_interview_link(
-    candidate_id: str,
-    user=Depends(require_recruiter),
-    db: AsyncSession = Depends(get_db),
-    expires_days: int = 7,
-):
-    """Generate an interview link for a candidate."""
-    interview_link, expires_at = await generate_interview_link(db, candidate_id, expires_days)
-    return {
-        "interview_link": interview_link,
-        "expires_at": expires_at.isoformat(),
-    }
-
-
-@app.patch("/api/candidates/{candidate_id}/status")
-async def change_candidate_status(
-    candidate_id: str,
-    status: str,
-    user=Depends(require_recruiter),
-    db: AsyncSession = Depends(get_db),
-):
-    """Update candidate status."""
-    candidate = await update_candidate_status(db, candidate_id, status)
-    if not candidate:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Candidate not found")
-    return candidate
-
-
-# =========================================================
 # Static Files (Uploads)
 # =========================================================
 
@@ -601,3 +276,5 @@ os.makedirs(uploads_dir, exist_ok=True)
 
 # Mount static files for uploaded resumes
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
+

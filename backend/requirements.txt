@@ -16,7 +16,6 @@ pydantic==2.8.2
 
 # HTTP clients
 httpx==0.27.0
-requests==2.32.3
 
 # AI / LLM
 google-genai==0.1.0
@@ -31,30 +30,23 @@ edge-tts==6.1.12
 
 # Audio processing
 soundfile==0.12.1
-pydub==0.25.1
 numpy==1.26.4
 opencv-python==4.10.0.84
 
 # Resume parsing / documents
 pdfplumber==0.11.4
 python-docx==1.1.2
-pytesseract==0.3.10
-Pillow==10.4.0
 
 # Configuration
 python-dotenv==1.0.1
 pyyaml==6.0.1
 
-# Async utilities
-anyio==4.4.0
-
-# Logging / telemetry
-python-json-logger==2.0.7
-
 # Task Queue and Message Broker
 redis==5.0.7
 celery==5.4.0
-flower==2.0.1
 
 # Database Driver
-psycopg2-binary==2.9.9
+asyncpg==0.30.0
+
+# FastAPI form/file parsing
+python-multipart==0.0.9

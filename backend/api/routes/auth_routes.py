@@ -29,7 +29,7 @@ class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str
 
-from backend.auth.jwt_service import (
+from backend.core.security.jwt_service import (
     Token,
     TokenData,
     UserLogin,
@@ -45,7 +45,7 @@ from backend.auth.jwt_service import (
     verify_token,
     Role,
 )
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -169,8 +169,8 @@ async def logout(
     token: str = Depends(oauth2_scheme),
     current_user: TokenData = Depends(get_current_user),
 ):
-    from backend.db.database import RevokedToken
-    from backend.auth.jwt_service import SECRET_KEY, ALGORITHM
+    from backend.infrastructure.database.database import RevokedToken
+    from backend.core.security.jwt_service import SECRET_KEY, ALGORITHM
     from jose import jwt as _jwt
 
     try:
@@ -187,7 +187,7 @@ async def logout(
             if exp_ts
             else datetime.utcnow() + timedelta(hours=12)
         )
-        from backend.db.database import AsyncSessionLocal
+        from backend.infrastructure.database.database import AsyncSessionLocal
         from sqlalchemy import select
         async with AsyncSessionLocal() as db:
             try:
@@ -259,7 +259,7 @@ async def list_users(
     For demo purposes, returns demo users.
     """
     # In production, query database
-    from backend.auth.jwt_service import DEMO_USERS
+    from backend.core.security.jwt_service import DEMO_USERS
     
     users = []
     for email, user_data in DEMO_USERS.items():

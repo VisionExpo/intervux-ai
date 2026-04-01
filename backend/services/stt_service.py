@@ -4,7 +4,7 @@ import threading
 import time
 
 from backend.core.audio_stack import AudioEngine
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 from backend.utils.metrics import metrics
 
 logger = get_logger(__name__)

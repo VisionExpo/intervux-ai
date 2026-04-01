@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text, Boolean
-from backend.db.database import Base
+from backend.infrastructure.database.database import Base
 
 
 class CandidateProfile(Base):

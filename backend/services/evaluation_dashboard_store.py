@@ -12,7 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from backend.db.database import LLMMetrics, Experiment
+from backend.infrastructure.database.database import LLMMetrics, Experiment
 from backend.models.evaluation_dashboard import (
     AlertItem,
     CostByModel,

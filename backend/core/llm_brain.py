@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Tuple
 from dotenv import load_dotenv
 from google import genai
 
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 from backend.utils.metrics import metrics
 
 load_dotenv()

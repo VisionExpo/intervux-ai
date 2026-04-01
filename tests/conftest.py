@@ -37,9 +37,9 @@ os.environ["RUNTIME_THREADPOOL_WORKERS"] = "2"
 # Add backend to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.db.database import Base, get_db
+from backend.infrastructure.database.database import Base, get_db
 from backend.main import app
-from backend.auth.jwt_service import (
+from backend.core.security.jwt_service import (
     create_token_pair,
     hash_password,
     Role,

@@ -2,7 +2,7 @@ import json
 from typing import Any, Dict, List
 
 from backend.core.llm_brain import _run_json_task
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 from backend.utils.metrics import metrics
 
 logger = get_logger(__name__)

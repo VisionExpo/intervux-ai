@@ -33,7 +33,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 
 from fastapi import BackgroundTasks
 
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -175,7 +175,7 @@ async def generate_evaluation_task(interview_id: str) -> Dict[str, Any]:
         Evaluation results
     """
     from backend.services.decision_support_service import generate_full_report
-    from backend.db.database import AsyncSessionLocal
+    from backend.infrastructure.database.database import AsyncSessionLocal
     from backend.models.recruiter_dashboard_models import Interview, InterviewQuestion
     from sqlalchemy import select
     
@@ -222,7 +222,7 @@ async def generate_report_task(
         Report data
     """
     from backend.services.recruiter_dashboard_store import get_interview_report
-    from backend.db.database import AsyncSessionLocal
+    from backend.infrastructure.database.database import AsyncSessionLocal
     
     async with AsyncSessionLocal() as db:
         report = await get_interview_report(db, interview_id)
@@ -406,7 +406,7 @@ async def cleanup_old_logs():
 async def aggregate_analytics():
     """Aggregate analytics data."""
     from backend.services.evaluation_dashboard_store import get_db_metrics_aggregates
-    from backend.db.database import AsyncSessionLocal
+    from backend.infrastructure.database.database import AsyncSessionLocal
     
     async with AsyncSessionLocal() as db:
         metrics = await get_db_metrics_aggregates(db)

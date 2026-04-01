@@ -6,7 +6,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 from backend.services.viseme_service import VisemeService
 
 logger = get_logger(__name__)

@@ -23,7 +23,7 @@ from email.mime.text import MIMEText
 from typing import Any, Dict, List, Optional
 from urllib.request import Request, urlopen
 from urllib.error import URLError
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

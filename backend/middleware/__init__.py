@@ -1,5 +1,5 @@
 # Middleware module
-from backend.middleware.rate_limiter import (
+from backend.api.middleware.rate_limiter import (
     RateLimiter,
     RateLimitMiddleware,
     rate_limiter,

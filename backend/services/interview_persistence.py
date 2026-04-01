@@ -12,9 +12,9 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List
 
-from backend.db.database import AsyncSessionLocal
+from backend.infrastructure.database.database import AsyncSessionLocal
 from backend.models.candidate_portal import MockInterview
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -113,7 +113,7 @@ async def complete_mock_interview(
     answers: List[Dict[str, Any]],
 ) -> bool:
     """Mark a MockInterview row as completed and persist scores/transcript/evaluation."""
-    from backend.db.database import AsyncSessionLocal
+    from backend.infrastructure.database.database import AsyncSessionLocal
     from sqlalchemy import select
     async with AsyncSessionLocal() as db:
         try:
@@ -191,7 +191,7 @@ async def fail_mock_interview(session_id: str, reason: str = "error") -> bool:
     Without this guard a race between complete_mock_interview and the
     finally-block cleanup() call would reset a completed row to 'abandoned'.
     """
-    from backend.db.database import AsyncSessionLocal
+    from backend.infrastructure.database.database import AsyncSessionLocal
     from sqlalchemy import select
     async with AsyncSessionLocal() as db:
         try:

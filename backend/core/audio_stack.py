@@ -8,7 +8,7 @@ import edge_tts
 import numpy as np
 import soundfile as sf
 
-from backend.config.setting import DEVICE
+from backend.core.config.settings import DEVICE
 
 
 class AudioEngine:

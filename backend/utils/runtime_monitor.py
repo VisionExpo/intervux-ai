@@ -3,7 +3,7 @@ import os
 from typing import Optional
 
 from backend.utils.metrics import metrics
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

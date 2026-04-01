@@ -13,7 +13,7 @@ import spacy
 from fastapi import UploadFile
 from pydantic import BaseModel, Field
 
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 from backend.core.llm_brain import _run_json_task
 
 from .models import CandidateProfile

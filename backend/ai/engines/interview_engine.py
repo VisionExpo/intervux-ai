@@ -37,7 +37,7 @@ from backend.services.evaluation_service import get_evaluation_service
 from backend.services.stt_service import transcribe_audio_bytes
 from backend.services.tts_service import synthesize_speech_with_visemes
 from backend.services.viseme_service import VisemeService
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 from backend.utils.metrics import metrics
 
 logger = get_logger(__name__)

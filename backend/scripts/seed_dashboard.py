@@ -10,7 +10,7 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from backend.db.database import Base, AsyncSessionLocal, engine
+from backend.infrastructure.database.database import Base, AsyncSessionLocal, engine
 from sqlalchemy import select
 from backend.models import recruiter_dashboard_models  # noqa: F401
 from backend.models.recruiter_dashboard_models import (

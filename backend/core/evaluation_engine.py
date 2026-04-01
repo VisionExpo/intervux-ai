@@ -11,7 +11,7 @@ from backend.core.llm_brain import _run_json_task
 from backend.core.consistency_checker import ConsistencyChecker
 from backend.core.reasoning_analyzer import ReasoningAnalyzer
 from backend.core.self_consistency import SelfConsistencyEvaluator
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 from backend.utils.metrics import metrics
 from backend.utils.research_logger import research_logger
 

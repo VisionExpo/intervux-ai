@@ -44,9 +44,9 @@ os.environ.setdefault("RATE_LIMIT_WS_PER_MINUTE", "30")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.db.database import Base, get_db
+from backend.infrastructure.database.database import Base, get_db
 from backend.main import app
-from backend.auth.jwt_service import create_token_pair, Role, TokenData
+from backend.core.security.jwt_service import create_token_pair, Role, TokenData
 
 # -- test database ------------------------------------------------------------
 # -- test database ------------------------------------------------------------
@@ -358,7 +358,7 @@ class TestWebSocketCapacity:
 
     @pytest.mark.asyncio
     async def test_runtime_stats_returns_expected_keys(self):
-        from backend.sockets.interview_gateway import InterviewGateway
+        from backend.modules.interview.websocket.interview_gateway import InterviewGateway
 
         gw = InterviewGateway(total_questions=2)
         stats = gw.runtime_stats()
@@ -441,7 +441,7 @@ class TestInterviewGatewayUnit:
     """Pure unit tests for InterviewGateway helper methods."""
 
     def setup_method(self):
-        from backend.sockets.interview_gateway import InterviewGateway
+        from backend.modules.interview.websocket.interview_gateway import InterviewGateway
 
         self.gw = InterviewGateway(total_questions=3)
 
@@ -501,7 +501,7 @@ class TestInterviewSessionUnit:
     """Unit tests for InterviewSession message routing helpers."""
 
     def _make_session(self, mock_session_id: str | None = None):
-        from backend.sessions.interview_session import InterviewSession
+        from backend.modules.interview.sessions.interview_session import InterviewSession
 
         return InterviewSession(
             session_id=str(uuid.uuid4()),

@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 from celery import Task
 
 from backend.core.celery_app import celery_app
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -162,7 +162,7 @@ def generate_evaluation(self, interview_id: str) -> Dict[str, Any]:
 
     try:
         from backend.services.decision_support_service import generate_full_report
-        from backend.db.database import AsyncSessionLocal
+        from backend.infrastructure.database.database import AsyncSessionLocal
         # Note: Since this is purely for the task runner, to query DB we need asyncio loop
         # We will stub this for the architecture demo as moving to AsyncSession alters this entirely.
         

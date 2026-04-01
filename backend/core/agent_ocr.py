@@ -7,9 +7,9 @@ from pathlib import Path
 
 from google import genai
 from dotenv import load_dotenv
-from backend.config.prompt_loader import PromptManager
+from backend.core.config.prompt_loader import PromptManager
 from fastapi import UploadFile
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

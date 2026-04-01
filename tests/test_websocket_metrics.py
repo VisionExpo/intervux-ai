@@ -35,9 +35,9 @@ os.environ.setdefault("GOOGLE_API_KEY", "FAKE_KEY")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.db.database import Base, get_db
+from backend.infrastructure.database.database import Base, get_db
 from backend.main import app
-from backend.auth.jwt_service import create_token_pair, Role
+from backend.core.security.jwt_service import create_token_pair, Role
 
 # -- test database -------------------------------------------------------------
 
@@ -192,7 +192,7 @@ class TestMetricsSnapshotContent:
 
 class TestMetricsSocketUnit:
     def setup_method(self):
-        from backend.sockets.metrics import MetricsSocket
+        from backend.modules.analytics.websocket.metrics_socket import MetricsSocket
 
         self.socket = MetricsSocket(broadcast_interval=2.0)
 
@@ -202,7 +202,7 @@ class TestMetricsSocketUnit:
 
     @pytest.mark.asyncio
     async def test_custom_broadcast_interval(self):
-        from backend.sockets.metrics import MetricsSocket
+        from backend.modules.analytics.websocket.metrics_socket import MetricsSocket
 
         s = MetricsSocket(broadcast_interval=10.0)
         assert s.broadcast_interval == 10.0
@@ -263,13 +263,13 @@ class TestMetricsSocketUnit:
 class TestMetricsSingleton:
     @pytest.mark.asyncio
     async def test_metrics_socket_is_singleton(self):
-        from backend.sockets.metrics import metrics_socket, MetricsSocket
+        from backend.modules.analytics.websocket.metrics_socket import metrics_socket, MetricsSocket
 
         assert isinstance(metrics_socket, MetricsSocket)
 
     @pytest.mark.asyncio
     async def test_get_latest_metrics_returns_dict(self):
-        from backend.sockets.metrics import get_latest_metrics
+        from backend.modules.analytics.websocket.metrics_socket import get_latest_metrics
 
         result = get_latest_metrics()
         assert isinstance(result, dict)
@@ -277,14 +277,14 @@ class TestMetricsSingleton:
 
     @pytest.mark.asyncio
     async def test_get_latest_metrics_has_derived(self):
-        from backend.sockets.metrics import get_latest_metrics
+        from backend.modules.analytics.websocket.metrics_socket import get_latest_metrics
 
         result = get_latest_metrics()
         assert "derived" in result
 
     @pytest.mark.asyncio
     async def test_importing_start_stop_functions_works(self):
-        from backend.sockets.metrics import (
+        from backend.modules.analytics.websocket.metrics_socket import (
             start_metrics_broadcast,
             stop_metrics_broadcast,
         )
@@ -303,7 +303,7 @@ class TestMetricsBroadcast:
 
     @pytest.mark.asyncio
     async def test_broadcast_reaches_all_connections(self):
-        from backend.sockets.metrics import MetricsSocket
+        from backend.modules.analytics.websocket.metrics_socket import MetricsSocket
 
         socket = MetricsSocket()
 
@@ -319,7 +319,7 @@ class TestMetricsBroadcast:
 
     @pytest.mark.asyncio
     async def test_broadcast_no_connections_is_noop(self):
-        from backend.sockets.metrics import MetricsSocket
+        from backend.modules.analytics.websocket.metrics_socket import MetricsSocket
 
         socket = MetricsSocket()
         # Should not raise
@@ -327,7 +327,7 @@ class TestMetricsBroadcast:
 
     @pytest.mark.asyncio
     async def test_broadcast_removes_failed_connections(self):
-        from backend.sockets.metrics import MetricsSocket
+        from backend.modules.analytics.websocket.metrics_socket import MetricsSocket
 
         socket = MetricsSocket()
 
@@ -347,7 +347,7 @@ class TestMetricsBroadcast:
 
     @pytest.mark.asyncio
     async def test_broadcast_with_timeout_removes_slow_connection(self):
-        from backend.sockets.metrics import MetricsSocket
+        from backend.modules.analytics.websocket.metrics_socket import MetricsSocket
 
         socket = MetricsSocket()
 

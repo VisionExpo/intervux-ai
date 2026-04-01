@@ -5,7 +5,7 @@ Evaluation Service - Wrapper around evaluation_engine for cleaner API.
 from typing import Any, Dict, Optional
 
 from backend.core.evaluation_engine import evaluate_answer_dual
-from backend.utils.logger import get_logger
+from backend.core.logging.logger import get_logger
 from backend.utils.metrics import metrics
 
 logger = get_logger(__name__)

@@ -1,5 +1,5 @@
 # Auth module
-from backend.auth.jwt_service import (
+from backend.core.security.jwt_service import (
     Token,
     TokenData,
     UserCreate,
@@ -21,7 +21,7 @@ from backend.auth.jwt_service import (
 )
 
 from backend.api.routes.auth_routes import router as auth_router
-from backend.auth.rbac import (
+from backend.core.security.rbac import (
     role_manager,
     require_admin,
     require_recruiter,

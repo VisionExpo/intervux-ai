@@ -10,8 +10,8 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from backend.db.database import Base
-from backend.db.database import User, RevokedToken, APIKey, LLMMetrics, Experiment
+from backend.infrastructure.database.database import Base
+from backend.infrastructure.database.database import User, RevokedToken, APIKey, LLMMetrics, Experiment
 
 # this is the Alembic Config object
 config = context.config
