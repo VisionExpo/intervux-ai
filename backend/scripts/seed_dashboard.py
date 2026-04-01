@@ -10,7 +10,8 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from backend.db.database import Base, SessionLocal, engine
+from backend.db.database import Base, AsyncSessionLocal, engine
+from sqlalchemy import select
 from backend.models import recruiter_dashboard_models  # noqa: F401
 from backend.models.recruiter_dashboard_models import (
     Candidate,
@@ -20,11 +21,14 @@ from backend.models.recruiter_dashboard_models import (
 )
 
 
-def seed_dashboard() -> None:
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
-    try:
-        if db.query(Candidate).count() > 0:
+async def seed_dashboard() -> None:
+    # Using run_sync to create tables in async environment
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+        
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(select(Candidate))
+        if len(res.all()) > 0:
             print("Dashboard seed skipped: candidates already exist.")
             return
 
@@ -57,7 +61,7 @@ def seed_dashboard() -> None:
             ),
         ]
         db.add_all(candidates)
-        db.flush()
+        await db.flush()
 
         interviews = [
             Interview(
@@ -95,7 +99,7 @@ def seed_dashboard() -> None:
             ),
         ]
         db.add_all(interviews)
-        db.flush()
+        await db.flush()
 
         questions = [
             InterviewQuestion(
@@ -180,11 +184,10 @@ def seed_dashboard() -> None:
         ]
         db.add_all(replay_segments)
 
-        db.commit()
+        await db.commit()
         print("Dashboard seed completed.")
-    finally:
-        db.close()
 
 
 if __name__ == "__main__":
-    seed_dashboard()
+    import asyncio
+    asyncio.run(seed_dashboard())

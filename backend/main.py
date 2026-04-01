@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from backend.models.evaluation_dashboard import (
@@ -78,7 +78,7 @@ def _is_sqlite(url: str) -> bool:
     return url.startswith("sqlite")
 
 
-def _run_alembic_migrations() -> None:
+async def _run_alembic_migrations() -> None:
     """
     Run 'alembic upgrade head' as a subprocess.
 
@@ -87,24 +87,27 @@ def _run_alembic_migrations() -> None:
     db_url = os.getenv("DATABASE_URL", "")
     if _is_sqlite(db_url):
         logger.info("SQLite detected — using create_all for dev/test environment")
-        Base.metadata.create_all(bind=engine)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
         return
 
     logger.info("Running Alembic migrations...")
     try:
-        result = subprocess.run(
-            [sys.executable, "-m", "alembic", "upgrade", "head"],
-            capture_output=True,
-            text=True,
-            timeout=60,
+        # Run subprocess concurrently
+        process = await asyncio.create_subprocess_exec(
+            sys.executable, "-m", "alembic", "upgrade", "head",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
         )
-        if result.returncode != 0:
-            logger.error(f"Alembic migration failed:\n{result.stderr}")
-            raise RuntimeError(f"Alembic migration failed: {result.stderr}")
-        logger.info(f"Alembic migrations complete:\n{result.stdout}")
+        stdout, stderr = await process.communicate()
+        if process.returncode != 0:
+            logger.error(f"Alembic migration failed:\n{stderr.decode()}")
+            raise RuntimeError(f"Alembic migration failed: {stderr.decode()}")
+        logger.info(f"Alembic migrations complete:\n{stdout.decode()}")
     except FileNotFoundError:
         logger.warning("alembic not found — falling back to create_all (run migrations manually)")
-        Base.metadata.create_all(bind=engine)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
 
 def _validate_cors_origins(origins: list[str]) -> None:
@@ -137,8 +140,8 @@ async def lifespan(_app: FastAPI):
     db_ready = False
     for _ in range(20):
         try:
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
             db_ready = True
             break
         except Exception:
@@ -147,7 +150,7 @@ async def lifespan(_app: FastAPI):
     if not db_ready:
         logger.warning("Database was not ready during startup warmup window")
 
-    _run_alembic_migrations()
+    await _run_alembic_migrations()
     loop = asyncio.get_running_loop()
     thread_pool = ThreadPoolExecutor(max_workers=workers)
     loop.set_default_executor(thread_pool)
@@ -259,7 +262,7 @@ def health():
 
 
 @app.get("/ready")
-def readiness_check():
+async def readiness_check():
     """
     Readiness check endpoint for Kubernetes/load balancers.
     
@@ -275,10 +278,9 @@ def readiness_check():
     # Check database connectivity
     try:
         from sqlalchemy import text
-        from backend.db.database import SessionLocal
-        db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
+        from backend.db.database import AsyncSessionLocal
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("SELECT 1"))
         checks["database"] = "connected"
     except Exception as e:
         checks["database"] = "disconnected"
@@ -298,49 +300,49 @@ def get_metrics():
 
 
 @app.get("/api/evaluation-dashboard", response_model=EvaluationDashboardResponse)
-def get_ai_evaluation_dashboard(
-    db: Session = Depends(get_db),
+async def get_ai_evaluation_dashboard(
+    db: AsyncSession = Depends(get_db),
     user=Depends(require_recruiter)
 ):
-    return get_evaluation_dashboard(db)
+    return await get_evaluation_dashboard(db)
 
 
 @app.get("/api/candidates")
-def get_candidates(
+async def get_candidates(
     user=Depends(require_recruiter),
     page: int = 1,
     limit: int = 20,
     role: str | None = None,
     search: str | None = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    return list_candidates(db, page=page, limit=limit, role=role, search=search)
+    return await list_candidates(db, page=page, limit=limit, role=role, search=search)
 
 
 @app.get("/api/interview/{interview_id}", response_model=CandidateInterviewReport)
-def get_interview(
+async def get_interview(
     interview_id: str,
     user=Depends(require_recruiter),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    return get_interview_report(db, interview_id)
+    return await get_interview_report(db, interview_id)
 
 
 @app.get("/api/interview/{interview_id}/analytics", response_model=SkillAnalytics)
-def get_interview_analytics(
+async def get_interview_analytics(
     interview_id: str,
     user=Depends(require_recruiter),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    return get_skill_analytics(db, interview_id)
+    return await get_skill_analytics(db, interview_id)
 
 
 @app.get("/api/candidates/compare", response_model=list[CandidateComparisonRow])
-def get_candidate_comparison(
+async def get_candidate_comparison(
     user=Depends(require_recruiter),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    return compare_candidates(db)
+    return await compare_candidates(db)
 
 
 @app.websocket("/ws/interview")
@@ -359,42 +361,42 @@ async def websocket_metrics(ws: WebSocket):
 # =========================================================
 
 @app.get("/api/metrics/aggregates")
-def get_metrics_aggregates(
+async def get_metrics_aggregates(
     user=Depends(require_recruiter),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Get aggregated metrics from PostgreSQL (last 24h, 7d, 30d)."""
-    return get_db_metrics_aggregates(db)
+    return await get_db_metrics_aggregates(db)
 
 
 @app.get("/api/metrics/trends")
-def get_metrics_trends(
+async def get_metrics_trends(
     user=Depends(require_recruiter),
     days: int = 30,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Get historical trend data for charts."""
-    return get_historical_trends(db, days=days)
+    return await get_historical_trends(db, days=days)
 
 
 @app.get("/api/experiments")
-def get_experiment_list(
+async def get_experiment_list(
     user=Depends(require_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     limit: int = 100
 ):
     """Get list of experiments."""
-    return get_experiments(db, limit=limit)
+    return await get_experiments(db, limit=limit)
 
 
 @app.post("/api/experiments")
-def create_experiment(
+async def create_experiment(
     payload: ExperimentCreateRequest,
     user=Depends(require_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Log a new experiment result."""
-    return log_experiment(
+    return await log_experiment(
         db,
         experiment_name=payload.experiment_name,
         model_version=payload.model_version,
@@ -405,24 +407,24 @@ def create_experiment(
 
 
 @app.post("/api/experiments/compare")
-def compare_experiment_results(
+async def compare_experiment_results(
     payload: ExperimentCompareRequest,
     user=Depends(require_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Compare multiple experiments."""
-    return compare_experiments(db, payload.experiment_names)
+    return await compare_experiments(db, payload.experiment_names)
 
 
 @app.post("/api/interview/{interview_id}/decision")
-def get_interview_decision(
+async def get_interview_decision(
     interview_id: str,
     user=Depends(require_recruiter),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get decision support for an interview."""
     # Get interview report
-    interview = get_interview_report(db, interview_id)
+    interview = await get_interview_report(db, interview_id)
 
     if hasattr(interview, "model_dump"):
         interview_data = interview.model_dump()
@@ -473,35 +475,35 @@ def get_interview_decision(
 
 
 @app.get("/api/job-posts", response_model=list[JobPost])
-def get_job_posts(
+async def get_job_posts(
     user=Depends(require_recruiter),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     page: int = 1,
     limit: int = 20,
     status: str | None = None,
 ):
     """Get list of job posts."""
-    return list_job_posts(db, page=page, limit=limit, status=status)
+    return await list_job_posts(db, page=page, limit=limit, status=status)
 
 
 @app.post("/api/job-posts", response_model=JobPost)
-def create_new_job_post(
+async def create_new_job_post(
     job_data: JobPostCreate,
     user=Depends(require_recruiter),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Create a new job post."""
-    return create_job_post(db, job_data, created_by=user.user_id)
+    return await create_job_post(db, job_data, created_by=user.user_id)
 
 
 @app.get("/api/job-posts/{job_post_id}", response_model=JobPost)
-def get_job(
+async def get_job(
     job_post_id: str,
     user=Depends(require_recruiter),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get a single job post."""
-    job = get_job_post(db, job_post_id)
+    job = await get_job_post(db, job_post_id)
     if not job:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Job post not found")
@@ -509,14 +511,14 @@ def get_job(
 
 
 @app.put("/api/job-posts/{job_post_id}", response_model=JobPost)
-def update_job(
+async def update_job(
     job_post_id: str,
     job_data: JobPostUpdate,
     user=Depends(require_recruiter),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Update a job post."""
-    job = update_job_post(db, job_post_id, job_data)
+    job = await update_job_post(db, job_post_id, job_data)
     if not job:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Job post not found")
@@ -524,13 +526,13 @@ def update_job(
 
 
 @app.delete("/api/job-posts/{job_post_id}")
-def delete_job(
+async def delete_job(
     job_post_id: str,
     user=Depends(require_recruiter),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Delete a job post."""
-    success = delete_job_post(db, job_post_id)
+    success = await delete_job_post(db, job_post_id)
     if not success:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Job post not found")
@@ -543,13 +545,13 @@ def delete_job(
 
 
 @app.post("/api/candidates/invite", response_model=dict)
-def invite_new_candidate(
+async def invite_new_candidate(
     candidate_data: CandidateCreate,
     user=Depends(require_recruiter),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Invite a candidate to a job."""
-    candidate = invite_candidate(db, candidate_data)
+    candidate = await invite_candidate(db, candidate_data)
     return {
         "id": candidate.id,
         "name": candidate.name,
@@ -560,14 +562,14 @@ def invite_new_candidate(
 
 
 @app.post("/api/candidates/{candidate_id}/generate-link")
-def create_interview_link(
+async def create_interview_link(
     candidate_id: str,
     user=Depends(require_recruiter),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     expires_days: int = 7,
 ):
     """Generate an interview link for a candidate."""
-    interview_link, expires_at = generate_interview_link(db, candidate_id, expires_days)
+    interview_link, expires_at = await generate_interview_link(db, candidate_id, expires_days)
     return {
         "interview_link": interview_link,
         "expires_at": expires_at.isoformat(),
@@ -575,14 +577,14 @@ def create_interview_link(
 
 
 @app.patch("/api/candidates/{candidate_id}/status")
-def change_candidate_status(
+async def change_candidate_status(
     candidate_id: str,
     status: str,
     user=Depends(require_recruiter),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Update candidate status."""
-    candidate = update_candidate_status(db, candidate_id, status)
+    candidate = await update_candidate_status(db, candidate_id, status)
     if not candidate:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Candidate not found")

@@ -175,21 +175,23 @@ async def generate_evaluation_task(interview_id: str) -> Dict[str, Any]:
         Evaluation results
     """
     from backend.services.decision_support_service import generate_full_report
-    from backend.db.database import SessionLocal
+    from backend.db.database import AsyncSessionLocal
     from backend.models.recruiter_dashboard_models import Interview, InterviewQuestion
+    from sqlalchemy import select
     
-    db = SessionLocal()
-    try:
+    async with AsyncSessionLocal() as db:
         # Get interview data
-        interview = db.query(Interview).filter(Interview.id == interview_id).first()
+        res = await db.execute(select(Interview).filter(Interview.id == interview_id))
+        interview = res.scalar_one_or_none()
         
         if not interview:
             return {"error": "Interview not found"}
         
         # Get questions and answers
-        questions = db.query(InterviewQuestion).filter(
+        res2 = await db.execute(select(InterviewQuestion).filter(
             InterviewQuestion.interview_id == interview_id
-        ).all()
+        ))
+        questions = res2.scalars().all()
         
         answers = []
         for q in questions:
@@ -203,9 +205,6 @@ async def generate_evaluation_task(interview_id: str) -> Dict[str, Any]:
         report = generate_full_report(answers=answers)
         
         return {"report": report, "interview_id": interview_id}
-    
-    finally:
-        db.close()
 
 
 async def generate_report_task(
@@ -223,14 +222,11 @@ async def generate_report_task(
         Report data
     """
     from backend.services.recruiter_dashboard_store import get_interview_report
-    from backend.db.database import SessionLocal
+    from backend.db.database import AsyncSessionLocal
     
-    db = SessionLocal()
-    try:
-        report = get_interview_report(db, interview_id)
+    async with AsyncSessionLocal() as db:
+        report = await get_interview_report(db, interview_id)
         return {"report": report, "report_type": report_type}
-    finally:
-        db.close()
 
 
 async def dispatch_alert_task(
@@ -410,14 +406,11 @@ async def cleanup_old_logs():
 async def aggregate_analytics():
     """Aggregate analytics data."""
     from backend.services.evaluation_dashboard_store import get_db_metrics_aggregates
-    from backend.db.database import SessionLocal
+    from backend.db.database import AsyncSessionLocal
     
-    db = SessionLocal()
-    try:
-        metrics = get_db_metrics_aggregates(db)
+    async with AsyncSessionLocal() as db:
+        metrics = await get_db_metrics_aggregates(db)
         logger.info(f"Analytics aggregated: {metrics}")
-    finally:
-        db.close()
 
 
 # =========================================================
