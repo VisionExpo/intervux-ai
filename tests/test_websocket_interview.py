@@ -49,30 +49,41 @@ from backend.main import app
 from backend.auth.jwt_service import create_token_pair, Role, TokenData
 
 # -- test database ------------------------------------------------------------
+# -- test database ------------------------------------------------------------
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+import asyncio
 
-TEST_DB_URL = "sqlite:///./test_ws_interview.db"
-test_engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
-TestSession = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+TEST_DB_URL = "sqlite+aiosqlite:///./test_ws_interview.db"
 
+def setup_db():
+    engine = create_async_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
+    async def _setup():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    asyncio.run(_setup())
+
+def teardown_db():
+    engine = create_async_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
+    async def _teardown():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+    asyncio.run(_teardown())
+
+@pytest.fixture(scope="function", autouse=True)
+def init_db():
+    setup_db()
+    yield
+    teardown_db()
 
 @pytest.fixture(scope="function")
-def db_session() -> Generator[Session, None, None]:
-    Base.metadata.create_all(bind=test_engine)
-    session = TestSession()
-    try:
-        yield session
-    finally:
-        session.close()
-        Base.metadata.drop_all(bind=test_engine)
-
-
-@pytest.fixture(scope="function")
-def client(db_session: Session) -> Generator[TestClient, None, None]:
-    def override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
+def client() -> Generator[TestClient, None, None]:
+    # We must lazily create the engine inside the app's event loop (TestClient background thread)
+    engine = create_async_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
+    TSession = async_sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    
+    async def override_get_db():
+        async with TSession() as session:
+            yield session
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app, raise_server_exceptions=False) as c:

@@ -16,6 +16,7 @@ from backend.models.recruiter_dashboard import (
     JobPost,
     JobPostCreate,
     JobPostUpdate,
+    JobSkill,
     QuestionBreakdown,
     ReplayEvaluation,
     ReplaySegment,

@@ -487,7 +487,16 @@ async def log_experiment(
     )
     db.add(experiment)
     await db.commit()
-    return experiment
+    await db.refresh(experiment)
+    return {
+        "id": experiment.id,
+        "experiment_name": experiment.experiment_name,
+        "model_version": experiment.model_version,
+        "prompt_template": experiment.prompt_template,
+        "accuracy": experiment.accuracy,
+        "latency_ms": experiment.latency_ms,
+        "created_at": experiment.created_at
+    }
 
 
 async def get_experiments(db: AsyncSession, limit: int = 100) -> list[Experiment]:
