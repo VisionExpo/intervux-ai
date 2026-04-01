@@ -14,17 +14,26 @@ DATABASE_URL = os.getenv(
     "postgresql://postgres:postgres@localhost:5432/intervux"
 )
 
-# Convert sync URL to asyncpg driver natively
-async_db_url = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-
-engine = create_async_engine(
-    async_db_url,
-    pool_pre_ping=True,
-    pool_recycle=int(os.getenv("DB_POOL_RECYCLE_S", "1800")),
-    pool_size=int(os.getenv("DB_POOL_SIZE", "10")),
-    max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "20")),
-    pool_timeout=int(os.getenv("DB_POOL_TIMEOUT_S", "30")),
-)
+if DATABASE_URL.startswith("sqlite"):
+    # For testing, map sqlite to the aiosqlite async driver
+    async_db_url = DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://")
+    connect_args = {"check_same_thread": False}
+    engine = create_async_engine(
+        async_db_url,
+        connect_args=connect_args,
+        pool_pre_ping=True,
+    )
+else:
+    # Convert sync postgres URL to asyncpg natively
+    async_db_url = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+    engine = create_async_engine(
+        async_db_url,
+        pool_pre_ping=True,
+        pool_recycle=int(os.getenv("DB_POOL_RECYCLE_S", "1800")),
+        pool_size=int(os.getenv("DB_POOL_SIZE", "10")),
+        max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "20")),
+        pool_timeout=int(os.getenv("DB_POOL_TIMEOUT_S", "30")),
+    )
 
 AsyncSessionLocal = async_sessionmaker(
     autocommit=False,

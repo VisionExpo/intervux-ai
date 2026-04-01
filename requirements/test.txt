@@ -17,6 +17,7 @@ anyio[trio]==4.4.0
 
 # In-process SQLite for test isolation (no Postgres needed in CI)
 # sqlite3 is part of the stdlib; no extra package needed.
+aiosqlite==0.20.0
 
 # Mocking
 # unittest.mock is stdlib; no extra package needed.

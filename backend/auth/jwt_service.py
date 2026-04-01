@@ -580,7 +580,7 @@ def _get_demo_password_hash(user: Dict[str, Any]) -> str:
     return hashed
 
 
-def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
+async def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
     """
     Authenticate a user by email and password.
     Checks DEMO_USERS first, then falls back to the database.
@@ -599,10 +599,11 @@ def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
 
     # Fall back to database for registered users
     try:
-        from backend.db.database import SessionLocal, User
-        db = SessionLocal()
-        try:
-            db_user = db.query(User).filter(User.email == email).first()
+        from backend.db.database import AsyncSessionLocal, User
+        from sqlalchemy import select
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(User).filter(User.email == email))
+            db_user = result.scalar_one_or_none()
             if not db_user:
                 return None
             if not verify_password(password, db_user.password_hash):
@@ -613,14 +614,12 @@ def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
                 "name": db_user.name,
                 "role": db_user.role,
             }
-        finally:
-            db.close()
     except Exception:
         logger.exception("Database lookup failed during authentication")
         return None
 
 
-def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+async def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     """
     Get user by email.
     Checks DEMO_USERS first, then falls back to the database.
@@ -639,10 +638,11 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
 
     # Fall back to database
     try:
-        from backend.db.database import SessionLocal, User
-        db = SessionLocal()
-        try:
-            db_user = db.query(User).filter(User.email == email).first()
+        from backend.db.database import AsyncSessionLocal, User
+        from sqlalchemy import select
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(User).filter(User.email == email))
+            db_user = result.scalar_one_or_none()
             if not db_user:
                 return None
             return {
@@ -652,8 +652,6 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
                 "role": db_user.role,
                 "password_hash": db_user.password_hash,
             }
-        finally:
-            db.close()
     except Exception:
         logger.exception("Database lookup failed in get_user_by_email")
         return None
