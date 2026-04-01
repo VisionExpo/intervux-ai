@@ -9,7 +9,8 @@ from statistics import mean
 from typing import Any, Optional
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from backend.db.database import LLMMetrics, Experiment
 from backend.models.evaluation_dashboard import (
@@ -80,7 +81,7 @@ def _today_timestamp() -> float:
     return datetime.now().timestamp()
 
 
-def get_evaluation_dashboard(db: Session) -> EvaluationDashboardResponse:
+async def get_evaluation_dashboard(db: AsyncSession) -> EvaluationDashboardResponse:
     records = _read_jsonl_records()
     snapshot = metrics.snapshot()
     now = datetime.now()
@@ -210,7 +211,8 @@ def get_evaluation_dashboard(db: Session) -> EvaluationDashboardResponse:
         for provider, count in provider_counts.most_common()
     ]
 
-    interviews = db.query(Interview).all()
+    res = await db.execute(select(Interview))
+    interviews = res.scalars().all()
     successful_interviews = [
         interview for interview in interviews if _to_float(interview.overall_score) >= 80.0
     ]
@@ -303,8 +305,8 @@ def get_evaluation_dashboard(db: Session) -> EvaluationDashboardResponse:
 # PostgreSQL Metrics Query Functions
 # =========================================================
 
-def get_llm_metrics_from_db(
-    db: Session,
+async def get_llm_metrics_from_db(
+    db: AsyncSession,
     days: Optional[int] = None,
     model: Optional[str] = None
 ) -> list[LLMMetrics]:
@@ -319,7 +321,7 @@ def get_llm_metrics_from_db(
     Returns:
         List of LLMMetrics records
     """
-    query = db.query(LLMMetrics)
+    query = select(LLMMetrics)
     
     if days is not None:
         cutoff = datetime.utcnow() - timedelta(days=days)
@@ -328,10 +330,11 @@ def get_llm_metrics_from_db(
     if model:
         query = query.filter(LLMMetrics.model == model)
     
-    return query.order_by(LLMMetrics.created_at.desc()).all()
+    res = await db.execute(query.order_by(LLMMetrics.created_at.desc()))
+    return res.scalars().all()
 
 
-def get_db_metrics_aggregates(db: Session) -> dict[str, Any]:
+async def get_db_metrics_aggregates(db: AsyncSession) -> dict[str, Any]:
     """
     Get aggregated metrics from PostgreSQL llm_metrics table.
     
@@ -347,17 +350,14 @@ def get_db_metrics_aggregates(db: Session) -> dict[str, Any]:
     cutoff_30d = datetime.utcnow() - timedelta(days=30)
     
     # Query metrics
-    metrics_24h = db.query(LLMMetrics).filter(
-        LLMMetrics.created_at >= cutoff_24h
-    ).all()
+    res_24h = await db.execute(select(LLMMetrics).filter(LLMMetrics.created_at >= cutoff_24h))
+    metrics_24h = res_24h.scalars().all()
     
-    metrics_7d = db.query(LLMMetrics).filter(
-        LLMMetrics.created_at >= cutoff_7d
-    ).all()
+    res_7d = await db.execute(select(LLMMetrics).filter(LLMMetrics.created_at >= cutoff_7d))
+    metrics_7d = res_7d.scalars().all()
     
-    metrics_30d = db.query(LLMMetrics).filter(
-        LLMMetrics.created_at >= cutoff_30d
-    ).all()
+    res_30d = await db.execute(select(LLMMetrics).filter(LLMMetrics.created_at >= cutoff_30d))
+    metrics_30d = res_30d.scalars().all()
     
     # Aggregate by model
     def aggregate_metrics(metrics_list: list[LLMMetrics]) -> dict[str, Any]:
@@ -401,7 +401,7 @@ def get_db_metrics_aggregates(db: Session) -> dict[str, Any]:
     }
 
 
-def get_historical_trends(db: Session, days: int = 30) -> dict[str, Any]:
+async def get_historical_trends(db: AsyncSession, days: int = 30) -> dict[str, Any]:
     """
     Get historical trend data for charts.
     
@@ -415,7 +415,7 @@ def get_historical_trends(db: Session, days: int = 30) -> dict[str, Any]:
     cutoff = datetime.utcnow() - timedelta(days=days)
     
     # Get daily aggregates
-    daily_metrics = db.query(
+    query = select(
         func.date(LLMMetrics.created_at).label("date"),
         func.avg(LLMMetrics.latency_ms).label("avg_latency"),
         func.avg(LLMMetrics.accuracy_score).label("avg_accuracy"),
@@ -428,7 +428,9 @@ def get_historical_trends(db: Session, days: int = 30) -> dict[str, Any]:
         func.date(LLMMetrics.created_at)
     ).order_by(
         func.date(LLMMetrics.created_at)
-    ).all()
+    )
+    res = await db.execute(query)
+    daily_metrics = res.all()
     
     trends = {
         "dates": [],
@@ -454,8 +456,8 @@ def get_historical_trends(db: Session, days: int = 30) -> dict[str, Any]:
 # Experiment Tracking Functions
 # =========================================================
 
-def log_experiment(
-    db: Session,
+async def log_experiment(
+    db: AsyncSession,
     experiment_name: str,
     model_version: str,
     prompt_template: str,
@@ -484,11 +486,11 @@ def log_experiment(
         latency_ms=latency_ms,
     )
     db.add(experiment)
-    db.commit()
+    await db.commit()
     return experiment
 
 
-def get_experiments(db: Session, limit: int = 100) -> list[Experiment]:
+async def get_experiments(db: AsyncSession, limit: int = 100) -> list[Experiment]:
     """
     Get experiment results.
     
@@ -499,12 +501,13 @@ def get_experiments(db: Session, limit: int = 100) -> list[Experiment]:
     Returns:
         List of Experiment records
     """
-    return db.query(Experiment).order_by(
+    res = await db.execute(select(Experiment).order_by(
         Experiment.created_at.desc()
-    ).limit(limit).all()
+    ).limit(limit))
+    return res.scalars().all()
 
 
-def compare_experiments(db: Session, experiment_names: list[str]) -> dict[str, Any]:
+async def compare_experiments(db: AsyncSession, experiment_names: list[str]) -> dict[str, Any]:
     """
     Compare multiple experiments.
     
@@ -515,9 +518,10 @@ def compare_experiments(db: Session, experiment_names: list[str]) -> dict[str, A
     Returns:
         Dictionary containing comparison data
     """
-    experiments = db.query(Experiment).filter(
+    res = await db.execute(select(Experiment).filter(
         Experiment.experiment_name.in_(experiment_names)
-    ).all()
+    ))
+    experiments = res.scalars().all()
     
     comparison = {}
     for exp in experiments:
