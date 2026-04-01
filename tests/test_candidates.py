@@ -25,7 +25,7 @@ class TestInviteCandidate:
     """Test suite for inviting candidates."""
 
     @pytest.mark.asyncio
-async def test_invite_candidate_success(
+    async def test_invite_candidate_success(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -55,7 +55,7 @@ async def test_invite_candidate_success(
         assert data["status"] == CandidateStatus.INVITED.value
 
     @pytest.mark.asyncio
-async def test_invite_candidate_with_job_post(
+    async def test_invite_candidate_with_job_post(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -84,7 +84,7 @@ async def test_invite_candidate_with_job_post(
         assert "id" in data
 
     @pytest.mark.asyncio
-async def test_invite_candidate_without_auth(self, client: TestClient):
+    async def test_invite_candidate_without_auth(self, client: TestClient):
         """
         Test candidate invitation without authentication.
         
@@ -103,7 +103,7 @@ async def test_invite_candidate_without_auth(self, client: TestClient):
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-async def test_invite_candidate_with_candidate_token(
+    async def test_invite_candidate_with_candidate_token(
         self, client: TestClient, candidate_headers: dict
     ):
         """
@@ -129,7 +129,7 @@ class TestListCandidates:
     """Test suite for listing candidates."""
 
     @pytest.mark.asyncio
-async def test_list_candidates_success(
+    async def test_list_candidates_success(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -146,7 +146,7 @@ async def test_list_candidates_success(
         assert isinstance(data, list)
 
     @pytest.mark.asyncio
-async def test_list_candidates_with_pagination(
+    async def test_list_candidates_with_pagination(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -163,7 +163,7 @@ async def test_list_candidates_with_pagination(
         assert response.status_code == 200
 
     @pytest.mark.asyncio
-async def test_list_candidates_with_role_filter(
+    async def test_list_candidates_with_role_filter(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -180,7 +180,7 @@ async def test_list_candidates_with_role_filter(
         assert response.status_code == 200
 
     @pytest.mark.asyncio
-async def test_list_candidates_with_search(
+    async def test_list_candidates_with_search(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -197,7 +197,7 @@ async def test_list_candidates_with_search(
         assert response.status_code == 200
 
     @pytest.mark.asyncio
-async def test_list_candidates_without_auth(self, client: TestClient):
+    async def test_list_candidates_without_auth(self, client: TestClient):
         """
         Test candidates listing without authentication.
         
@@ -213,7 +213,7 @@ class TestGenerateInterviewLink:
     """Test suite for generating interview links."""
 
     @pytest.mark.asyncio
-async def test_generate_interview_link_success(
+    async def test_generate_interview_link_success(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -238,7 +238,7 @@ async def test_generate_interview_link_success(
         assert "expires_at" in data
 
     @pytest.mark.asyncio
-async def test_generate_interview_link_with_custom_expiry(
+    async def test_generate_interview_link_with_custom_expiry(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -259,7 +259,7 @@ async def test_generate_interview_link_with_custom_expiry(
         assert response.status_code == 200
 
     @pytest.mark.asyncio
-async def test_generate_interview_link_not_found(
+    async def test_generate_interview_link_not_found(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -280,7 +280,7 @@ class TestUpdateCandidateStatus:
     """Test suite for updating candidate status."""
 
     @pytest.mark.asyncio
-async def test_update_candidate_status_success(
+    async def test_update_candidate_status_success(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -304,7 +304,7 @@ async def test_update_candidate_status_success(
         assert data["status"] == "scheduled"
 
     @pytest.mark.asyncio
-async def test_update_candidate_status_to_completed(
+    async def test_update_candidate_status_to_completed(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -326,7 +326,7 @@ async def test_update_candidate_status_to_completed(
         assert response.status_code == 200
 
     @pytest.mark.asyncio
-async def test_update_candidate_status_not_found(
+    async def test_update_candidate_status_not_found(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -348,7 +348,7 @@ class TestCandidateCompare:
     """Test suite for candidate comparison."""
 
     @pytest.mark.asyncio
-async def test_compare_candidates_endpoint_exists(
+    async def test_compare_candidates_endpoint_exists(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -366,7 +366,7 @@ async def test_compare_candidates_endpoint_exists(
         assert response.status_code in [200, 500]
 
     @pytest.mark.asyncio
-async def test_compare_candidates_requires_auth(self, client: TestClient):
+    async def test_compare_candidates_requires_auth(self, client: TestClient):
         """
         Test candidate comparison requires authentication.
         

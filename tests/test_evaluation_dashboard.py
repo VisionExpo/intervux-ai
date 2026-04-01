@@ -23,7 +23,7 @@ class TestEvaluationDashboard:
     """Test suite for evaluation dashboard endpoint."""
 
     @pytest.mark.asyncio
-async def test_get_evaluation_dashboard_success(
+    async def test_get_evaluation_dashboard_success(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -45,7 +45,7 @@ async def test_get_evaluation_dashboard_success(
         assert "model_quality" in data or "performance" in data or "alerts" in data
 
     @pytest.mark.asyncio
-async def test_get_evaluation_dashboard_requires_auth(self, client: TestClient):
+    async def test_get_evaluation_dashboard_requires_auth(self, client: TestClient):
         """
         Test evaluation dashboard requires authentication.
         
@@ -57,7 +57,7 @@ async def test_get_evaluation_dashboard_requires_auth(self, client: TestClient):
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-async def test_get_evaluation_dashboard_with_candidate_token(
+    async def test_get_evaluation_dashboard_with_candidate_token(
         self, client: TestClient, candidate_headers: dict
     ):
         """
@@ -74,7 +74,7 @@ async def test_get_evaluation_dashboard_with_candidate_token(
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-async def test_get_evaluation_dashboard_structure(
+    async def test_get_evaluation_dashboard_structure(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -100,7 +100,7 @@ class TestExperiments:
     """Test suite for experiment endpoints."""
 
     @pytest.mark.asyncio
-async def test_get_experiments_list_success(
+    async def test_get_experiments_list_success(
         self, client: TestClient, admin_headers: dict
     ):
         """
@@ -120,7 +120,7 @@ async def test_get_experiments_list_success(
         assert isinstance(data, list)
 
     @pytest.mark.asyncio
-async def test_get_experiments_requires_admin(
+    async def test_get_experiments_requires_admin(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -137,7 +137,7 @@ async def test_get_experiments_requires_admin(
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-async def test_get_experiments_requires_auth(self, client: TestClient):
+    async def test_get_experiments_requires_auth(self, client: TestClient):
         """
         Test experiments requires authentication.
         
@@ -153,7 +153,7 @@ class TestCreateExperiment:
     """Test suite for creating experiments."""
 
     @pytest.mark.asyncio
-async def test_create_experiment_success(
+    async def test_create_experiment_success(
         self, client: TestClient, admin_headers: dict
     ):
         """
@@ -180,7 +180,7 @@ async def test_create_experiment_success(
         assert "id" in data or "experiment_name" in data
 
     @pytest.mark.asyncio
-async def test_create_experiment_with_minimal_data(
+    async def test_create_experiment_with_minimal_data(
         self, client: TestClient, admin_headers: dict
     ):
         """
@@ -203,7 +203,7 @@ async def test_create_experiment_with_minimal_data(
         assert response.status_code == 200
 
     @pytest.mark.asyncio
-async def test_create_experiment_requires_admin(
+    async def test_create_experiment_requires_admin(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -225,7 +225,7 @@ async def test_create_experiment_requires_admin(
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-async def test_create_experiment_requires_auth(self, client: TestClient):
+    async def test_create_experiment_requires_auth(self, client: TestClient):
         """
         Test experiment creation requires authentication.
         
@@ -248,7 +248,7 @@ class TestCompareExperiments:
     """Test suite for comparing experiments."""
 
     @pytest.mark.asyncio
-async def test_compare_experiments_success(
+    async def test_compare_experiments_success(
         self, client: TestClient, admin_headers: dict
     ):
         """
@@ -272,7 +272,7 @@ async def test_compare_experiments_success(
         assert isinstance(data, dict)
 
     @pytest.mark.asyncio
-async def test_compare_experiments_with_empty_list(
+    async def test_compare_experiments_with_empty_list(
         self, client: TestClient, admin_headers: dict
     ):
         """
@@ -293,7 +293,7 @@ async def test_compare_experiments_with_empty_list(
         assert response.status_code == 422
 
     @pytest.mark.asyncio
-async def test_compare_experiments_requires_admin(
+    async def test_compare_experiments_requires_admin(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -313,7 +313,7 @@ async def test_compare_experiments_requires_admin(
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-async def test_compare_experiments_requires_auth(self, client: TestClient):
+    async def test_compare_experiments_requires_auth(self, client: TestClient):
         """
         Test experiment comparison requires authentication.
         
@@ -334,7 +334,7 @@ class TestExperimentWorkflow:
     """Integration tests for experiment workflow."""
 
     @pytest.mark.asyncio
-async def test_full_experiment_lifecycle(
+    async def test_full_experiment_lifecycle(
         self, client: TestClient, admin_headers: dict
     ):
         """

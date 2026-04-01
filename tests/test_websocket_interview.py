@@ -133,7 +133,7 @@ class TestWebSocketAuthentication:
     """Connection-level auth: tokens required, invalid tokens rejected."""
 
     @pytest.mark.asyncio
-async def test_connection_rejected_without_token(self, client: TestClient):
+    async def test_connection_rejected_without_token(self, client: TestClient):
         """No token ? server accepts the WS but immediately sends UNAUTHORIZED
         and closes the connection."""
         with client.websocket_connect("/ws/interview") as ws:
@@ -143,7 +143,7 @@ async def test_connection_rejected_without_token(self, client: TestClient):
             assert msg["recoverable"] is True
 
     @pytest.mark.asyncio
-async def test_connection_rejected_with_invalid_token(self, client: TestClient):
+    async def test_connection_rejected_with_invalid_token(self, client: TestClient):
         """Garbage token ? UNAUTHORIZED error."""
         with client.websocket_connect("/ws/interview?token=not_a_real_jwt") as ws:
             msg = _recv_json(ws)
@@ -151,7 +151,7 @@ async def test_connection_rejected_with_invalid_token(self, client: TestClient):
             assert msg["code"] == "UNAUTHORIZED"
 
     @pytest.mark.asyncio
-async def test_connection_accepted_with_valid_candidate_token(self, client: TestClient):
+    async def test_connection_accepted_with_valid_candidate_token(self, client: TestClient):
         """Valid candidate token ? greeting arrives."""
         token = _make_token(Role.CANDIDATE)
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
@@ -162,7 +162,7 @@ async def test_connection_accepted_with_valid_candidate_token(self, client: Test
             assert len(msg["text"]) > 0
 
     @pytest.mark.asyncio
-async def test_connection_accepted_with_recruiter_token(self, client: TestClient):
+    async def test_connection_accepted_with_recruiter_token(self, client: TestClient):
         """Recruiter token is also a valid JWT - gateway accepts any valid token."""
         token = _make_token(Role.RECRUITER)
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
@@ -170,7 +170,7 @@ async def test_connection_accepted_with_recruiter_token(self, client: TestClient
             assert msg["type"] == "avatar_sync"
 
     @pytest.mark.asyncio
-async def test_connection_accepted_with_admin_token(self, client: TestClient):
+    async def test_connection_accepted_with_admin_token(self, client: TestClient):
         token = _make_token(Role.ADMIN)
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             msg = _drain_until(ws, "avatar_sync")
@@ -186,7 +186,7 @@ class TestWebSocketGreeting:
     """After auth the server sends a greeting then waits for resume_upload."""
 
     @pytest.mark.asyncio
-async def test_greeting_contains_welcome_text(self, client: TestClient):
+    async def test_greeting_contains_welcome_text(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             msg = _drain_until(ws, "avatar_sync")
@@ -198,7 +198,7 @@ async def test_greeting_contains_welcome_text(self, client: TestClient):
             )
 
     @pytest.mark.asyncio
-async def test_greeting_is_followed_by_waiting_state(self, client: TestClient):
+    async def test_greeting_is_followed_by_waiting_state(self, client: TestClient):
         """After the greeting the server waits - no question arrives yet."""
         token = _make_token()
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
@@ -216,7 +216,7 @@ async def test_greeting_is_followed_by_waiting_state(self, client: TestClient):
 
 class TestWebSocketPingPong:
     @pytest.mark.asyncio
-async def test_ping_returns_pong(self, client: TestClient):
+    async def test_ping_returns_pong(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             _drain_until(ws, "avatar_sync")  # consume greeting
@@ -225,7 +225,7 @@ async def test_ping_returns_pong(self, client: TestClient):
             assert msg["type"] == "pong"
 
     @pytest.mark.asyncio
-async def test_multiple_pings(self, client: TestClient):
+    async def test_multiple_pings(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             _drain_until(ws, "avatar_sync")
@@ -242,7 +242,7 @@ async def test_multiple_pings(self, client: TestClient):
 
 class TestWebSocketBadMessages:
     @pytest.mark.asyncio
-async def test_invalid_json_returns_error(self, client: TestClient):
+    async def test_invalid_json_returns_error(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             _drain_until(ws, "avatar_sync")
@@ -253,7 +253,7 @@ async def test_invalid_json_returns_error(self, client: TestClient):
             assert msg["recoverable"] is True
 
     @pytest.mark.asyncio
-async def test_message_wrong_phase_returns_error(self, client: TestClient):
+    async def test_message_wrong_phase_returns_error(self, client: TestClient):
         """
         Sending stream_end before resume_upload is in the wrong phase.
         The server should return an INVALID_STATE error (recoverable).
@@ -283,37 +283,37 @@ class TestWebSocketErrorContract:
             return _recv_json(ws)
 
     @pytest.mark.asyncio
-async def test_error_has_type_field(self, client: TestClient):
+    async def test_error_has_type_field(self, client: TestClient):
         msg = self._get_first_error(client)
         assert "type" in msg
         assert msg["type"] == "error"
 
     @pytest.mark.asyncio
-async def test_error_has_code_field(self, client: TestClient):
+    async def test_error_has_code_field(self, client: TestClient):
         msg = self._get_first_error(client)
         assert "code" in msg
         assert isinstance(msg["code"], str)
 
     @pytest.mark.asyncio
-async def test_error_has_message_field(self, client: TestClient):
+    async def test_error_has_message_field(self, client: TestClient):
         msg = self._get_first_error(client)
         assert "message" in msg
         assert isinstance(msg["message"], str)
 
     @pytest.mark.asyncio
-async def test_error_has_recoverable_field(self, client: TestClient):
+    async def test_error_has_recoverable_field(self, client: TestClient):
         msg = self._get_first_error(client)
         assert "recoverable" in msg
         assert isinstance(msg["recoverable"], bool)
 
     @pytest.mark.asyncio
-async def test_unauthorized_error_is_recoverable(self, client: TestClient):
+    async def test_unauthorized_error_is_recoverable(self, client: TestClient):
         """Missing token errors are recoverable (the client can reconnect with a token)."""
         msg = self._get_first_error(client)
         assert msg["recoverable"] is True
 
     @pytest.mark.asyncio
-async def test_invalid_token_error_is_recoverable(self, client: TestClient):
+    async def test_invalid_token_error_is_recoverable(self, client: TestClient):
         msg = self._get_first_error(client, token="garbage")
         assert msg["recoverable"] is True
 
@@ -327,7 +327,7 @@ class TestWebSocketCapacity:
     """Session slot counter increments on connect and decrements on close."""
 
     @pytest.mark.asyncio
-async def test_gateway_tracks_active_sessions(self, client: TestClient):
+    async def test_gateway_tracks_active_sessions(self, client: TestClient):
         """
         Connect, verify the gateway's active_session counter is non-negative,
         disconnect, verify it went back down.
@@ -346,7 +346,7 @@ async def test_gateway_tracks_active_sessions(self, client: TestClient):
         assert after <= during  # released on disconnect
 
     @pytest.mark.asyncio
-async def test_runtime_stats_returns_expected_keys(self):
+    async def test_runtime_stats_returns_expected_keys(self):
         from backend.sockets.interview_gateway import InterviewGateway
 
         gw = InterviewGateway(total_questions=2)
@@ -371,7 +371,7 @@ class TestWebSocketStress:
     """
 
     @pytest.mark.asyncio
-async def test_rapid_reconnects_do_not_leak_session_slots(self, client: TestClient):
+    async def test_rapid_reconnects_do_not_leak_session_slots(self, client: TestClient):
         from backend.main import interview_gateway
 
         before = interview_gateway._active_sessions
@@ -394,7 +394,7 @@ async def test_rapid_reconnects_do_not_leak_session_slots(self, client: TestClie
         assert after == before
 
     @pytest.mark.asyncio
-async def test_malformed_json_flood_stays_recoverable(self, client: TestClient):
+    async def test_malformed_json_flood_stays_recoverable(self, client: TestClient):
         from backend.main import interview_gateway
 
         original_rate_limit = interview_gateway.rate_limit_per_minute
@@ -435,28 +435,28 @@ class TestInterviewGatewayUnit:
         self.gw = InterviewGateway(total_questions=3)
 
     @pytest.mark.asyncio
-async def test_split_sentences_basic(self):
+    async def test_split_sentences_basic(self):
         parts = self.gw._split_sentences("Hello world. How are you? Fine!")
         assert len(parts) == 3
 
     @pytest.mark.asyncio
-async def test_split_sentences_empty_string(self):
+    async def test_split_sentences_empty_string(self):
         assert self.gw._split_sentences("") == []
 
     @pytest.mark.asyncio
-async def test_split_sentences_no_punctuation(self):
+    async def test_split_sentences_no_punctuation(self):
         parts = self.gw._split_sentences("just a single sentence")
         assert parts == ["just a single sentence"]
 
     @pytest.mark.asyncio
-async def test_client_ip_returns_unknown_when_no_client(self):
+    async def test_client_ip_returns_unknown_when_no_client(self):
         class FakeWS:
             client = None
 
         assert self.gw._client_ip(FakeWS()) == "unknown"
 
     @pytest.mark.asyncio
-async def test_build_load_policy_returns_required_keys(self):
+    async def test_build_load_policy_returns_required_keys(self):
         policy = self.gw._build_load_policy()
         for key in (
             "load_ratio",
@@ -468,16 +468,16 @@ async def test_build_load_policy_returns_required_keys(self):
             assert key in policy, f"Missing key: {key}"
 
     @pytest.mark.asyncio
-async def test_build_load_policy_question_count_bounded(self):
+    async def test_build_load_policy_question_count_bounded(self):
         policy = self.gw._build_load_policy()
         assert policy["question_count"] >= 1
 
     @pytest.mark.asyncio
-async def test_wav_duration_ms_empty_bytes(self):
+    async def test_wav_duration_ms_empty_bytes(self):
         assert self.gw._wav_duration_ms(b"") == 0
 
     @pytest.mark.asyncio
-async def test_wav_duration_ms_non_wav(self):
+    async def test_wav_duration_ms_non_wav(self):
         assert self.gw._wav_duration_ms(b"not a wav file") == 0
 
 
@@ -500,60 +500,60 @@ class TestInterviewSessionUnit:
         )
 
     @pytest.mark.asyncio
-async def test_get_message_type_from_text(self):
+    async def test_get_message_type_from_text(self):
         session = self._make_session()
         msg = {"text": json.dumps({"type": "resume_upload"})}
         assert session._get_message_type(msg) == "resume_upload"
 
     @pytest.mark.asyncio
-async def test_get_message_type_from_data_dict(self):
+    async def test_get_message_type_from_data_dict(self):
         session = self._make_session()
         msg = {"data": {"type": "stream_end"}}
         assert session._get_message_type(msg) == "stream_end"
 
     @pytest.mark.asyncio
-async def test_get_message_type_bytes_returns_audio_chunk(self):
+    async def test_get_message_type_bytes_returns_audio_chunk(self):
         session = self._make_session()
         msg = {"bytes": b"\x00\x01\x02"}
         assert session._get_message_type(msg) == "audio_chunk"
 
     @pytest.mark.asyncio
-async def test_get_message_type_unknown(self):
+    async def test_get_message_type_unknown(self):
         session = self._make_session()
         assert session._get_message_type({}) == "unknown"
 
     @pytest.mark.asyncio
-async def test_get_message_type_invalid_json_text(self):
+    async def test_get_message_type_invalid_json_text(self):
         session = self._make_session()
         msg = {"text": "not json at all"}
         # Falls through to "unknown" without raising
         assert session._get_message_type(msg) == "unknown"
 
     @pytest.mark.asyncio
-async def test_completed_normally_starts_false(self):
+    async def test_completed_normally_starts_false(self):
         session = self._make_session()
         assert session._completed_normally is False
 
     @pytest.mark.asyncio
-async def test_mock_interview_session_id_stored(self):
+    async def test_mock_interview_session_id_stored(self):
         sid = "mock-abc123"
         session = self._make_session(mock_session_id=sid)
         assert session.mock_interview_session_id == sid
 
     @pytest.mark.asyncio
-async def test_no_mock_session_id_is_none(self):
+    async def test_no_mock_session_id_is_none(self):
         session = self._make_session()
         assert session.mock_interview_session_id is None
 
     @pytest.mark.asyncio
-async def test_phase_starts_at_connecting(self):
+    async def test_phase_starts_at_connecting(self):
         from backend.models.interview import InterviewPhase
 
         session = self._make_session()
         assert session.phase == InterviewPhase.CONNECTING
 
     @pytest.mark.asyncio
-async def test_is_complete_false_on_init(self):
+    async def test_is_complete_false_on_init(self):
         session = self._make_session()
         assert session.is_complete is False
 
@@ -570,7 +570,7 @@ class TestInterviewPersistenceUnit:
     """
 
     @pytest.mark.asyncio
-async def test_average_scores_empty_answers(self):
+    async def test_average_scores_empty_answers(self):
         from backend.services.interview_persistence import _average_scores
 
         result = _average_scores([])
@@ -580,7 +580,7 @@ async def test_average_scores_empty_answers(self):
         assert result["reasoning"] == 0.0
 
     @pytest.mark.asyncio
-async def test_average_scores_dual_eval_keys(self):
+    async def test_average_scores_dual_eval_keys(self):
         """Dual evaluator uses Technical / Behavioral / Reasoning keys."""
         from backend.services.interview_persistence import _average_scores
 
@@ -614,7 +614,7 @@ async def test_average_scores_dual_eval_keys(self):
         assert result["reasoning"] == pytest.approx(60.0)
 
     @pytest.mark.asyncio
-async def test_average_scores_multipass_keys(self):
+    async def test_average_scores_multipass_keys(self):
         """Multipass evaluator uses Technical Accuracy / Clarity keys."""
         from backend.services.interview_persistence import _average_scores
 
@@ -636,7 +636,7 @@ async def test_average_scores_multipass_keys(self):
         assert result["behavioral"] > 0.0
 
     @pytest.mark.asyncio
-async def test_average_scores_missing_evaluation(self):
+    async def test_average_scores_missing_evaluation(self):
         from backend.services.interview_persistence import _average_scores
 
         answers = [{"answer": "some text"}]  # no 'evaluation' key
@@ -644,7 +644,7 @@ async def test_average_scores_missing_evaluation(self):
         assert result["overall"] == 0.0
 
     @pytest.mark.asyncio
-async def test_average_scores_scores_capped_at_100(self):
+    async def test_average_scores_scores_capped_at_100(self):
         from backend.services.interview_persistence import _average_scores
 
         answers = [
@@ -655,13 +655,13 @@ async def test_average_scores_scores_capped_at_100(self):
         assert result["overall"] <= 100.0
 
     @pytest.mark.asyncio
-async def test_build_transcript_empty(self):
+    async def test_build_transcript_empty(self):
         from backend.services.interview_persistence import _build_transcript
 
         assert _build_transcript([]) == ""
 
     @pytest.mark.asyncio
-async def test_build_transcript_single_qa(self):
+    async def test_build_transcript_single_qa(self):
         from backend.services.interview_persistence import _build_transcript
 
         answers = [{"question": "What is Python?", "answer": "A language."}]
@@ -670,7 +670,7 @@ async def test_build_transcript_single_qa(self):
         assert "A1: A language." in transcript
 
     @pytest.mark.asyncio
-async def test_build_transcript_multiple_qa(self):
+    async def test_build_transcript_multiple_qa(self):
         from backend.services.interview_persistence import _build_transcript
 
         answers = [
@@ -684,7 +684,7 @@ async def test_build_transcript_multiple_qa(self):
         assert "A2:" in transcript
 
     @pytest.mark.asyncio
-async def test_fail_mock_interview_missing_session(self, db_session: Session):
+    async def test_fail_mock_interview_missing_session(self, db_session: Session):
         """Calling fail_mock_interview with a non-existent session_id returns False."""
         from backend.services.interview_persistence import fail_mock_interview
 
@@ -692,7 +692,7 @@ async def test_fail_mock_interview_missing_session(self, db_session: Session):
         assert result is False
 
     @pytest.mark.asyncio
-async def test_complete_mock_interview_missing_session(self, db_session: Session):
+    async def test_complete_mock_interview_missing_session(self, db_session: Session):
         """Calling complete_mock_interview with a non-existent session_id returns False."""
         from backend.services.interview_persistence import complete_mock_interview
 
@@ -700,7 +700,7 @@ async def test_complete_mock_interview_missing_session(self, db_session: Session
         assert result is False
 
     @pytest.mark.asyncio
-async def test_complete_mock_interview_writes_scores(self, db_session: Session):
+    async def test_complete_mock_interview_writes_scores(self, db_session: Session):
         """Full happy path: create a MockInterview row, complete it, verify scores."""
         from backend.models.candidate_portal import CandidateProfile, MockInterview
         from backend.services.interview_persistence import complete_mock_interview
@@ -759,7 +759,7 @@ async def test_complete_mock_interview_writes_scores(self, db_session: Session):
         assert "Explain Python decorators" in updated.transcript
 
     @pytest.mark.asyncio
-async def test_fail_mock_interview_marks_abandoned(self, db_session: Session):
+    async def test_fail_mock_interview_marks_abandoned(self, db_session: Session):
         from backend.models.candidate_portal import CandidateProfile, MockInterview
         from backend.services.interview_persistence import fail_mock_interview
 
@@ -794,7 +794,7 @@ async def test_fail_mock_interview_marks_abandoned(self, db_session: Session):
         assert updated.status == "abandoned"
 
     @pytest.mark.asyncio
-async def test_fail_mock_interview_skips_completed_row(self, db_session: Session):
+    async def test_fail_mock_interview_skips_completed_row(self, db_session: Session):
         """fail_mock_interview must not overwrite a row already marked completed."""
         from backend.models.candidate_portal import CandidateProfile, MockInterview
         from backend.services.interview_persistence import fail_mock_interview

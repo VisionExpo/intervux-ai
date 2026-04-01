@@ -22,7 +22,7 @@ class TestGetInterviewReport:
     """Test suite for retrieving interview reports."""
 
     @pytest.mark.asyncio
-async def test_get_interview_report_success(
+    async def test_get_interview_report_success(
         self,
         client: TestClient,
         recruiter_headers: dict,
@@ -48,7 +48,7 @@ async def test_get_interview_report_success(
         assert "interview" in data
 
     @pytest.mark.asyncio
-async def test_get_interview_report_not_found(
+    async def test_get_interview_report_not_found(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -65,7 +65,7 @@ async def test_get_interview_report_not_found(
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-async def test_get_interview_report_without_auth(
+    async def test_get_interview_report_without_auth(
         self, client: TestClient, test_interview
     ):
         """
@@ -79,7 +79,7 @@ async def test_get_interview_report_without_auth(
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-async def test_get_interview_report_with_candidate_token(
+    async def test_get_interview_report_with_candidate_token(
         self, client: TestClient, candidate_headers: dict, test_interview
     ):
         """
@@ -100,7 +100,7 @@ class TestGetInterviewAnalytics:
     """Test suite for retrieving interview analytics."""
 
     @pytest.mark.asyncio
-async def test_get_interview_analytics_success(
+    async def test_get_interview_analytics_success(
         self,
         client: TestClient,
         recruiter_headers: dict,
@@ -124,7 +124,7 @@ async def test_get_interview_analytics_success(
         assert "skills" in data
 
     @pytest.mark.asyncio
-async def test_get_interview_analytics_not_found(
+    async def test_get_interview_analytics_not_found(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -141,7 +141,7 @@ async def test_get_interview_analytics_not_found(
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-async def test_get_interview_analytics_structure(
+    async def test_get_interview_analytics_structure(
         self,
         client: TestClient,
         recruiter_headers: dict,
@@ -169,7 +169,7 @@ class TestDecisionSupport:
     """Test suite for decision support generation."""
 
     @pytest.mark.asyncio
-async def test_get_interview_decision_success(
+    async def test_get_interview_decision_success(
         self,
         client: TestClient,
         recruiter_headers: dict,
@@ -193,7 +193,7 @@ async def test_get_interview_decision_success(
         assert data is not None
 
     @pytest.mark.asyncio
-async def test_get_interview_decision_not_found(
+    async def test_get_interview_decision_not_found(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -210,7 +210,7 @@ async def test_get_interview_decision_not_found(
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-async def test_get_interview_decision_without_auth(
+    async def test_get_interview_decision_without_auth(
         self, client: TestClient, test_interview
     ):
         """
@@ -228,7 +228,7 @@ class TestCandidateComparison:
     """Test suite for candidate comparison endpoint."""
 
     @pytest.mark.asyncio
-async def test_compare_candidates_success(
+    async def test_compare_candidates_success(
         self,
         client: TestClient,
         recruiter_headers: dict,
@@ -252,7 +252,7 @@ async def test_compare_candidates_success(
         assert response.status_code in [200, 500]
 
     @pytest.mark.asyncio
-async def test_compare_candidates_requires_auth(self, client: TestClient):
+    async def test_compare_candidates_requires_auth(self, client: TestClient):
         """
         Test candidate comparison requires authentication.
         
@@ -264,7 +264,7 @@ async def test_compare_candidates_requires_auth(self, client: TestClient):
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-async def test_compare_candidates_with_recruiter_role(
+    async def test_compare_candidates_with_recruiter_role(
         self, client: TestClient, recruiter_headers: dict
     ):
         """

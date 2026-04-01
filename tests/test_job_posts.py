@@ -26,7 +26,7 @@ class TestCreateJobPost:
     """Test suite for creating job posts."""
 
     @pytest.mark.asyncio
-async def test_create_job_post_success(
+    async def test_create_job_post_success(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -58,7 +58,7 @@ async def test_create_job_post_success(
         assert data["ai_interview_enabled"] is True
 
     @pytest.mark.asyncio
-async def test_create_job_post_with_minimal_data(
+    async def test_create_job_post_with_minimal_data(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -84,7 +84,7 @@ async def test_create_job_post_with_minimal_data(
         assert data["status"] == JobPostStatus.DRAFT.value
 
     @pytest.mark.asyncio
-async def test_create_job_post_without_auth(self, client: TestClient):
+    async def test_create_job_post_without_auth(self, client: TestClient):
         """
         Test job post creation without authentication.
         
@@ -102,7 +102,7 @@ async def test_create_job_post_without_auth(self, client: TestClient):
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-async def test_create_job_post_with_candidate_token(
+    async def test_create_job_post_with_candidate_token(
         self, client: TestClient, candidate_headers: dict
     ):
         """
@@ -127,7 +127,7 @@ class TestListJobPosts:
     """Test suite for listing job posts."""
 
     @pytest.mark.asyncio
-async def test_list_job_posts_success(
+    async def test_list_job_posts_success(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -144,7 +144,7 @@ async def test_list_job_posts_success(
         assert isinstance(data, list)
 
     @pytest.mark.asyncio
-async def test_list_job_posts_with_pagination(
+    async def test_list_job_posts_with_pagination(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -161,7 +161,7 @@ async def test_list_job_posts_with_pagination(
         assert response.status_code == 200
 
     @pytest.mark.asyncio
-async def test_list_job_posts_with_status_filter(
+    async def test_list_job_posts_with_status_filter(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -178,7 +178,7 @@ async def test_list_job_posts_with_status_filter(
         assert response.status_code == 200
 
     @pytest.mark.asyncio
-async def test_list_job_posts_without_auth(self, client: TestClient):
+    async def test_list_job_posts_without_auth(self, client: TestClient):
         """
         Test job posts listing without authentication.
         
@@ -194,7 +194,7 @@ class TestGetJobPost:
     """Test suite for getting a single job post."""
 
     @pytest.mark.asyncio
-async def test_get_job_post_success(
+    async def test_get_job_post_success(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -218,7 +218,7 @@ async def test_get_job_post_success(
         assert "title" in data
 
     @pytest.mark.asyncio
-async def test_get_job_post_not_found(
+    async def test_get_job_post_not_found(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -239,7 +239,7 @@ class TestUpdateJobPost:
     """Test suite for updating job posts."""
 
     @pytest.mark.asyncio
-async def test_update_job_post_success(
+    async def test_update_job_post_success(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -267,7 +267,7 @@ async def test_update_job_post_success(
         assert data["status"] == "active"
 
     @pytest.mark.asyncio
-async def test_update_job_post_partial(
+    async def test_update_job_post_partial(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -297,7 +297,7 @@ async def test_update_job_post_partial(
         assert data["status"] == "closed"
 
     @pytest.mark.asyncio
-async def test_update_job_post_not_found(
+    async def test_update_job_post_not_found(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -321,7 +321,7 @@ class TestDeleteJobPost:
     """Test suite for deleting job posts."""
 
     @pytest.mark.asyncio
-async def test_delete_job_post_success(
+    async def test_delete_job_post_success(
         self, 
         client: TestClient, 
         recruiter_headers: dict,
@@ -344,7 +344,7 @@ async def test_delete_job_post_success(
         assert "message" in data
 
     @pytest.mark.asyncio
-async def test_delete_job_post_not_found(
+    async def test_delete_job_post_not_found(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -361,7 +361,7 @@ async def test_delete_job_post_not_found(
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-async def test_delete_job_post_without_auth(self, client: TestClient, test_job_post):
+    async def test_delete_job_post_without_auth(self, client: TestClient, test_job_post):
         """
         Test job post deletion without authentication.
         

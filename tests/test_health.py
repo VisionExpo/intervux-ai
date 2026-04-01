@@ -19,7 +19,7 @@ class TestHealthEndpoints:
     """Test suite for health check endpoints."""
 
     @pytest.mark.asyncio
-async def test_health_endpoint_returns_ok(self, client: TestClient):
+    async def test_health_endpoint_returns_ok(self, client: TestClient):
         """
         Test that /health endpoint returns 200 OK with status.
         
@@ -36,7 +36,7 @@ async def test_health_endpoint_returns_ok(self, client: TestClient):
         assert data["status"] == "ok"
 
     @pytest.mark.asyncio
-async def test_health_endpoint_response_format(self, client: TestClient):
+    async def test_health_endpoint_response_format(self, client: TestClient):
         """
         Test that /health endpoint returns correct response format.
         
@@ -53,7 +53,7 @@ async def test_health_endpoint_response_format(self, client: TestClient):
         assert len(data) > 0
 
     @pytest.mark.asyncio
-async def test_ready_endpoint_returns_ok(self, client: TestClient):
+    async def test_ready_endpoint_returns_ok(self, client: TestClient):
         """
         Test that /ready endpoint returns 200 OK when ready.
         
@@ -70,7 +70,7 @@ async def test_ready_endpoint_returns_ok(self, client: TestClient):
         assert "status" in data
 
     @pytest.mark.asyncio
-async def test_ready_endpoint_database_status(self, client: TestClient):
+    async def test_ready_endpoint_database_status(self, client: TestClient):
         """
         Test that /ready endpoint includes database status.
         
@@ -93,7 +93,7 @@ class TestMetricsEndpoint:
     """Test suite for metrics endpoint."""
 
     @pytest.mark.asyncio
-async def test_metrics_endpoint_returns_data(self, client: TestClient):
+    async def test_metrics_endpoint_returns_data(self, client: TestClient):
         """
         Test that /metrics endpoint returns metrics data.
         

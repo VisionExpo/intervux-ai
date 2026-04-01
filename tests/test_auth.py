@@ -24,7 +24,7 @@ class TestLoginEndpoint:
     """Test suite for login endpoints."""
 
     @pytest.mark.asyncio
-async def test_login_with_valid_credentials(self, client: TestClient):
+    async def test_login_with_valid_credentials(self, client: TestClient):
         """
         Test successful login with valid credentials.
         
@@ -49,7 +49,7 @@ async def test_login_with_valid_credentials(self, client: TestClient):
         assert "expires_in" in data
 
     @pytest.mark.asyncio
-async def test_login_with_json_payload(self, client: TestClient):
+    async def test_login_with_json_payload(self, client: TestClient):
         """
         Test successful login with JSON payload.
         
@@ -71,7 +71,7 @@ async def test_login_with_json_payload(self, client: TestClient):
         assert "refresh_token" in data
 
     @pytest.mark.asyncio
-async def test_login_with_invalid_password(self, client: TestClient):
+    async def test_login_with_invalid_password(self, client: TestClient):
         """
         Test login failure with incorrect password.
         
@@ -93,7 +93,7 @@ async def test_login_with_invalid_password(self, client: TestClient):
         assert "Incorrect" in data["detail"]
 
     @pytest.mark.asyncio
-async def test_login_with_invalid_email(self, client: TestClient):
+    async def test_login_with_invalid_email(self, client: TestClient):
         """
         Test login failure with non-existent email.
         
@@ -112,7 +112,7 @@ async def test_login_with_invalid_email(self, client: TestClient):
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-async def test_login_json_with_invalid_credentials(self, client: TestClient):
+    async def test_login_json_with_invalid_credentials(self, client: TestClient):
         """
         Test JSON login failure with incorrect password.
         
@@ -134,7 +134,7 @@ class TestTokenRefresh:
     """Test suite for token refresh functionality."""
 
     @pytest.mark.asyncio
-async def test_refresh_token_with_valid_token(self, client: TestClient):
+    async def test_refresh_token_with_valid_token(self, client: TestClient):
         """
         Test successful token refresh.
         
@@ -164,7 +164,7 @@ async def test_refresh_token_with_valid_token(self, client: TestClient):
         assert "refresh_token" in data
 
     @pytest.mark.asyncio
-async def test_refresh_token_with_invalid_token(self, client: TestClient):
+    async def test_refresh_token_with_invalid_token(self, client: TestClient):
         """
         Test token refresh with invalid token.
         
@@ -183,7 +183,7 @@ class TestUserProfile:
     """Test suite for user profile endpoints."""
 
     @pytest.mark.asyncio
-async def test_get_current_user_profile(self, client: TestClient, recruiter_headers: dict):
+    async def test_get_current_user_profile(self, client: TestClient, recruiter_headers: dict):
         """
         Test retrieving current user profile.
         
@@ -200,7 +200,7 @@ async def test_get_current_user_profile(self, client: TestClient, recruiter_head
         assert "role" in data
 
     @pytest.mark.asyncio
-async def test_get_profile_without_auth(self, client: TestClient):
+    async def test_get_profile_without_auth(self, client: TestClient):
         """
         Test profile retrieval without authentication.
         
@@ -212,7 +212,7 @@ async def test_get_profile_without_auth(self, client: TestClient):
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-async def test_get_profile_with_invalid_token(self, client: TestClient):
+    async def test_get_profile_with_invalid_token(self, client: TestClient):
         """
         Test profile retrieval with invalid token.
         
@@ -229,7 +229,7 @@ class TestLogout:
     """Test suite for logout functionality."""
 
     @pytest.mark.asyncio
-async def test_logout_success(self, client: TestClient, recruiter_headers: dict):
+    async def test_logout_success(self, client: TestClient, recruiter_headers: dict):
         """
         Test successful logout.
         
@@ -245,7 +245,7 @@ async def test_logout_success(self, client: TestClient, recruiter_headers: dict)
         assert "user_id" in data
 
     @pytest.mark.asyncio
-async def test_logout_without_auth(self, client: TestClient):
+    async def test_logout_without_auth(self, client: TestClient):
         """
         Test logout without authentication.
         
@@ -261,7 +261,7 @@ class TestChangePassword:
     """Test suite for password change functionality."""
 
     @pytest.mark.asyncio
-async def test_change_password_requires_auth(self, client: TestClient, recruiter_headers: dict):
+    async def test_change_password_requires_auth(self, client: TestClient, recruiter_headers: dict):
         """
         Test that password change requires authentication.
         
@@ -286,7 +286,7 @@ class TestRBAC:
     """Test suite for Role-Based Access Control."""
 
     @pytest.mark.asyncio
-async def test_recruiter_can_access_recruiter_endpoints(
+    async def test_recruiter_can_access_recruiter_endpoints(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -301,7 +301,7 @@ async def test_recruiter_can_access_recruiter_endpoints(
         assert response.status_code in [200, 500]
 
     @pytest.mark.asyncio
-async def test_recruiter_can_access_job_posts(
+    async def test_recruiter_can_access_job_posts(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -315,7 +315,7 @@ async def test_recruiter_can_access_job_posts(
         assert response.status_code in [200, 500]
 
     @pytest.mark.asyncio
-async def test_candidate_cannot_access_recruiter_endpoints(
+    async def test_candidate_cannot_access_recruiter_endpoints(
         self, client: TestClient, candidate_headers: dict
     ):
         """
@@ -330,7 +330,7 @@ async def test_candidate_cannot_access_recruiter_endpoints(
         assert response.status_code in [403, 500]
 
     @pytest.mark.asyncio
-async def test_admin_can_access_admin_endpoints(
+    async def test_admin_can_access_admin_endpoints(
         self, client: TestClient, admin_headers: dict
     ):
         """
@@ -344,7 +344,7 @@ async def test_admin_can_access_admin_endpoints(
         assert response.status_code in [200, 500]
 
     @pytest.mark.asyncio
-async def test_recruiter_cannot_access_admin_endpoints(
+    async def test_recruiter_cannot_access_admin_endpoints(
         self, client: TestClient, recruiter_headers: dict
     ):
         """
@@ -363,7 +363,7 @@ class TestAuthHealth:
     """Test suite for auth health endpoint."""
 
     @pytest.mark.asyncio
-async def test_auth_health_returns_status(self, client: TestClient):
+    async def test_auth_health_returns_status(self, client: TestClient):
         """
         Test auth service health check.
         
