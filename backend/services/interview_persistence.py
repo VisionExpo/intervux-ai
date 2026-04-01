@@ -12,7 +12,7 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List
 
-from backend.db.database import SessionLocal
+from backend.db.database import AsyncSessionLocal
 from backend.models.candidate_portal import MockInterview
 from backend.utils.logger import get_logger
 

@@ -161,7 +161,7 @@ async def logout(
     token: str = Depends(oauth2_scheme),
     current_user: TokenData = Depends(get_current_user),
 ):
-    from backend.db.database import RevokedToken, SessionLocal
+    from backend.db.database import RevokedToken
     from backend.auth.jwt_service import SECRET_KEY, ALGORITHM
     from jose import jwt as _jwt
 
