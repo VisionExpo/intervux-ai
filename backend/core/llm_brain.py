@@ -242,18 +242,22 @@ def _provider_order() -> List[str]:
     return providers
 
 
-def _call_gemini(prompt: str, temperature: float, top_p: float = 1.0) -> str:
+def _call_gemini(prompt: str, temperature: float, top_p: float = 1.0, response_schema: Any = None) -> str:
     if GEMINI_CLIENT is None:
         raise RuntimeError("Gemini is not configured: GOOGLE_API_KEY missing")
+
+    config = {
+        "response_mime_type": "application/json",
+        "temperature": temperature,
+        "top_p": top_p,
+    }
+    if response_schema is not None:
+        config["response_schema"] = response_schema
 
     response = GEMINI_CLIENT.models.generate_content(
         model=GEMINI_MODEL,
         contents=prompt,
-        config={
-            "response_mime_type": "application/json",
-            "temperature": temperature,
-            "top_p": top_p,
-        },
+        config=config,
     )
     return response.text
 
@@ -287,16 +291,17 @@ def _call_local_qwen(prompt: str, temperature: float, top_p: float = 1.0) -> str
     return raw
 
 
-def _call_provider(provider: str, prompt: str, temperature: float, top_p: float = 1.0) -> str:
+def _call_provider(provider: str, prompt: str, temperature: float, top_p: float = 1.0, response_schema: Any = None) -> str:
     if provider == "gemini":
-        return _call_gemini(prompt, temperature, top_p=top_p)
+        return _call_gemini(prompt, temperature, top_p=top_p, response_schema=response_schema)
     if provider in {"qwen", "local", "ollama"}:
+        # Note: Local LLM fallback could optionally support JSON Schema if passing options, but we just string match
         return _call_local_qwen(prompt, temperature, top_p=top_p)
     raise ValueError(f"Unsupported LLM provider: {provider}")
 
 
 def _run_json_task(
-    prompt: str, expected_type: type, temperature: float, top_p: float = 1.0
+    prompt: str, expected_type: type, temperature: float, top_p: float = 1.0, response_schema: Any = None
 ) -> Tuple[Any, str]:
     providers = _provider_order()
     last_error: Exception | None = None
@@ -312,7 +317,7 @@ def _run_json_task(
 
         provider_start = time.time()
         try:
-            raw = _call_provider(provider, prompt, temperature, top_p=top_p)
+            raw = _call_provider(provider, prompt, temperature, top_p=top_p, response_schema=response_schema)
             elapsed = time.time() - provider_start
             _record_provider_success(provider, elapsed)
             metrics.record_latency(f"llm_provider_{provider}_latency", elapsed)

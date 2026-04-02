@@ -1,5 +1,6 @@
 import json
 import os
+import pickle
 import redis.asyncio as redis
 from typing import Any, Dict, Optional, AsyncGenerator
 
@@ -9,6 +10,14 @@ class RedisManager:
     def __init__(self):
         # We store connection securely
         self.redis = redis.from_url(REDIS_URL, decode_responses=True)
+        self.redis_bin = redis.from_url(REDIS_URL, decode_responses=False)
+
+    async def save_session_state_obj(self, session_id: str, state_obj: Any, expire_seconds: int = 7200):
+        await self.redis_bin.set(f"interview:state_obj:{session_id}", pickle.dumps(state_obj), ex=expire_seconds)
+
+    async def get_session_state_obj(self, session_id: str) -> Optional[Any]:
+        data = await self.redis_bin.get(f"interview:state_obj:{session_id}")
+        return pickle.loads(data) if data else None
 
     async def save_session_state(self, session_id: str, state_data: Dict[str, Any], expire_seconds: int = 3600):
         await self.redis.set(f"interview:state:{session_id}", json.dumps(state_data), ex=expire_seconds)

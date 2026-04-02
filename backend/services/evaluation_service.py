@@ -40,9 +40,25 @@ class EvaluationService:
         Returns:
             Evaluation results dictionary
         """
+        from backend.ai.engines.security_guardrails import sanitize_input
+        is_clean, clean_answer = sanitize_input(answer)
+        if not is_clean:
+            logger.warning("Prompt injection detected in candidate answer", extra={"extra_data": {"original_answer": answer}})
+            return {
+                "scores": {"Technical": 0, "Behavioral": 0, "Reasoning": 0, "Overall": 0},
+                "feedback": ["Security violation detected under candidate response. AI constraints enforced. Automatic 0."],
+                "summary": "Evaluation halted due to prompt injection violation.",
+                "confidence_score": 1.0,
+                "final": {"score": 0.0},
+                "meta": {
+                    "provider": "security_guardrails",
+                    "reason": "prompt_injection"
+                }
+            }
+
         return evaluate_answer_dual(
             question=question,
-            answer=answer,
+            answer=clean_answer,
             profile=profile,
             lightweight=lightweight,
             temperature_override=temperature,

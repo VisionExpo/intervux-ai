@@ -80,7 +80,7 @@ class DualEvaluationEngine:
         
         for attempt in range(3):
             try:
-                payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8)
+                payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8, response_schema=TechnicalEvalResult)
                 TechnicalEvalResult.model_validate(payload)
                 return {
                     "accuracy": _clamp_score(payload.get("accuracy", 0)),
@@ -97,7 +97,7 @@ class DualEvaluationEngine:
         prompt = BEHAVIOR_PROMPT_TEMPLATE.format(answer=answer)
         for attempt in range(3):
             try:
-                payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8)
+                payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8, response_schema=BehavioralEvalResult)
                 BehavioralEvalResult.model_validate(payload)
                 return {
                     "clarity": _clamp_score(payload.get("clarity", 0)),

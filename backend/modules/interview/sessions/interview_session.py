@@ -27,6 +27,7 @@ from backend.services.interview_persistence import (
 from backend.core.evaluation_engine import EvaluationFatalError
 from backend.core.logging.logger import get_logger
 from backend.utils.metrics import metrics
+from backend.services.redis_manager import redis_client
 
 logger = get_logger(__name__)
 
@@ -69,7 +70,7 @@ class InterviewSession:
 
         self.state = InterviewState()
         self.engine = InterviewEngine()
-        self.audio_buffer = AudioBuffer()
+        self.audio_buffer = AudioBuffer(session_id=self.session_id)
         self.eval_context_cache: Dict[int, dict] = {}
 
         # Set when the interview completes normally so cleanup() knows
@@ -92,6 +93,15 @@ class InterviewSession:
 
         Returns a response dict to send back, or None.
         """
+        # --- STATELESS ARCHITECTURE ---
+        # Hydrate session block dynamically from Redis if resuming.
+        try:
+            persisted = await redis_client.get_session_state_obj(self.session_id)
+            if persisted:
+                self.state, self.eval_context_cache = persisted
+        except Exception as e:
+            logger.warning(f"Could not load state from redis: {e}")
+
         msg_type = self._get_message_type(message)
 
         if not self.state.can_proceed(msg_type):
@@ -99,29 +109,39 @@ class InterviewSession:
                 f"Invalid message {msg_type} for phase {self.state.phase.value}",
                 extra={"extra_data": {"session_id": self.session_id}},
             )
-            return {
+            response = {
                 "type": "error",
                 "code": "INVALID_STATE",
                 "message": f"Cannot receive {msg_type} in {self.state.phase.value} phase",
                 "recoverable": True,
             }
+            return response
 
         if msg_type == "ping":
-            return await self._handle_ping()
+            response = await self._handle_ping()
         elif msg_type == "resume_upload":
-            return await self._handle_resume_upload(message)
+            response = await self._handle_resume_upload(message)
         elif msg_type == "audio_chunk":
-            return await self._handle_audio_chunk(message)
+            response = await self._handle_audio_chunk(message)
         elif msg_type in ("stream_end", "audio_end"):
-            return await self._handle_stream_end(message)
+            response = await self._handle_stream_end(message)
         else:
             logger.warning(f"Unknown message type: {msg_type}")
-            return {
+            response = {
                 "type": "error",
                 "code": "UNKNOWN_MESSAGE",
                 "message": f"Unknown message type: {msg_type}",
                 "recoverable": True,
             }
+            
+        # --- STATELESS ARCHITECTURE ---
+        # Persist updated session block to Redis 
+        try:
+            await redis_client.save_session_state_obj(self.session_id, (self.state, self.eval_context_cache))
+        except Exception as e:
+            logger.error(f"Failed to persist state to redis: {e}")
+            
+        return response
 
     async def cleanup(self) -> None:
         """
@@ -145,11 +165,7 @@ class InterviewSession:
 
         # Mark abandoned if we have a DB row and didn't complete normally
         if self.mock_interview_session_id and not self._completed_normally:
-            await asyncio.to_thread(
-                fail_mock_interview,
-                self.mock_interview_session_id,
-                "session_cleanup",
-            )
+            await fail_mock_interview(self.mock_interview_session_id, "session_cleanup")
 
         self.state.reset()
         self.audio_buffer.clear()
@@ -241,23 +257,12 @@ class InterviewSession:
             self._last_partial_at = now
 
             from backend.core.celery_tasks import transcribe_audio_task
-            import base64
             
-            b64_audio = base64.b64encode(self.audio_buffer.bytes()).decode('ascii')
+            filepath = self.audio_buffer.filepath
             suffix = self.engine._detect_audio_suffix(self.audio_buffer.bytes())
 
-            task = transcribe_audio_task.delay(b64_audio, suffix)
-            while not task.ready():
-                await asyncio.sleep(0.1)
-                
-            partial_text = task.result
-
-            if partial_text:
-                self._partial_transcript = partial_text
-                self._partial_count += 1
-                metrics.increment_counter("partial_transcript_count")
-
-                return {"type": "partial_transcript", "text": partial_text}
+            # Fire and forget asynchronous task
+            transcribe_audio_task.delay(filepath, suffix, self.session_id)
 
         return None
 
@@ -328,8 +333,7 @@ class InterviewSession:
 
         # Persist to MockInterview table if we have a session_id
         if self.mock_interview_session_id:
-            await asyncio.to_thread(
-                complete_mock_interview,
+            await complete_mock_interview(
                 self.mock_interview_session_id,
                 final_result.get("report", {}),
                 self.state.answers,

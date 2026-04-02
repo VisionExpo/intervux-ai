@@ -51,6 +51,21 @@ class InterviewGateway:
         except Exception:
             pass
 
+    async def _pubsub_listener(self, ws: WebSocket, session_id: str, session: InterviewSession):
+        """Listen for transcription results pushed by Celery over Redis and forward to UI."""
+        from backend.services.redis_manager import redis_client
+        try:
+            async for message in redis_client.subscribe(f"interview:results:{session_id}"):
+                if message.get("type") == "partial_transcript":
+                    text = message.get("text", "")
+                    if text:
+                        session._partial_transcript = text
+                        session._partial_count += 1
+                        metrics.increment_counter("partial_transcript_count")
+                        await self._send_json(ws, {"type": "partial_transcript", "text": text})
+        except Exception as e:
+            logger.warning(f"PubSub listener closed for {session_id}: {e}")
+
     async def _allow_ip(self, ip: str) -> bool:
         """Redis token bucket / sliding window rate limiter."""
         key = f"rl:ws:{ip}"
@@ -123,6 +138,7 @@ class InterviewGateway:
         self._connections.add(ws)
         
         ping_task = asyncio.create_task(self._ping_loop(ws, session_id))
+        pubsub_task = asyncio.create_task(self._pubsub_listener(ws, session_id, session))
 
         try:
             if not session.state.greeting_sent:
@@ -190,6 +206,7 @@ class InterviewGateway:
             await self._close_ws(ws, code=1011)
         finally:
             ping_task.cancel()
+            pubsub_task.cancel()
             await session.cleanup()
             await self._registry.unregister(session_id)
             self._connections.discard(ws)
