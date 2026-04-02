@@ -62,6 +62,12 @@ async def _run_alembic_migrations() -> None:
             await conn.run_sync(Base.metadata.create_all)
         return
 
+    if not os.path.exists("alembic") and not os.path.exists("backend/alembic") and not os.path.exists("/app/alembic"):
+        logger.info("No alembic folder found. Falling back to create_all.")
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        return
+
     logger.info("Running Alembic migrations...")
     try:
         # Run subprocess concurrently
