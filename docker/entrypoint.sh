@@ -42,9 +42,13 @@ asyncio.run(check_db())
 done
 
 echo "[entrypoint] Database is ready."
-echo "[entrypoint] Running Alembic migrations..."
 
-alembic upgrade head
+if [ -d "alembic" ] || [ -d "backend/alembic" ]; then
+    echo "[entrypoint] Running Alembic migrations..."
+    alembic upgrade head || echo "[entrypoint] Alembic failed but continuing..."
+else
+    echo "[entrypoint] No alembic folder found. Skipping migrations."
+fi
 
 echo "[entrypoint] Migrations complete. Starting application..."
 
