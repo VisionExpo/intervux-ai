@@ -1,38 +1,51 @@
 """
 Audio Buffer Service - Isolated audio handling for interview sessions.
+Refactored to mock S3 / Local Temporary File logic for stateless architecture.
 """
 
+import os
 import time
-from typing import List, Optional
+import tempfile
+from typing import Optional
 
 
 class AudioBuffer:
     """
     Thread-safe audio buffer for collecting audio chunks during interview.
+    Uses disk (temp files) to store chunks instead of RAM to prevent OOM
+    and support horizontally scaling worker queues.
     
     Usage:
-        buffer = AudioBuffer()
+        buffer = AudioBuffer(session_id="123")
         buffer.add(audio_bytes)
         audio_data = buffer.bytes()
         buffer.clear()
     """
 
-    def __init__(self, max_size_bytes: int = 20000000):
+    def __init__(self, session_id: str, max_size_bytes: int = 20000000):
         """
         Initialize audio buffer.
         
         Args:
+            session_id: Unique interview session identifier.
             max_size_bytes: Maximum buffer size in bytes (default 20MB)
         """
-        self._chunks: List[bytes] = []
+        self.session_id = session_id
+        # In a real cluster this could be an S3 bucket or EFS mount.
+        # For this refactor, tempfile directory is used as proxy.
+        self.filepath = os.path.join(tempfile.gettempdir(), f"intervux_audio_{session_id}.raw")
         self._total_bytes: int = 0
         self._max_size_bytes = max_size_bytes
         self._first_chunk_time: Optional[float] = None
         self._last_chunk_time: Optional[float] = None
+        self._chunk_count = 0
+        
+        # Ensure clean state based on this ID
+        self.clear()
 
     def add(self, chunk: bytes) -> bool:
         """
-        Add an audio chunk to the buffer.
+        Add an audio chunk to the buffer file.
         
         Args:
             chunk: Raw audio bytes
@@ -43,8 +56,11 @@ class AudioBuffer:
         if self._total_bytes + len(chunk) > self._max_size_bytes:
             return False
             
-        self._chunks.append(chunk)
+        with open(self.filepath, "ab") as f:
+            f.write(chunk)
+            
         self._total_bytes += len(chunk)
+        self._chunk_count += 1
         
         now = time.time()
         if self._first_chunk_time is None:
@@ -60,12 +76,21 @@ class AudioBuffer:
         Returns:
             Combined audio bytes
         """
-        return b"".join(self._chunks)
+        if not os.path.exists(self.filepath):
+            return b""
+        with open(self.filepath, "rb") as f:
+            return f.read()
 
     def clear(self) -> None:
-        """Clear all buffered audio."""
-        self._chunks.clear()
+        """Clear all buffered audio and clean up file."""
+        if os.path.exists(self.filepath):
+            try:
+                os.remove(self.filepath)
+            except OSError:
+                pass
+                
         self._total_bytes = 0
+        self._chunk_count = 0
         self._first_chunk_time = None
         self._last_chunk_time = None
 
@@ -82,7 +107,7 @@ class AudioBuffer:
     @property
     def chunk_count(self) -> int:
         """Get number of chunks in buffer."""
-        return len(self._chunks)
+        return self._chunk_count
 
     @property
     def duration_seconds(self) -> float:
