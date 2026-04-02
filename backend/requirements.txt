@@ -5,6 +5,8 @@ starlette==0.37.2
 
 # Database
 sqlalchemy==2.0.31
+alembic==1.13.2
+psycopg2-binary==2.9.9
 
 # Authentication
 passlib[bcrypt]==1.7.4

@@ -15,19 +15,25 @@ echo "[entrypoint] Waiting for database to be ready..."
 MAX_TRIES=20
 TRIES=0
 until python -c "
-import os, sys
-from sqlalchemy import create_engine, text
-try:
-    engine = create_engine(os.environ['DATABASE_URL'])
-    with engine.connect() as conn:
-        conn.execute(text('SELECT 1'))
-    sys.exit(0)
-except Exception as e:
-    print(f'  DB not ready: {e}', file=sys.stderr)
-    sys.exit(1)
+import os, sys, asyncio
+import asyncpg
+
+async def check_db():
+    try:
+        url = os.environ.get('DATABASE_URL', '')
+        if url.startswith('postgresql+asyncpg://'):
+            url = url.replace('postgresql+asyncpg://', 'postgresql://')
+        conn = await asyncpg.connect(url)
+        await conn.close()
+        sys.exit(0)
+    except Exception as e:
+        print(f'  DB not ready: {e}', file=sys.stderr)
+        sys.exit(1)
+
+asyncio.run(check_db())
 " 2>&1; do
     TRIES=$((TRIES + 1))
-    if [ \"$TRIES\" -ge \"$MAX_TRIES\" ]; then
+    if [ "$TRIES" -ge "$MAX_TRIES" ]; then
         echo "[entrypoint] Database did not become ready in time. Aborting."
         exit 1
     fi
