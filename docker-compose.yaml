@@ -39,6 +39,7 @@ services:
     # FIX: entrypoint runs `alembic upgrade head` before uvicorn starts.
     # Previously create_all ran inside lifespan and silently skipped column additions.
     entrypoint: ["/app/entrypoint.sh"]
+    command: ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
     env_file:
       - .env.docker
     ports:
