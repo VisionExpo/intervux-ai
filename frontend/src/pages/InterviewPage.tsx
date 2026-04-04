@@ -193,7 +193,7 @@ export default function InterviewPage() {
           isListening={isListening}
         />
       }
-      cameraPanel={<CandidateCamera isEnabled={isListening || isSpeaking} />}
+      cameraPanel={<CandidateCamera isEnabled={true} />}
     />
   );
 }

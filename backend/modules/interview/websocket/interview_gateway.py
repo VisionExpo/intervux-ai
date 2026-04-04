@@ -150,7 +150,8 @@ class InterviewGateway:
                     "Before we begin, please upload your resume so I can tailor "
                     "questions based on your experience."
                 )
-                await self._send_avatar_with_audio(ws, full_text, 0, 0)
+                # Send greeting asynchronously — don't block the receive loop
+                asyncio.create_task(self._send_avatar_with_audio(ws, full_text, 0, 0))
                 session.state.greeting_sent = True
 
             session.state.transition_to(InterviewPhase.WAITING_RESUME)
@@ -307,22 +308,33 @@ class InterviewGateway:
     async def _synthesize_tts_chunks(self, text: str) -> list:
         if os.getenv("DISABLE_TTS", "false").lower() == "true":
             return []
-            
+
         from backend.core.celery_tasks import synthesize_tts_task
         import base64
 
+        segments = self._split_sentences(text)
+
+        # Fire all Celery TTS tasks in parallel
+        celery_tasks = [synthesize_tts_task.delay(seg) for seg in segments]
+
         chunks = []
-        for segment in self._split_sentences(text):
-            task = synthesize_tts_task.delay(segment)
+        for seg, task in zip(segments, celery_tasks):
+            # Await each task result with a timeout so a slow/dead worker
+            # doesn't hang the entire WebSocket session.
+            deadline = asyncio.get_event_loop().time() + 15.0  # 15 s per segment
             while not task.ready():
-                await asyncio.sleep(0.1)
-            
-            result = task.result
+                if asyncio.get_event_loop().time() > deadline:
+                    logger.warning(f"TTS task timed out for segment: {seg[:40]!r}")
+                    break
+                await asyncio.sleep(0.05)
+
+            result = task.result if task.ready() else None
             if result:
                 b64_audio = result.get("audio_b64", "")
                 audio_bytes = base64.b64decode(b64_audio) if b64_audio else b""
                 visemes = result.get("visemes", [])
-                chunks.append({"text": segment, "audio_bytes": audio_bytes, "visemes": visemes})
+                if audio_bytes:
+                    chunks.append({"text": seg, "audio_bytes": audio_bytes, "visemes": visemes})
         return chunks
 
     @staticmethod
