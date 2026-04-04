@@ -104,7 +104,8 @@ export default function CandidateProfile() {
       const uploadFormData = new FormData();
       uploadFormData.append("file", file);
 
-      const response = await fetch("http://localhost:8000/api/candidate/resume", {
+      const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+      const response = await fetch(`${API_BASE}/api/candidate/resume`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("auth_token")}`,

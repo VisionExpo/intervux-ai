@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
+import AppShell from "./components/AppShell";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import RecruiterDashboard from "./pages/RecruiterDashboard";
@@ -12,71 +13,67 @@ import InterviewPage from "./pages/InterviewPage";
 import CandidateInterviewReport from "./pages/CandidateInterviewReport";
 import "./App.css";
 
+function getRoute(): string {
+  return window.location.hash.replace("#", "").split("?")[0] || "/dashboard";
+}
+
 function App() {
   const { user, isAuthenticated, isLoading } = useAuth();
-  const currentRoute = () =>
-    (window.location.hash.replace("#", "").split("?")[0] || "/profile");
-  const [hash, setHash] = useState(currentRoute);
+  const [hash, setHash] = useState(getRoute);
 
-  // Listen for hash changes
   useEffect(() => {
-    const handleHashChange = () => {
-      const newHash = currentRoute();
-      setHash(newHash);
-    };
-
+    const handleHashChange = () => setHash(getRoute());
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
+  // After login, redirect to dashboard if still at root
+  useEffect(() => {
+    if (isAuthenticated && (!window.location.hash || window.location.hash === "#/")) {
+      window.location.hash = "#/dashboard";
+    }
+  }, [isAuthenticated]);
+
   if (isLoading) {
     return (
       <div className="login-page">
-        <div className="login-container">
-          <p>Loading...</p>
-        </div>
+      <div className="login-container loading-screen">
+        <div className="loading-icon">⚡</div>
+        <p className="loading-text">Loading Intervux AI...</p>
       </div>
+    </div>
     );
   }
 
-  // For non-authenticated users, show login/signup
   if (!isAuthenticated) {
-    // Check if we're on signup route
-    if (hash === "/signup") {
-      return <Signup />;
-    }
+    if (hash === "/signup") return <Signup />;
     return <Login />;
   }
 
-  // Route based on user role
   const userRole = user?.role;
 
   if (userRole === "candidate") {
-    // Candidate portal routes - use hash-based routing for simplicity
-    switch (hash) {
-      case "/dashboard":
-        return <CandidateDashboard />;
-      case "/profile":
-        return <CandidateProfile />;
-      case "/mock-interview":
-        return <MockInterview />;
-      case "/interview-session":
-        return <InterviewPage />;
-      case "/report":
-        return <CandidateInterviewReport />;
-      case "/interview-history":
-        return <InterviewHistory />;
-      case "/notifications":
-        return <CandidateNotifications />;
-      case "/logout":
-        // Use a wrapper component to handle side effects
-        return <LogoutRedirect />;
-      default:
-        return <CandidateProfile />;
-    }
+    // Pages that use the full-screen interview layout (no sidebar)
+    if (hash === "/interview-session") return <InterviewPage />;
+    if (hash === "/report")            return <CandidateInterviewReport />;
+    if (hash === "/logout")            return <LogoutRedirect />;
+
+    // All other candidate pages get the sidebar shell
+    const page = (() => {
+      switch (hash) {
+        case "/dashboard":         return <CandidateDashboard />;
+        case "/profile":           return <CandidateProfile />;
+        case "/mock-interview":    return <MockInterview />;
+        case "/interview-history": return <InterviewHistory />;
+        case "/notifications":     return <CandidateNotifications />;
+        default:                   return <CandidateDashboard />;
+      }
+    })();
+
+    return <AppShell currentPath={hash}>{page}</AppShell>;
   }
 
-  // Default to recruiter dashboard for admin/recruiter roles
+  // Recruiter / admin
   return <RecruiterDashboard />;
 }
 
@@ -85,8 +82,14 @@ export default App;
 function LogoutRedirect() {
   useEffect(() => {
     localStorage.removeItem("auth_token");
-    window.location.hash = "#/login";
+    window.location.hash = "#/";
     window.location.reload();
   }, []);
-  return <div className="login-page"><div className="login-container"><p>Logging out...</p></div></div>;
+  return (
+    <div className="login-page">
+      <div className="login-container loading-screen">
+        <p className="loading-text">Logging out...</p>
+      </div>
+    </div>
+  );
 }
