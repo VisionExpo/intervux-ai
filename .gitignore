@@ -78,7 +78,7 @@ htmlcov/
 # ---------------------------------------------------------------
 .env
 .env.local
-.env.docker          # FIX: was missing — .env.docker contains JWT secret + DB password
+.env.docker
 .env.docker.local
 .env.*.local
 .env.development.local
