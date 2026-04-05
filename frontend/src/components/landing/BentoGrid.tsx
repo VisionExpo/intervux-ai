@@ -1,92 +1,71 @@
 
-import { UserSearch, FileCheck, BrainCircuit, Mic, BarChart3 } from 'lucide-react';
 
 export default function BentoGrid() {
-  const features = [
-    {
-      title: "Natural Voice Conversations",
-      description: "Our AI converses with candidate naturally, understanding context, nuance, and even brief pauses just like a human.",
-      icon: <Mic className="w-6 h-6 text-primary" />,
-      className: "md:col-span-2 md:row-span-2 bg-surface",
-      visual: (
-        <div className="mt-6 flex gap-2 items-end h-24 p-4 bg-surface-container rounded-xl">
-          {['h-[40%]', 'h-[70%]', 'h-[45%]', 'h-[90%]', 'h-[65%]', 'h-[30%]', 'h-[80%]', 'h-[50%]', 'h-[100%]', 'h-[60%]'].map((h, i) => (
-            <div key={i} className={`w-full bg-primary/40 rounded-t-sm transition-all duration-500 hover:bg-primary ${h}`}></div>
-          ))}
-        </div>
-      )
-    },
-    {
-      title: "Real-time Evaluation",
-      description: "Candidates are scored dynamically against your custom rubric as they speak.",
-      icon: <BrainCircuit className="w-6 h-6 text-accent" />,
-      className: "bg-surface-container-low",
-      visual: (
-         <div className="mt-4 p-3 bg-surface rounded-lg flex items-center justify-between shadow-sm">
-            <span className="text-sm font-medium">Technical Depth</span>
-            <span className="text-success font-bold">8.5/10</span>
-         </div>
-      )
-    },
-    {
-      title: "Secure & Compliant",
-      description: "Enterprise-grade security with advanced prompt-injection defenses.",
-      icon: <FileCheck className="w-6 h-6 text-success" />,
-      className: "bg-surface-container-low"
-    },
-    {
-      title: "Seamless ATS Integration",
-      description: "Push candidate scores, transcripts, and audio recordings directly into your existing workflow.",
-      icon: <UserSearch className="w-6 h-6 text-primary" />,
-      className: "md:col-span-2 bg-surface",
-      visual: (
-         <div className="mt-6 flex justify-between items-center px-8 text-on-surface-variant">
-            <div className="w-12 h-12 bg-surface-container-highest rounded-xl flex items-center justify-center font-bold">WF</div>
-            <div className="flex-1 h-0.5 bg-outline-variant/50 mx-4 relative">
-               <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-primary rounded-full animate-ping"></div>
-            </div>
-            <div className="w-12 h-12 bg-primary text-on-primary rounded-xl flex items-center justify-center font-bold">IX</div>
-         </div>
-      )
-    },
-    {
-      title: "Deep Analytics",
-      description: "Uncover hiring trends and eliminate unconscious bias across your interview process.",
-      icon: <BarChart3 className="w-6 h-6 text-accent" />,
-      className: "bg-surface-container-low"
-    }
-  ];
-
   return (
-    <section id="features" className="py-24 bg-surface">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-2xl mx-auto mb-16">
-          <h2 className="text-primary font-semibold tracking-wide uppercase text-sm mb-3">Core Platform</h2>
-          <h3 className="font-headline text-3xl font-bold text-on-surface sm:text-4xl">Everything you need to hire at scale</h3>
-          <p className="mt-4 text-lg text-on-surface-variant">
-            A complete suite of tools designed to automate your screening process without sacrificing candidate experience.
-          </p>
+    <section className="py-24 px-8 max-w-7xl mx-auto">
+      <div className="flex justify-between items-end mb-12">
+        <div className="max-w-lg">
+          <h2 className="text-4xl font-bold text-slate-900 mb-4">Engineered for precision</h2>
+          <p className="text-slate-600">The tools you need to move beyond standard interview notes and embrace hard data.</p>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[250px]">
-          {features.map((feature, index) => (
-            <div key={index} className={`p-8 rounded-[2rem] border border-outline-variant/30 transition-all hover:shadow-lg hover:border-outline-variant/60 flex flex-col justify-between overflow-hidden group ${feature.className}`}>
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-surface-container-highest flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  {feature.icon}
-                </div>
-                <h3 className="text-xl font-bold text-on-surface mb-2">{feature.title}</h3>
-                <p className="text-on-surface-variant text-sm leading-relaxed max-w-sm">
-                  {feature.description}
-                </p>
+        <div className="hidden md:block">
+          <a className="text-primary font-bold flex items-center gap-2 hover:gap-3 transition-all" href="#">Explore all features <span className="material-symbols-outlined">east</span></a>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-6 md:grid-rows-[auto_auto] gap-6 md:h-auto">
+        {/* Sentiment Card */}
+        <div className="md:col-span-3 bg-surface-container rounded-3xl p-8 relative overflow-hidden flex flex-col justify-between">
+          <div className="z-10">
+            <span className="inline-block px-3 py-1 bg-white/50 backdrop-blur rounded-full text-[10px] font-bold uppercase tracking-widest mb-4">Real-time Intelligence</span>
+            <h3 className="text-2xl font-bold text-slate-900 mb-4">Candidate Sentiment Analysis</h3>
+            <p className="text-slate-600 text-sm max-w-xs">Track enthusiasm, hesitance, and confidence levels throughout the conversation with our emotional AI layer.</p>
+          </div>
+          <div className="mt-8">
+            <img alt="Sentiment Data" className="w-full h-40 object-cover rounded-2xl shadow-lg" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCk6nG_yIqxjdlYGOWqDoriOTdGAXu7pWne4Dwikbprqd2ltzVp0WQXIHNZOAY-Vu_Mr2Cj3YGtnvJJP2Zm8o5kWlr481Wx2YtyVy5KsZnYOJxxxMMMfZUwbUM3et25ZCmKEPraNFOenk2jbjB3WKquFhTztfbqcATkMeEEYSSybkpHMxgmDK0zoTNfvrrNArCr3nu2BreTuVD71KYUa9SuAdj7FU_qNtNq3CAWrG6q0_JDh2SVISM9hZpoX--L7wmL9T9ajprwGGQ" />
+          </div>
+        </div>
+        {/* Skills Matrix */}
+        <div className="md:col-span-3 bg-slate-900 rounded-3xl p-8 relative overflow-hidden">
+          <h3 className="text-2xl font-bold text-white mb-4">Competency Skills Matrix</h3>
+          <p className="text-slate-400 text-sm max-w-xs mb-8">Automatically map interview answers to specific role requirements and benchmark against top performers.</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+              <div className="text-primary-fixed-dim text-xs font-bold mb-2">Technical Leadership</div>
+              <div className="h-1 w-full bg-slate-700 rounded-full">
+                <div className="h-1 w-4/5 bg-primary rounded-full"></div>
               </div>
-              {feature.visual && (
-                 <div className="relative z-10 transition-transform group-hover:-translate-y-2">
-                    {feature.visual}
-                 </div>
-              )}
             </div>
-          ))}
+            <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+              <div className="text-primary-fixed-dim text-xs font-bold mb-2">Strategic Thinking</div>
+              <div className="h-1 w-full bg-slate-700 rounded-full">
+                <div className="h-1 w-1/2 bg-primary rounded-full"></div>
+              </div>
+            </div>
+          </div>
+          <div className="absolute bottom-[-20px] right-[-20px] opacity-20">
+            <span className="material-symbols-outlined text-[120px] text-white" data-icon="grid_view">grid_view</span>
+          </div>
+        </div>
+        {/* Automation */}
+        <div className="md:col-span-2 bg-primary text-white rounded-3xl p-8 flex flex-col justify-center text-center">
+          <span className="material-symbols-outlined text-4xl mb-4" data-icon="bolt">bolt</span>
+          <h3 className="text-xl font-bold mb-2">Workflow Automation</h3>
+          <p className="text-white/80 text-xs text-center max-w-[200px] mx-auto">Trigger follow-ups and update your ATS instantly based on AI outcome predictions.</p>
+        </div>
+        {/* Global Search */}
+        <div className="md:col-span-4 bg-surface-container-high rounded-3xl p-8 flex flex-col sm:flex-row items-center justify-between overflow-hidden gap-8">
+          <div className="max-w-xs">
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Universal Talent Search</h3>
+            <p className="text-slate-600 text-sm">Search through years of interview transcripts with natural language queries like "Who had the best answer on scalability?"</p>
+          </div>
+          <div className="bg-white p-4 rounded-2xl shadow-md rotate-3 translate-x-12 min-w-[200px]">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-3 h-3 rounded-full bg-primary"></span>
+              <div className="h-2 w-24 bg-slate-100 rounded-full"></div>
+            </div>
+            <div className="h-2 w-32 bg-slate-50 rounded-full mb-1"></div>
+            <div className="h-2 w-28 bg-slate-50 rounded-full"></div>
+          </div>
         </div>
       </div>
     </section>

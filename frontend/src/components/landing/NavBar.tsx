@@ -1,62 +1,25 @@
-import React, { useState } from 'react';
-import { Menu, X, ArrowRight } from 'lucide-react';
+
 
 export default function NavBar() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
   return (
-    <nav className="fixed w-full z-50 bg-surface/80 backdrop-blur-lg border-b border-outline-variant/30 transition-all duration-300">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.location.hash = '#/'}>
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-              <span className="text-on-primary font-bold text-xl">IX</span>
-            </div>
-            <span className="font-headline font-bold text-xl tracking-tight text-on-surface">Intervux AI</span>
-          </div>
-          
-          <div className="hidden md:flex items-center space-x-8">
-            <a href="#features" className="text-sm font-medium text-on-surface-variant hover:text-primary transition-colors">Platform</a>
-            <a href="#workflow" className="text-sm font-medium text-on-surface-variant hover:text-primary transition-colors">How it Works</a>
-            <a href="#pricing" className="text-sm font-medium text-on-surface-variant hover:text-primary transition-colors">Pricing</a>
-          </div>
-
-          <div className="hidden md:flex items-center gap-4">
-            <button onClick={() => window.location.hash = '#/login'} className="text-sm font-medium text-on-surface hover:text-primary transition-colors px-4 py-2">
-              Log in
-            </button>
-            <button onClick={() => window.location.hash = '#/signup'} className="text-sm font-medium bg-primary text-on-primary px-5 py-2.5 rounded-full hover:bg-on-primary-fixed-variant hover:shadow-lg hover:shadow-primary/20 transition-all duration-300 flex items-center gap-2 group">
-              Start Hiring
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </button>
-          </div>
-
-          <div className="md:hidden flex items-center">
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-on-surface p-2">
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
+    <nav className="fixed top-0 w-full z-50 bg-surface/70 backdrop-blur-xl flex justify-between items-center px-8 h-16">
+      <div className="flex items-center gap-8">
+        <span className="text-xl font-bold tracking-tight text-slate-900">Intervux AI</span>
+        <div className="hidden md:flex items-center gap-6">
+          <a className="text-blue-600 font-semibold border-b-2 border-blue-600" href="#">Product</a>
+          <a className="text-slate-600 hover:text-slate-900 transition-colors" href="#">Features</a>
+          <a className="text-slate-600 hover:text-slate-900 transition-colors" href="#">Pricing</a>
         </div>
       </div>
-
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden absolute top-20 left-0 w-full bg-surface border-b border-outline-variant/30 shadow-lg animate-fade-up">
-          <div className="px-4 py-6 space-y-4">
-            <a href="#features" className="block text-base font-medium text-on-surface" onClick={() => setMobileMenuOpen(false)}>Platform</a>
-            <a href="#workflow" className="block text-base font-medium text-on-surface" onClick={() => setMobileMenuOpen(false)}>How it Works</a>
-            <a href="#pricing" className="block text-base font-medium text-on-surface" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
-            <div className="pt-4 border-t border-outline-variant/30 flex flex-col gap-3">
-              <button onClick={() => { setMobileMenuOpen(false); window.location.hash = '#/login'; }} className="w-full text-center text-sm font-medium text-on-surface px-4 py-3 border border-outline-variant rounded-full">
-                Log in
-              </button>
-              <button onClick={() => { setMobileMenuOpen(false); window.location.hash = '#/signup'; }} className="w-full text-center text-sm font-medium bg-primary text-on-primary px-4 py-3 rounded-full flex items-center justify-center gap-2">
-                Start Hiring <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+      <div className="flex items-center gap-4">
+        <div className="hidden lg:flex items-center mr-4">
+          <span className="material-symbols-outlined text-slate-500 mr-2">search</span>
+          <input className="bg-surface-container-low border-none rounded-xl text-sm px-4 py-1.5 focus:ring-2 focus:ring-primary/20 w-48" placeholder="Search insights..." type="text" />
         </div>
-      )}
+        <button onClick={() => window.location.hash = '#/login'} className="text-slate-600 hover:bg-slate-100/50 px-4 py-2 rounded-xl transition-colors text-sm font-medium">Login</button>
+        <button onClick={() => window.location.hash = '#/signup'} className="bg-primary text-white px-5 py-2 rounded-xl text-sm font-semibold active:scale-95 duration-150 shadow-sm">Get Started</button>
+        <span className="material-symbols-outlined text-slate-500 cursor-pointer p-2 hover:bg-slate-100/50 rounded-full transition-colors" data-icon="notifications">notifications</span>
+      </div>
     </nav>
   );
 }
