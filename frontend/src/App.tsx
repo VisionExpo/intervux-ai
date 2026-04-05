@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import AppShell from "./components/AppShell";
+import HomePage from "./pages/HomePage";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import RecruiterDashboard from "./pages/RecruiterDashboard";
@@ -15,7 +16,7 @@ import CandidateInterviewReport from "./pages/CandidateInterviewReport";
 import "./App.css";
 
 function getRoute(): string {
-  return window.location.hash.replace("#", "").split("?")[0] || "/dashboard";
+  return window.location.hash.replace("#", "").split("?")[0] || "/";
 }
 
 function App() {
@@ -30,7 +31,7 @@ function App() {
 
   // After login, redirect to dashboard if still at root
   useEffect(() => {
-    if (isAuthenticated && (!window.location.hash || window.location.hash === "#/")) {
+    if (isAuthenticated && (!window.location.hash || window.location.hash === "#/" || window.location.hash === "")) {
       window.location.hash = "#/dashboard";
     }
   }, [isAuthenticated]);
@@ -47,8 +48,9 @@ function App() {
   }
 
   if (!isAuthenticated) {
+    if (hash === "/login") return <Login />;
     if (hash === "/signup") return <Signup />;
-    return <Login />;
+    return <HomePage />;
   }
 
   const userRole = user?.role;

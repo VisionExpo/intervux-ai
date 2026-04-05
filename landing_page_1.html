@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-tertiary-fixed": "#360f00",
+                    "surface-container-highest": "#e0e3e5",
+                    "outline": "#737686",
+                    "tertiary": "#943700",
+                    "secondary-container": "#dae2fd",
+                    "primary-container": "#2563eb",
+                    "on-secondary": "#ffffff",
+                    "surface-container-high": "#e6e8ea",
+                    "surface-container": "#eceef0",
+                    "on-tertiary-fixed-variant": "#7d2d00",
+                    "primary": "#004ac6",
+                    "outline-variant": "#c3c6d7",
+                    "on-secondary-container": "#5c647a",
+                    "on-secondary-fixed": "#131b2e",
+                    "on-primary-fixed": "#00174b",
+                    "surface-variant": "#e0e3e5",
+                    "secondary-fixed": "#dae2fd",
+                    "inverse-on-surface": "#eff1f3",
+                    "error-container": "#ffdad6",
+                    "on-error-container": "#93000a",
+                    "error": "#ba1a1a",
+                    "surface-tint": "#0053db",
+                    "on-tertiary-container": "#ffede6",
+                    "surface-bright": "#f7f9fb",
+                    "secondary": "#565e74",
+                    "on-surface": "#191c1e",
+                    "on-tertiary": "#ffffff",
+                    "secondary-fixed-dim": "#bec6e0",
+                    "on-primary": "#ffffff",
+                    "on-error": "#ffffff",
+                    "surface-container-lowest": "#ffffff",
+                    "background": "#f7f9fb",
+                    "tertiary-fixed-dim": "#ffb596",
+                    "inverse-surface": "#2d3133",
+                    "on-primary-container": "#eeefff",
+                    "on-surface-variant": "#434655",
+                    "tertiary-container": "#bc4800",
+                    "on-background": "#191c1e",
+                    "primary-fixed-dim": "#b4c5ff",
+                    "surface-container-low": "#f2f4f6",
+                    "primary-fixed": "#dbe1ff",
+                    "tertiary-fixed": "#ffdbcd",
+                    "surface": "#f7f9fb",
+                    "on-primary-fixed-variant": "#003ea8",
+                    "surface-dim": "#d8dadc",
+                    "on-secondary-fixed-variant": "#3f465c",
+                    "inverse-primary": "#b4c5ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Manrope', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface selection:bg-primary-container selection:text-white">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-surface/70 backdrop-blur-xl flex justify-between items-center px-8 h-16 w-full">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold tracking-tight text-slate-900">Intervux AI</span>
+<div class="hidden md:flex items-center gap-6">
+<a class="text-blue-600 font-semibold border-b-2 border-blue-600" href="#">Product</a>
+<a class="text-slate-600 hover:text-slate-900 transition-colors" href="#">Features</a>
+<a class="text-slate-600 hover:text-slate-900 transition-colors" href="#">Pricing</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden lg:flex items-center mr-4">
+<span class="material-symbols-outlined text-slate-500 mr-2">search</span>
+<input class="bg-surface-container-low border-none rounded-xl text-sm px-4 py-1.5 focus:ring-2 focus:ring-primary/20 w-48" placeholder="Search insights..." type="text"/>
+</div>
+<button class="text-slate-600 hover:bg-slate-100/50 px-4 py-2 rounded-xl transition-colors text-sm font-medium">Login</button>
+<button class="bg-primary text-white px-5 py-2 rounded-xl text-sm font-semibold active:scale-95 duration-150 shadow-sm">Get Started</button>
+<span class="material-symbols-outlined text-slate-500 cursor-pointer p-2 hover:bg-slate-100/50 rounded-full transition-colors" data-icon="notifications">notifications</span>
+</div>
+</nav>
+<!-- Hero Section -->
+<section class="pt-32 pb-20 px-8 max-w-7xl mx-auto">
+<div class="grid lg:grid-cols-2 gap-16 items-center">
+<div class="z-10">
+<span class="inline-block px-4 py-1.5 bg-primary-fixed text-on-primary-fixed-variant rounded-full text-xs font-bold tracking-wider mb-6">AI-DRIVEN RECRUITING</span>
+<h1 class="text-display-lg font-extrabold text-slate-900 leading-tight mb-6" style="font-size: 3.5rem;">Hire with intelligence, not just <span class="text-primary italic">instinct</span>.</h1>
+<p class="text-lg text-slate-600 mb-8 max-w-lg leading-relaxed">Intervux AI transforms your interview process into a high-precision data engine. Automate candidate scoring, analyze sentiment, and find your perfect fit in half the time.</p>
+<div class="flex flex-wrap gap-4">
+<button class="bg-primary text-white px-8 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-primary/90 transition-all">
+                        Schedule a Demo
+                        <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+<button class="bg-surface-container-high text-on-surface px-8 py-4 rounded-xl font-bold hover:bg-surface-container-highest transition-all">View Case Studies</button>
+</div>
+<div class="mt-12 flex items-center gap-4 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
+<p class="text-xs font-bold text-slate-500 uppercase tracking-widest mr-4">Trusted by leaders</p>
+<span class="text-xl font-bold">TECHFLOW</span>
+<span class="text-xl font-bold">LUMINA</span>
+<span class="text-xl font-bold">QUBIT</span>
+</div>
+</div>
+<div class="relative">
+<div class="absolute -inset-4 bg-primary-container/10 blur-3xl rounded-full"></div>
+<div class="relative bg-surface-container-lowest rounded-3xl p-4 shadow-2xl shadow-slate-200/50">
+<img alt="AI Intelligence Visual" class="w-full h-auto rounded-2xl object-cover aspect-square" data-alt="Abstract 3D digital art featuring flowing blue and violet geometric shapes with soft studio lighting and cinematic depth of field" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCtb8aYKgubD8BSP9w8ezF_Tvg9wK2hVU0T8nvXKR8WDnhSkrOInYzuiMzm5H98WBHrzgnPC5iOY1-adXGMrRWm8KAztW5AYnqCyoPCqOVXg0NM5s1sf4PWJXxTCoN5iv9fQo_bKTJz_1Hwg27wGtev4QJEHh3rhA99hdE98wivZCQ9dQzgDnUptaq44iUVZKGYqN4iaG4xkYaw7d7OQetLvAfwFw2NO2uDKE6Fl2tqGJ_J4Qju1rp9RHapaurhj812Mr4JGpuYmlM"/>
+<div class="absolute -bottom-8 -left-8 bg-white p-6 rounded-2xl shadow-xl max-w-xs border border-slate-100">
+<div class="flex items-center gap-3 mb-3">
+<div class="w-2 h-8 bg-primary rounded-full"></div>
+<span class="font-bold text-slate-900">AI Scoring Engine</span>
+</div>
+<p class="text-sm text-slate-500 leading-snug italic">"Candidate matches 94% of senior engineering competencies based on transcript analysis."</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- How it Works - Tonal Container Pattern -->
+<section class="bg-surface-container-low py-24 px-8">
+<div class="max-w-7xl mx-auto">
+<div class="text-center mb-20">
+<h2 class="text-4xl font-bold text-slate-900 mb-4">Architecting better hiring outcomes</h2>
+<p class="text-slate-500 max-w-2xl mx-auto">We've removed the manual friction and replaced it with editorial-grade insights that empower your talent teams.</p>
+</div>
+<div class="grid md:grid-cols-3 gap-8">
+<!-- Step 1 -->
+<div class="bg-surface-container-lowest p-8 rounded-3xl group hover:translate-y-[-8px] transition-all duration-300">
+<div class="w-12 h-12 bg-primary-fixed flex items-center justify-center rounded-2xl mb-6 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary" data-icon="videocam">videocam</span>
+</div>
+<h3 class="text-xl font-bold text-slate-900 mb-3">Seamless Capture</h3>
+<p class="text-slate-600 text-sm leading-relaxed">Connect your favorite meeting tools. Intervux records and transcribes every interview with enterprise-grade security.</p>
+</div>
+<!-- Step 2 -->
+<div class="bg-surface-container-lowest p-8 rounded-3xl group hover:translate-y-[-8px] transition-all duration-300">
+<div class="w-12 h-12 bg-secondary-fixed flex items-center justify-center rounded-2xl mb-6 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-on-secondary-fixed-variant" data-icon="psychology">psychology</span>
+</div>
+<h3 class="text-xl font-bold text-slate-900 mb-3">Neural Analysis</h3>
+<p class="text-slate-600 text-sm leading-relaxed">Our AI models extract intent, sentiment, and soft-skill signals that often go unnoticed by human interviewers.</p>
+</div>
+<!-- Step 3 -->
+<div class="bg-surface-container-lowest p-8 rounded-3xl group hover:translate-y-[-8px] transition-all duration-300">
+<div class="w-12 h-12 bg-tertiary-fixed flex items-center justify-center rounded-2xl mb-6 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-on-tertiary-fixed-variant" data-icon="summarize">summarize</span>
+</div>
+<h3 class="text-xl font-bold text-slate-900 mb-3">Instant Reports</h3>
+<p class="text-slate-600 text-sm leading-relaxed">Generate comprehensive candidate profiles with a skills matrix and bias-reduced scoring in seconds.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Key Features - Bento Grid -->
+<section class="py-24 px-8 max-w-7xl mx-auto">
+<div class="flex justify-between items-end mb-12">
+<div class="max-w-lg">
+<h2 class="text-4xl font-bold text-slate-900 mb-4">Engineered for precision</h2>
+<p class="text-slate-600">The tools you need to move beyond standard interview notes and embrace hard data.</p>
+</div>
+<div class="hidden md:block">
+<a class="text-primary font-bold flex items-center gap-2 hover:gap-3 transition-all" href="#">Explore all features <span class="material-symbols-outlined">east</span></a>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-6 grid-rows-2 gap-6 h-auto md:h-[600px]">
+<!-- Sentiment Card -->
+<div class="md:col-span-3 bg-surface-container rounded-3xl p-8 relative overflow-hidden flex flex-col justify-between">
+<div class="z-10">
+<span class="inline-block px-3 py-1 bg-white/50 backdrop-blur rounded-full text-[10px] font-bold uppercase tracking-widest mb-4">Real-time Intelligence</span>
+<h3 class="text-2xl font-bold text-slate-900 mb-4">Candidate Sentiment Analysis</h3>
+<p class="text-slate-600 text-sm max-w-xs">Track enthusiasm, hesitance, and confidence levels throughout the conversation with our emotional AI layer.</p>
+</div>
+<div class="mt-8">
+<img alt="Sentiment Data" class="w-full h-40 object-cover rounded-2xl shadow-lg" data-alt="Digital dashboard showing complex data visualizations with clean minimalist charts and blue primary color accents" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCk6nG_yIqxjdlYGOWqDoriOTdGAXu7pWne4Dwikbprqd2ltzVp0WQXIHNZOAY-Vu_Mr2Cj3YGtnvJJP2Zm8o5kWlr481Wx2YtyVy5KsZnYOJxxxMMMfZUwbUM3et25ZCmKEPraNFOenk2jbjB3WKquFhTztfbqcATkMeEEYSSybkpHMxgmDK0zoTNfvrrNArCr3nu2BreTuVD71KYUa9SuAdj7FU_qNtNq3CAWrG6q0_JDh2SVISM9hZpoX--L7wmL9T9ajprwGGQ"/>
+</div>
+</div>
+<!-- Skills Matrix -->
+<div class="md:col-span-3 bg-slate-900 rounded-3xl p-8 relative overflow-hidden">
+<h3 class="text-2xl font-bold text-white mb-4">Competency Skills Matrix</h3>
+<p class="text-slate-400 text-sm max-w-xs mb-8">Automatically map interview answers to specific role requirements and benchmark against top performers.</p>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+<div class="text-primary-fixed-dim text-xs font-bold mb-2">Technical Leadership</div>
+<div class="h-1 w-full bg-slate-700 rounded-full">
+<div class="h-1 w-4/5 bg-primary rounded-full"></div>
+</div>
+</div>
+<div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+<div class="text-primary-fixed-dim text-xs font-bold mb-2">Strategic Thinking</div>
+<div class="h-1 w-full bg-slate-700 rounded-full">
+<div class="h-1 w-1/2 bg-primary rounded-full"></div>
+</div>
+</div>
+</div>
+<div class="absolute bottom-[-20px] right-[-20px] opacity-20">
+<span class="material-symbols-outlined text-[120px] text-white" data-icon="grid_view">grid_view</span>
+</div>
+</div>
+<!-- Automation -->
+<div class="md:col-span-2 bg-primary text-white rounded-3xl p-8 flex flex-col justify-center text-center">
+<span class="material-symbols-outlined text-4xl mb-4" data-icon="bolt">bolt</span>
+<h3 class="text-xl font-bold mb-2">Workflow Automation</h3>
+<p class="text-white/80 text-xs">Trigger follow-ups and update your ATS instantly based on AI outcome predictions.</p>
+</div>
+<!-- Global Search -->
+<div class="md:col-span-4 bg-surface-container-high rounded-3xl p-8 flex items-center justify-between overflow-hidden">
+<div class="max-w-xs">
+<h3 class="text-xl font-bold text-slate-900 mb-2">Universal Talent Search</h3>
+<p class="text-slate-600 text-sm">Search through years of interview transcripts with natural language queries like "Who had the best answer on scalability?"</p>
+</div>
+<div class="bg-white p-4 rounded-2xl shadow-md rotate-3 translate-x-12">
+<div class="flex items-center gap-2 mb-2">
+<span class="w-3 h-3 rounded-full bg-primary"></span>
+<div class="h-2 w-24 bg-slate-100 rounded-full"></div>
+</div>
+<div class="h-2 w-32 bg-slate-50 rounded-full mb-1"></div>
+<div class="h-2 w-28 bg-slate-50 rounded-full"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Testimonials -->
+<section class="bg-white py-24 px-8 overflow-hidden">
+<div class="max-w-7xl mx-auto">
+<div class="text-center mb-16">
+<h2 class="text-4xl font-bold text-slate-900 mb-4 italic leading-tight">"The most significant upgrade to our recruiting stack in a decade."</h2>
+<div class="flex justify-center items-center gap-4 mt-8">
+<img alt="Sarah Chen" class="w-16 h-16 rounded-full object-cover" data-alt="Professional headshot of a female executive in a modern bright office setting with warm lighting and a confident smile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCEw5eb2Mme54EPPeMdnPsYpMYdAXHy_j4fsmV8ZznEfSTxtusRhokdLBq740WnFWw_j2KbjxdASjy6f6j5jQtbINhtyREI1RaVJr0Twuz4ypdh_PLnBJuPpI1Q138VfXLdblVwESfy6oddkbPqHzFum3AmrKRr8fQdbFdkS7aVweNsnloDjNpmTpfvELvCdK3zEJ8sVcRFGlpG0YcVxc56berOGEJgkXylgy87JZCqFwE8VZ5AA9RFWlrQh9yLdctn7YkBWS04DEM"/>
+<div class="text-left">
+<p class="font-bold text-slate-900">Sarah Chen</p>
+<p class="text-sm text-slate-500">Head of Talent, Nexus Global</p>
+</div>
+</div>
+</div>
+<div class="grid md:grid-cols-3 gap-12 border-t border-slate-100 pt-16">
+<div>
+<p class="text-4xl font-extrabold text-primary mb-2">40%</p>
+<p class="text-sm font-bold text-slate-900 uppercase tracking-widest mb-2">Efficiency Gain</p>
+<p class="text-slate-500 text-sm">Recruiters spend less time on manual scorecards and more on human connection.</p>
+</div>
+<div>
+<p class="text-4xl font-extrabold text-primary mb-2">2.4x</p>
+<p class="text-sm font-bold text-slate-900 uppercase tracking-widest mb-2">Retention Rate</p>
+<p class="text-slate-500 text-sm">Candidates identified by AI insights are showing significantly longer tenure.</p>
+</div>
+<div>
+<p class="text-4xl font-extrabold text-primary mb-2">15+</p>
+<p class="text-sm font-bold text-slate-900 uppercase tracking-widest mb-2">ATS Integrations</p>
+<p class="text-slate-500 text-sm">Works seamlessly with Greenhouse, Lever, Workday, and every major platform.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Pricing Section -->
+<section class="bg-surface-container-low py-24 px-8">
+<div class="max-w-7xl mx-auto">
+<div class="text-center mb-16">
+<h2 class="text-4xl font-bold text-slate-900 mb-4">Scalable intelligence</h2>
+<p class="text-slate-500">Select the plan that fits your current hiring volume.</p>
+</div>
+<div class="grid md:grid-cols-3 gap-8">
+<!-- Startup -->
+<div class="bg-surface-container-lowest p-10 rounded-3xl border border-slate-100 flex flex-col">
+<h3 class="text-lg font-bold text-slate-900 mb-2">Startup</h3>
+<div class="flex items-baseline gap-1 mb-6">
+<span class="text-4xl font-extrabold text-slate-900">$49</span>
+<span class="text-slate-500 text-sm">/month</span>
+</div>
+<ul class="space-y-4 mb-10 flex-grow">
+<li class="flex items-center gap-3 text-sm text-slate-600">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                            Up to 50 interviews/mo
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-600">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                            Basic sentiment analysis
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-600">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                            Zoom &amp; Meet integration
+                        </li>
+</ul>
+<button class="w-full py-4 rounded-xl font-bold border-2 border-slate-100 text-slate-900 hover:bg-slate-50 transition-all">Get Started</button>
+</div>
+<!-- Professional -->
+<div class="bg-slate-900 p-10 rounded-3xl relative flex flex-col shadow-2xl scale-105 z-10">
+<div class="absolute top-0 right-10 -translate-y-1/2 bg-primary text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-tighter">Most Popular</div>
+<h3 class="text-lg font-bold text-white mb-2">Professional</h3>
+<div class="flex items-baseline gap-1 mb-6">
+<span class="text-4xl font-extrabold text-white">$199</span>
+<span class="text-slate-400 text-sm">/month</span>
+</div>
+<ul class="space-y-4 mb-10 flex-grow">
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-primary-fixed text-lg">check_circle</span>
+                            Unlimited interviews
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-primary-fixed text-lg">check_circle</span>
+                            Full Skills Matrix AI
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-primary-fixed text-lg">check_circle</span>
+                            Advanced ATS sync
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-primary-fixed text-lg">check_circle</span>
+                            Dedicated support
+                        </li>
+</ul>
+<button class="w-full py-4 rounded-xl font-bold bg-primary text-white hover:bg-primary/90 transition-all">Start 14-Day Free Trial</button>
+</div>
+<!-- Enterprise -->
+<div class="bg-surface-container-lowest p-10 rounded-3xl border border-slate-100 flex flex-col">
+<h3 class="text-lg font-bold text-slate-900 mb-2">Enterprise</h3>
+<div class="flex items-baseline gap-1 mb-6">
+<span class="text-4xl font-extrabold text-slate-900">Custom</span>
+</div>
+<ul class="space-y-4 mb-10 flex-grow">
+<li class="flex items-center gap-3 text-sm text-slate-600">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                            Custom model training
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-600">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                            White-label reporting
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-600">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                            On-prem deployment options
+                        </li>
+</ul>
+<button class="w-full py-4 rounded-xl font-bold border-2 border-slate-100 text-slate-900 hover:bg-slate-50 transition-all">Contact Sales</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Final CTA -->
+<section class="py-24 px-8 max-w-7xl mx-auto text-center">
+<div class="bg-primary rounded-[40px] py-20 px-8 relative overflow-hidden">
+<div class="absolute inset-0 opacity-10 pointer-events-none">
+<div class="absolute top-0 left-0 w-64 h-64 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+<div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/3 translate-y-1/3"></div>
+</div>
+<h2 class="text-4xl md:text-5xl font-extrabold text-white mb-6 relative z-10">Ready to transform your talent pipeline?</h2>
+<p class="text-white/80 text-lg mb-10 max-w-xl mx-auto relative z-10">Join 500+ companies using Intervux to build elite teams with scientific precision.</p>
+<div class="flex flex-wrap justify-center gap-4 relative z-10">
+<button class="bg-white text-primary px-10 py-5 rounded-2xl font-extrabold hover:bg-slate-50 transition-all shadow-xl">Get Started Now</button>
+<button class="bg-primary-container text-white px-10 py-5 rounded-2xl font-extrabold border border-white/20 hover:bg-white/10 transition-all">Book Consultation</button>
+</div>
+</div>
+</section>
+<!-- Footer -->
+<footer class="bg-white border-t border-slate-100 py-16 w-full">
+<div class="max-w-7xl mx-auto px-8 flex flex-col md:flex-row justify-between gap-12">
+<div class="max-w-xs">
+<span class="font-bold text-slate-900 text-xl block mb-6">Intervux AI</span>
+<p class="text-slate-500 text-sm leading-relaxed mb-8">The cognitive architecture for the modern recruitment team. Hire smarter, faster, and fairer.</p>
+<div class="flex gap-4">
+<span class="material-symbols-outlined text-slate-400 cursor-pointer hover:text-primary transition-colors">public</span>
+<span class="material-symbols-outlined text-slate-400 cursor-pointer hover:text-primary transition-colors">hub</span>
+<span class="material-symbols-outlined text-slate-400 cursor-pointer hover:text-primary transition-colors">send</span>
+</div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-2 gap-16">
+<div>
+<p class="font-bold text-slate-900 text-xs uppercase tracking-widest mb-6">Resources</p>
+<ul class="space-y-4">
+<li><a class="text-slate-500 text-sm hover:text-blue-500 transition-colors" href="#">Privacy Policy</a></li>
+<li><a class="text-slate-500 text-sm hover:text-blue-500 transition-colors" href="#">Terms of Service</a></li>
+<li><a class="text-slate-500 text-sm hover:text-blue-500 transition-colors" href="#">Security</a></li>
+</ul>
+</div>
+<div>
+<p class="font-bold text-slate-900 text-xs uppercase tracking-widest mb-6">Company</p>
+<ul class="space-y-4">
+<li><a class="text-slate-500 text-sm hover:text-blue-500 transition-colors" href="#">About Us</a></li>
+<li><a class="text-slate-500 text-sm hover:text-blue-500 transition-colors" href="#">Contact</a></li>
+<li><a class="text-slate-500 text-sm hover:text-blue-500 transition-colors" href="#">Careers</a></li>
+</ul>
+</div>
+</div>
+</div>
+<div class="max-w-7xl mx-auto px-8 mt-16 pt-8 border-t border-slate-50 flex justify-between items-center">
+<p class="text-slate-400 text-xs">© 2024 Intervux AI. All rights reserved.</p>
+<div class="flex gap-6">
+<span class="text-slate-400 text-xs cursor-pointer hover:text-slate-900">English (US)</span>
+<span class="text-slate-400 text-xs cursor-pointer hover:text-slate-900">System Status</span>
+</div>
+</div>
+</footer>
+</body></html>
