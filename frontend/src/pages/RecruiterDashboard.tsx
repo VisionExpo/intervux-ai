@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import AIEvaluationDashboard from "../components/dashboard/AIEvaluationDashboard";
+
 import CandidateComparison from "../components/dashboard/CandidateComparison";
 import CandidateList from "../components/dashboard/CandidateList";
 import InterviewReplay from "../components/dashboard/InterviewReplay";
@@ -12,7 +12,6 @@ import type {
   CandidateInterviewReport,
   CandidateListItem,
   DashboardTab,
-  EvaluationDashboardResponse,
   SkillAnalyticsResponse,
 } from "../types";
 
@@ -24,7 +23,7 @@ export default function RecruiterDashboard() {
   const [report, setReport] = useState<CandidateInterviewReport | null>(null);
   const [analytics, setAnalytics] = useState<SkillAnalyticsResponse | null>(null);
   const [comparisonRows, setComparisonRows] = useState<CandidateComparisonRow[]>([]);
-  const [evaluationData, setEvaluationData] = useState<EvaluationDashboardResponse | null>(null);
+
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -37,8 +36,7 @@ export default function RecruiterDashboard() {
         ]);
         setCandidates(candidateRows);
         setComparisonRows(compareRows);
-        const dashboardMetrics = await authFetch<EvaluationDashboardResponse>("/api/evaluation-dashboard");
-        setEvaluationData(dashboardMetrics);
+
         if (candidateRows.length > 0) {
           setSelectedCandidateId(candidateRows[0].id);
         }
@@ -79,7 +77,6 @@ export default function RecruiterDashboard() {
     { id: "candidates", label: "Candidates" },
     { id: "interviews", label: "Interviews" },
     { id: "analytics", label: "Analytics" },
-    { id: "evaluation", label: "AI Evaluation" },
   ];
 
   if (isLoading) {
@@ -136,7 +133,7 @@ export default function RecruiterDashboard() {
 
         {tab === "analytics" && <SkillAnalytics analytics={analytics} />}
 
-        {tab === "evaluation" && <AIEvaluationDashboard data={evaluationData} />}
+
       </div>
     </main>
   );

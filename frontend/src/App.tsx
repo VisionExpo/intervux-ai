@@ -4,6 +4,7 @@ import AppShell from "./components/AppShell";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import RecruiterDashboard from "./pages/RecruiterDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
 import CandidateDashboard from "./pages/CandidateDashboard";
 import CandidateProfile from "./pages/CandidateProfile";
 import MockInterview from "./pages/MockInterview";
@@ -73,7 +74,11 @@ function App() {
     return <AppShell currentPath={hash}>{page}</AppShell>;
   }
 
-  // Recruiter / admin
+  if (userRole === "admin") {
+    return <AdminDashboard />;
+  }
+
+  // Recruiter
   return <RecruiterDashboard />;
 }
 

@@ -46,7 +46,7 @@ router = APIRouter(tags=["recruiter-dashboard"])
 @router.get("/evaluation-dashboard", response_model=EvaluationDashboardResponse)
 async def get_ai_evaluation_dashboard(
     db: Session = Depends(get_db),
-    user=Depends(require_recruiter)
+    user=Depends(require_admin)
 ):
     return await get_evaluation_dashboard(db)
 
@@ -94,7 +94,7 @@ async def get_candidate_comparison(
 
 @router.get("/metrics/aggregates")
 async def get_metrics_aggregates(
-    user=Depends(require_recruiter),
+    user=Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Get aggregated metrics from PostgreSQL (last 24h, 7d, 30d)."""
@@ -103,7 +103,7 @@ async def get_metrics_aggregates(
 
 @router.get("/metrics/trends")
 async def get_metrics_trends(
-    user=Depends(require_recruiter),
+    user=Depends(require_admin),
     days: int = 30,
     db: Session = Depends(get_db)
 ):
