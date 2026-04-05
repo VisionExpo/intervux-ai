@@ -13,7 +13,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     void (async () => {
       try {
-        const dashboardMetrics = await authFetch<EvaluationDashboardResponse>("/api/evaluation-dashboard");
+        const dashboardMetrics = await authFetch<EvaluationDashboardResponse>("/api/admin/evaluation-dashboard");
         setEvaluationData(dashboardMetrics);
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Failed to load dashboard metrics");

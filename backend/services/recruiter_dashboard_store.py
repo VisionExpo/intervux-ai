@@ -247,57 +247,45 @@ async def create_job_post(
     job_data: JobPostCreate,
     created_by: str | None = None,
 ) -> JobPost:
-    """Create a new job post with skills."""
-    # Create job post
+    """Create a new job post with skills included in JSON."""
     db_job = JobPostModel(
         title=job_data.title,
         description=job_data.description,
+        required_skills=job_data.required_skills,
         experience_level=job_data.experience_level,
+        salary_range_min=job_data.salary_range_min,
+        salary_range_max=job_data.salary_range_max,
+        employment_type=job_data.employment_type,
+        location=job_data.location,
+        interview_focus_areas=job_data.interview_focus_areas,
+        evaluation_weights=job_data.evaluation_weights,
         status=JobPostStatus.DRAFT.value,
-        ai_interview_enabled="true" if job_data.ai_interview_enabled else "false",
+        ai_interview_enabled=job_data.ai_interview_enabled,
         interview_limit=job_data.interview_limit,
-        created_by=created_by,
+        recruiter_id=created_by,
     )
     db.add(db_job)
-    await db.flush()  # Get the ID
-
-    # Add skills
-    for skill_name in job_data.skills:
-        db_skill = JobSkillModel(
-            job_post_id=db_job.id,
-            skill_name=skill_name,
-            is_required="true",
-        )
-        db.add(db_skill)
-
     await db.commit()
     await db.refresh(db_job)
 
-    # Fetch skills
-    skills_res = await db.execute(select(JobSkillModel).filter(JobSkillModel.job_post_id == db_job.id))
-    skills = skills_res.scalars().all()
-
     return JobPost(
         id=db_job.id,
+        recruiter_id=db_job.recruiter_id,
         title=db_job.title,
         description=db_job.description,
+        required_skills=db_job.required_skills or [],
         experience_level=db_job.experience_level,
+        salary_range_min=db_job.salary_range_min,
+        salary_range_max=db_job.salary_range_max,
+        employment_type=db_job.employment_type or "full-time",
+        location=db_job.location,
+        interview_focus_areas=db_job.interview_focus_areas or [],
+        evaluation_weights=db_job.evaluation_weights or {},
         status=db_job.status,
-        ai_interview_enabled=db_job.ai_interview_enabled == "true",
-        interview_limit=db_job.interview_limit,
         created_at=db_job.created_at,
         updated_at=db_job.updated_at,
-        created_by=db_job.created_by,
-        skills=[
-            JobSkill(
-                id=skill.id,
-                job_post_id=skill.job_post_id,
-                skill_name=skill.skill_name,
-                is_required=skill.is_required == "true",
-                proficiency_level=skill.proficiency_level,
-            )
-            for skill in skills
-        ],
+        ai_interview_enabled=db_job.ai_interview_enabled == "true" if isinstance(db_job.ai_interview_enabled, str) else db_job.ai_interview_enabled,
+        interview_limit=db_job.interview_limit,
     )
 
 
@@ -323,30 +311,25 @@ async def list_job_posts(
 
     result = []
     for job in job_posts:
-        skills_res = await db.execute(select(JobSkillModel).filter(JobSkillModel.job_post_id == job.id))
-        skills = skills_res.scalars().all()
         result.append(
             JobPost(
                 id=job.id,
+                recruiter_id=job.recruiter_id,
                 title=job.title,
                 description=job.description,
+                required_skills=job.required_skills or [],
                 experience_level=job.experience_level,
+                salary_range_min=job.salary_range_min,
+                salary_range_max=job.salary_range_max,
+                employment_type=job.employment_type or "full-time",
+                location=job.location,
+                interview_focus_areas=job.interview_focus_areas or [],
+                evaluation_weights=job.evaluation_weights or {},
                 status=job.status,
-                ai_interview_enabled=job.ai_interview_enabled == "true",
-                interview_limit=job.interview_limit,
                 created_at=job.created_at,
                 updated_at=job.updated_at,
-                created_by=job.created_by,
-                skills=[
-                    JobSkill(
-                        id=skill.id,
-                        job_post_id=skill.job_post_id,
-                        skill_name=skill.skill_name,
-                        is_required=skill.is_required == "true",
-                        proficiency_level=skill.proficiency_level,
-                    )
-                    for skill in skills
-                ],
+                ai_interview_enabled=job.ai_interview_enabled == "true" if isinstance(job.ai_interview_enabled, str) else bool(job.ai_interview_enabled),
+                interview_limit=job.interview_limit,
             )
         )
 
@@ -361,30 +344,24 @@ async def get_job_post(db: AsyncSession, job_post_id: str) -> JobPost | None:
     if not job:
         return None
 
-    skills_res = await db.execute(select(JobSkillModel).filter(JobSkillModel.job_post_id == job.id))
-    skills = skills_res.scalars().all()
-
     return JobPost(
         id=job.id,
+        recruiter_id=job.recruiter_id,
         title=job.title,
         description=job.description,
+        required_skills=job.required_skills or [],
         experience_level=job.experience_level,
+        salary_range_min=job.salary_range_min,
+        salary_range_max=job.salary_range_max,
+        employment_type=job.employment_type or "full-time",
+        location=job.location,
+        interview_focus_areas=job.interview_focus_areas or [],
+        evaluation_weights=job.evaluation_weights or {},
         status=job.status,
-        ai_interview_enabled=job.ai_interview_enabled == "true",
-        interview_limit=job.interview_limit,
         created_at=job.created_at,
         updated_at=job.updated_at,
-        created_by=job.created_by,
-        skills=[
-            JobSkill(
-                id=skill.id,
-                job_post_id=skill.job_post_id,
-                skill_name=skill.skill_name,
-                is_required=skill.is_required == "true",
-                proficiency_level=skill.proficiency_level,
-            )
-            for skill in skills
-        ],
+        ai_interview_enabled=job.ai_interview_enabled == "true" if isinstance(job.ai_interview_enabled, str) else bool(job.ai_interview_enabled),
+        interview_limit=job.interview_limit,
     )
 
 
@@ -404,8 +381,22 @@ async def update_job_post(
         job.title = job_data.title
     if job_data.description is not None:
         job.description = job_data.description
+    if job_data.required_skills is not None:
+        job.required_skills = job_data.required_skills
     if job_data.experience_level is not None:
         job.experience_level = job_data.experience_level
+    if job_data.salary_range_min is not None:
+        job.salary_range_min = job_data.salary_range_min
+    if job_data.salary_range_max is not None:
+        job.salary_range_max = job_data.salary_range_max
+    if job_data.employment_type is not None:
+        job.employment_type = job_data.employment_type
+    if job_data.location is not None:
+        job.location = job_data.location
+    if job_data.interview_focus_areas is not None:
+        job.interview_focus_areas = job_data.interview_focus_areas
+    if job_data.evaluation_weights is not None:
+        job.evaluation_weights = job_data.evaluation_weights
     if job_data.status is not None:
         job.status = job_data.status
     if job_data.ai_interview_enabled is not None:
@@ -413,61 +404,37 @@ async def update_job_post(
     if job_data.interview_limit is not None:
         job.interview_limit = job_data.interview_limit
 
-    # Update skills if provided
-    if job_data.skills is not None:
-        # Delete existing skills
-        await db.execute(select(JobSkillModel).filter(JobSkillModel.job_post_id == job.id))
-        # Wait, for delete we should do:
-        from sqlalchemy import delete
-        await db.execute(delete(JobSkillModel).where(JobSkillModel.job_post_id == job.id))
-        # Add new skills
-        for skill_name in job_data.skills:
-            db_skill = JobSkillModel(
-                job_post_id=job.id,
-                skill_name=skill_name,
-                is_required="true",
-            )
-            db.add(db_skill)
-
     await db.commit()
     await db.refresh(job)
 
-    skills_res = await db.execute(select(JobSkillModel).filter(JobSkillModel.job_post_id == job.id))
-    skills = skills_res.scalars().all()
-
     return JobPost(
         id=job.id,
+        recruiter_id=job.recruiter_id,
         title=job.title,
         description=job.description,
+        required_skills=job.required_skills or [],
         experience_level=job.experience_level,
+        salary_range_min=job.salary_range_min,
+        salary_range_max=job.salary_range_max,
+        employment_type=job.employment_type or "full-time",
+        location=job.location,
+        interview_focus_areas=job.interview_focus_areas or [],
+        evaluation_weights=job.evaluation_weights or {},
         status=job.status,
-        ai_interview_enabled=job.ai_interview_enabled == "true",
-        interview_limit=job.interview_limit,
         created_at=job.created_at,
         updated_at=job.updated_at,
-        created_by=job.created_by,
-        skills=[
-            JobSkill(
-                id=skill.id,
-                job_post_id=skill.job_post_id,
-                skill_name=skill.skill_name,
-                is_required=skill.is_required == "true",
-                proficiency_level=skill.proficiency_level,
-            )
-            for skill in skills
-        ],
+        ai_interview_enabled=job.ai_interview_enabled == "true" if isinstance(job.ai_interview_enabled, str) else bool(job.ai_interview_enabled),
+        interview_limit=job.interview_limit,
     )
 
 
 async def delete_job_post(db: AsyncSession, job_post_id: str) -> bool:
-    """Delete a job post and its skills."""
+    """Delete a job post."""
     res = await db.execute(select(JobPostModel).filter(JobPostModel.id == job_post_id))
     job = res.scalar_one_or_none()
     if not job:
         return False
 
-    from sqlalchemy import delete
-    await db.execute(delete(JobSkillModel).where(JobSkillModel.job_post_id == job_post_id))
     await db.delete(job)
     await db.commit()
 

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text, JSON
 
 from backend.infrastructure.database.database import Base
 
@@ -37,25 +37,29 @@ class JobPost(Base):
     __tablename__ = "job_posts"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    recruiter_id = Column(String, nullable=True)
+
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+
+    required_skills = Column(JSON, default=list)
     experience_level = Column(String, nullable=False, default=ExperienceLevel.MID.value)
+    salary_range_min = Column(Integer, nullable=True)
+    salary_range_max = Column(Integer, nullable=True)
+    employment_type = Column(String, nullable=True, default="full-time")
+    location = Column(String, nullable=True)
+
+    interview_focus_areas = Column(JSON, default=list)
+    evaluation_weights = Column(JSON, default=dict)
+
     status = Column(String, nullable=False, default=JobPostStatus.DRAFT.value)
-    ai_interview_enabled = Column(String, nullable=False, default="false")
-    interview_limit = Column(Integer, nullable=True)  # Budget-based limit
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-    created_by = Column(String, nullable=True)
+    
+    # Legacy fields
+    ai_interview_enabled = Column(String, nullable=False, default="false")
+    interview_limit = Column(Integer, nullable=True)
 
-
-class JobSkill(Base):
-    __tablename__ = "job_skills"
-
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    job_post_id = Column(String, ForeignKey("job_posts.id"), nullable=False)
-    skill_name = Column(String, nullable=False)
-    is_required = Column(String, nullable=False, default="true")
-    proficiency_level = Column(String, nullable=True)  # beginner, intermediate, advanced
 
 
 class Candidate(Base):

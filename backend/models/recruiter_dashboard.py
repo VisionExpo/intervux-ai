@@ -4,35 +4,39 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel
 
 
-class JobSkill(BaseModel):
-    id: str
-    job_post_id: str
-    skill_name: str
-    is_required: bool
-    proficiency_level: Optional[str] = None
-
-
 class JobPost(BaseModel):
     id: str
+    recruiter_id: Optional[str] = None
     title: str
-    description: Optional[str] = None
+    description: str
+    required_skills: List[str] = []
     experience_level: str
+    salary_range_min: Optional[int] = None
+    salary_range_max: Optional[int] = None
+    employment_type: str = "full-time"
+    location: Optional[str] = None
+    interview_focus_areas: List[str] = []
+    evaluation_weights: dict = {}
     status: str
-    ai_interview_enabled: bool
-    interview_limit: Optional[int] = None
     created_at: datetime
     updated_at: datetime
-    created_by: Optional[str] = None
-    skills: List[JobSkill] = []
+    ai_interview_enabled: bool = False
+    interview_limit: Optional[int] = None
 
 
 class JobPostCreate(BaseModel):
     title: str
-    description: Optional[str] = None
+    description: str = ""
     experience_level: str = "mid"
+    required_skills: List[str] = []
+    salary_range_min: Optional[int] = None
+    salary_range_max: Optional[int] = None
+    employment_type: str = "full-time"
+    location: Optional[str] = None
+    interview_focus_areas: List[str] = []
+    evaluation_weights: dict = {}
     ai_interview_enabled: bool = False
     interview_limit: Optional[int] = None
-    skills: List[str] = []  # List of skill names
 
 
 class JobPostUpdate(BaseModel):
@@ -40,9 +44,15 @@ class JobPostUpdate(BaseModel):
     description: Optional[str] = None
     experience_level: Optional[str] = None
     status: Optional[str] = None
+    required_skills: Optional[List[str]] = None
+    salary_range_min: Optional[int] = None
+    salary_range_max: Optional[int] = None
+    employment_type: Optional[str] = None
+    location: Optional[str] = None
+    interview_focus_areas: Optional[List[str]] = None
+    evaluation_weights: Optional[dict] = None
     ai_interview_enabled: Optional[bool] = None
     interview_limit: Optional[int] = None
-    skills: Optional[List[str]] = None
 
 
 class Candidate(BaseModel):
