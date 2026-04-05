@@ -1,5 +1,5 @@
-import React from 'react';
-import { Bot, UserSearch, FileCheck, BrainCircuit, Mic, BarChart3 } from 'lucide-react';
+
+import { UserSearch, FileCheck, BrainCircuit, Mic, BarChart3 } from 'lucide-react';
 
 export default function BentoGrid() {
   const features = [
@@ -10,8 +10,8 @@ export default function BentoGrid() {
       className: "md:col-span-2 md:row-span-2 bg-surface",
       visual: (
         <div className="mt-6 flex gap-2 items-end h-24 p-4 bg-surface-container rounded-xl">
-          {[40, 70, 45, 90, 65, 30, 80, 50, 100, 60].map((h, i) => (
-            <div key={i} className="w-full bg-primary/40 rounded-t-sm transition-all duration-500 hover:bg-primary" style={{ height: `${h}%` }}></div>
+          {['h-[40%]', 'h-[70%]', 'h-[45%]', 'h-[90%]', 'h-[65%]', 'h-[30%]', 'h-[80%]', 'h-[50%]', 'h-[100%]', 'h-[60%]'].map((h, i) => (
+            <div key={i} className={`w-full bg-primary/40 rounded-t-sm transition-all duration-500 hover:bg-primary ${h}`}></div>
           ))}
         </div>
       )
