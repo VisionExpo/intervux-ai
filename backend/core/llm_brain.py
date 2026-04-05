@@ -6,10 +6,11 @@ import time
 import urllib.error
 import urllib.request
 from statistics import mean
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Type, TypeVar
 
 from dotenv import load_dotenv
 from google import genai
+from pydantic import BaseModel, Field, ValidationError
 
 from backend.core.logging.logger import get_logger
 from backend.utils.metrics import metrics
@@ -58,7 +59,9 @@ RUBRIC_JSON_LITE = json.dumps(RUBRIC_LITE, separators=(",", ":"))
 
 QUESTION_PROMPT_TEMPLATE = """
 You are an AI interviewer.
-Return ONLY JSON list[str] with exactly {num_questions} concise technical questions.
+Return ONLY JSON matching this schema:
+{"questions": ["q1", "q2"]}
+Generate exactly {num_questions} concise technical questions.
 No markdown, no extra text.
 Profile: {profile_json}
 """.strip()
@@ -106,28 +109,57 @@ No markdown, no extra text.
 FINAL_REPORT_TEMPLATE = """
 You are a hiring manager.
 Return ONLY JSON with keys:
-overall_recommendation,strengths,weaknesses,final_summary
+{"overall_recommendation": "...", "strengths": [...], "weaknesses": [...], "final_summary": "..."}
 Profile: {profile_json}
 Answers: {answers_json}
 No markdown, no extra text.
 """.strip()
 
+T = TypeVar("T", bound=BaseModel)
+
+class GeneratedQuestions(BaseModel):
+    questions: List[str] = Field(default_factory=list)
+
+class NextQuestion(BaseModel):
+    question: str = ""
+    skill: str = ""
+
+class EvaluationResponse(BaseModel):
+    scores: Dict[str, int] = Field(default_factory=dict)
+    feedback: List[str] = Field(default_factory=list)
+    summary: str = ""
+
+class FinalReportResponse(BaseModel):
+    overall_recommendation: str = ""
+    strengths: List[str] = Field(default_factory=list)
+    weaknesses: List[str] = Field(default_factory=list)
+    final_summary: str = ""
+    status: str = "ok" # Used for prewarm
+
 _CB_LOCK = threading.Lock()
 _CB_STATE: Dict[str, Dict[str, float]] = {}
 
 
-def _safe_json_loads(payload: str, expected_type: type):
-    clean_payload = payload.strip()
-    match = re.search(r"```(?:json)?\s*(.*?)\s*```", clean_payload, flags=re.DOTALL | re.IGNORECASE)
+def _repair_json(payload: str) -> str:
+    raw = payload.strip()
+    match = re.search(r"```(?:json)?\s*(.*?)\s*```", raw, flags=re.DOTALL | re.IGNORECASE)
     if match:
-        clean_payload = match.group(1).strip()
-    
-    parsed = json.loads(clean_payload)
-    if not isinstance(parsed, expected_type):
-        raise ValueError(
-            f"Expected {expected_type.__name__}, got {type(parsed).__name__}"
+        raw = match.group(1).strip()
+    # Repair trailing commas in JSON object/arrays
+    raw = re.sub(r',\s*([\]}])', r'\1', raw)
+    return raw
+
+def _safe_json_loads(payload: str, expected_model: Type[T]) -> T:
+    try:
+        clean_payload = _repair_json(payload)
+        parsed = json.loads(clean_payload)
+        return expected_model.model_validate(parsed)
+    except (json.JSONDecodeError, ValidationError) as e:
+        logger.error(
+            "Strict parsing or repair failed",
+            extra={"extra_data": {"error": str(e), "payload": payload[:500]}}
         )
-    return parsed
+        raise ValueError(f"Failed to parse or validate LLM output: {e}")
 
 
 def _get_or_init_state_unlocked(provider: str) -> Dict[str, float]:
@@ -252,7 +284,10 @@ def _call_gemini(prompt: str, temperature: float, top_p: float = 1.0, response_s
         "top_p": top_p,
     }
     if response_schema is not None:
-        config["response_schema"] = response_schema
+        try:
+            config["response_schema"] = response_schema
+        except Exception:
+            pass
 
     response = GEMINI_CLIENT.models.generate_content(
         model=GEMINI_MODEL,
@@ -284,8 +319,13 @@ def _call_local_qwen(prompt: str, temperature: float, top_p: float = 1.0) -> str
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Local LLM request failed: {exc}") from exc
 
-    decoded = _safe_json_loads(body, dict)
-    raw = decoded.get("response", "")
+    decoded = _repair_json(body)
+    try:
+        obj = json.loads(decoded)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Local LLM returned invalid JSON: {exc}")
+    
+    raw = obj.get("response", "")
     if not isinstance(raw, str) or not raw.strip():
         raise ValueError("Local LLM returned empty response")
     return raw
@@ -301,8 +341,8 @@ def _call_provider(provider: str, prompt: str, temperature: float, top_p: float 
 
 
 def _run_json_task(
-    prompt: str, expected_type: type, temperature: float, top_p: float = 1.0, response_schema: Any = None
-) -> Tuple[Any, str]:
+    prompt: str, expected_model: Type[T], temperature: float, top_p: float = 1.0, response_schema: Any = None
+) -> Tuple[T, str]:
     providers = _provider_order()
     last_error: Exception | None = None
 
@@ -323,7 +363,7 @@ def _run_json_task(
             metrics.record_latency(f"llm_provider_{provider}_latency", elapsed)
             if index > 0:
                 metrics.increment_counter("llm_fallback_success")
-            parsed = _safe_json_loads(raw, expected_type)
+            parsed = _safe_json_loads(raw, expected_model)
             return parsed, provider
         except Exception as exc:
             _record_provider_failure(provider)
@@ -380,7 +420,10 @@ def generate_questions(
     )
 
     try:
-        questions, provider = _run_json_task(prompt, list, temperature=temperature)
+        response_model, provider = _run_json_task(
+            prompt, GeneratedQuestions, temperature=temperature, response_schema=GeneratedQuestions
+        )
+        questions = response_model.questions
         normalized = _normalize_questions(questions, num_questions)
 
         duration = round(time.time() - start, 3)
@@ -433,9 +476,11 @@ def generate_next_question(
     )
 
     try:
-        payload, provider = _run_json_task(prompt, dict, temperature=temperature, top_p=0.85)
-        question = payload.get("question", "")
-        generated_skill = payload.get("skill", preferred_skill)
+        response_model, provider = _run_json_task(
+            prompt, NextQuestion, temperature=temperature, top_p=0.85, response_schema=NextQuestion
+        )
+        question = response_model.question
+        generated_skill = response_model.skill or preferred_skill
         if not isinstance(question, str) or not question.strip():
             raise ValueError("Next-question payload missing question")
         if not isinstance(generated_skill, str) or not generated_skill.strip():
@@ -522,9 +567,9 @@ def evaluate_answer(
 
     try:
         first_pass, provider = _run_json_task(
-            eval_prompt, dict, temperature=base_temperature, top_p=0.8
+            eval_prompt, EvaluationResponse, temperature=base_temperature, top_p=0.8, response_schema=EvaluationResponse
         )
-        first_scores = _clamp_scores(first_pass.get("scores", {}), rubric)
+        first_scores = _clamp_scores(first_pass.scores, rubric)
 
         final_eval = first_pass
         final_scores = first_scores
@@ -535,15 +580,16 @@ def evaluate_answer(
                 rubric_json=context["rubric_json"],
                 question=context["question"],
                 answer=answer,
-                first_pass_json=json.dumps(first_pass, separators=(",", ":")),
+                first_pass_json=final_eval.model_dump_json(exclude_none=True),
             )
             critique_pass, _ = _run_json_task(
                 critique_prompt,
-                dict,
+                EvaluationResponse,
                 temperature=max(0.05, base_temperature - 0.05),
                 top_p=0.8,
+                response_schema=EvaluationResponse,
             )
-            critique_scores = _clamp_scores(critique_pass.get("scores", {}), rubric)
+            critique_scores = _clamp_scores(critique_pass.scores, rubric)
             final_eval = critique_pass
             final_scores = critique_scores
             critique_used = True
@@ -553,11 +599,12 @@ def evaluate_answer(
         if EVAL_SELF_CONSISTENCY:
             consistency_pass, _ = _run_json_task(
                 eval_prompt,
-                dict,
+                EvaluationResponse,
                 temperature=min(0.45, base_temperature + 0.12),
                 top_p=0.8,
+                response_schema=EvaluationResponse,
             )
-            consistency_scores = _clamp_scores(consistency_pass.get("scores", {}), rubric)
+            consistency_scores = _clamp_scores(consistency_pass.scores, rubric)
             variance = _score_variance(final_scores, consistency_scores)
 
         confidence_score = round(1.0 / (1.0 + variance), 3)
@@ -567,8 +614,8 @@ def evaluate_answer(
 
         evaluation = {
             "scores": final_scores,
-            "feedback": final_eval.get("feedback", []),
-            "summary": final_eval.get("summary", ""),
+            "feedback": final_eval.feedback,
+            "summary": final_eval.summary,
             "confidence_score": confidence_score,
             "evaluator_variance": round(variance, 3),
             "meta": {
@@ -617,7 +664,10 @@ def generate_final_report(profile: dict, answers: List[dict]) -> dict:
     )
 
     try:
-        report, provider = _run_json_task(prompt, dict, temperature=0.2)
+        response_model, provider = _run_json_task(
+            prompt, FinalReportResponse, temperature=0.2, response_schema=FinalReportResponse
+        )
+        report = response_model.model_dump()
         duration = round(time.time() - start, 3)
         metrics.record_latency("llm_final_report", duration)
         logger.info(
@@ -652,8 +702,8 @@ def prewarm_llm():
         started = time.time()
         try:
             raw = _call_provider(provider, prompt, temperature=0.0)
-            parsed = _safe_json_loads(raw, dict)
-            if parsed.get("status") != "ok":
+            parsed = _safe_json_loads(raw, FinalReportResponse)
+            if parsed.status != "ok":
                 raise ValueError("Prewarm response missing status=ok")
 
             elapsed = time.time() - started

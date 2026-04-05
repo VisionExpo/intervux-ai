@@ -18,6 +18,16 @@ from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
+import sentry_sdk
+
+# Initialize Sentry for global Exception catching
+sentry_dsn = os.getenv("SENTRY_DSN", "")
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+    )
 
 from backend.infrastructure.database.database import Base, engine
 from backend.core.llm_brain import prewarm_llm

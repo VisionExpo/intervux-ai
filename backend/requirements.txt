@@ -53,3 +53,7 @@ asyncpg==0.30.0
 
 # FastAPI form/file parsing
 python-multipart==0.0.9
+
+# Observability
+sentry-sdk==2.5.1
+python-json-logger==2.0.7

@@ -1,35 +1,30 @@
 import logging
 import os
-import json
+import sys
 from logging.handlers import RotatingFileHandler
+from pythonjsonlogger import jsonlogger
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 
-class JsonFormatter(logging.Formatter):
-    def format(self, record):
-        log_record = {
-            "timestamp": self.formatTime(record),
-            "level": record.levelname,
-            "module": record.name,
-            "message": record.getMessage(),
-        }
+# Standardize format via pythonjsonlogger
+log_format = "%(asctime)s %(levelname)s %(name)s %(message)s"
+formatter = jsonlogger.JsonFormatter(log_format)
 
-        if hasattr(record, "extra_data"):
-            log_record.update(record.extra_data)
-
-        return json.dumps(log_record)
-
-
-handler = RotatingFileHandler(
+# File handler
+file_handler = RotatingFileHandler(
     f"{LOG_DIR}/intervux.log",
     maxBytes=5_000_000,
     backupCount=3
 )
+file_handler.setFormatter(formatter)
 
-handler.setFormatter(JsonFormatter())
+# Stdout handler
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setFormatter(formatter)
 
-logging.basicConfig(level=logging.INFO, handlers=[handler])
+# Configure the root logger
+logging.basicConfig(level=logging.INFO, handlers=[file_handler, stdout_handler])
 
 def get_logger(name: str):
     return logging.getLogger(name)

@@ -98,20 +98,12 @@ export default function InterviewPage() {
 
   if (stage === "CONNECTING") {
     return (
-      <div style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        height: "100vh",
-        background: "linear-gradient(135deg, #1a2940 0%, #2d4a6f 100%)",
-        color: "#fff"
-      }}>
-        <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>🎙️</div>
-        <h2>Connecting to Interview...</h2>
-        <p style={{ color: "#94a3b8" }}>Please wait while we establish a connection</p>
+      <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-br from-slate-900 to-slate-700 text-white">
+        <div className="text-4xl mb-4 animate-bounce">🎙️</div>
+        <h2 className="text-2xl font-bold mb-2">Connecting to Interview...</h2>
+        <p className="text-slate-400">Please wait while we establish a connection</p>
         {lastError && (
-          <p style={{ color: "#ef4444", marginTop: "1rem" }}>{lastError}</p>
+          <p className="text-red-500 mt-4 px-4 py-2 bg-red-500/10 rounded-md border border-red-500/20">{lastError}</p>
         )}
       </div>
     );
@@ -133,37 +125,31 @@ export default function InterviewPage() {
       totalQuestions={totalQuestions}
       avatarPanel={
         showResumeUpload ? (
-          <div style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-            padding: "2rem",
-            textAlign: "center"
-          }}>
-            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>
-              {stage === "PROCESSING_RESUME" ? "⏳" : "📄"}
+          <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-slate-50/50 backdrop-blur-sm rounded-xl">
+            <div className="text-5xl mb-4">
+              {stage === "PROCESSING_RESUME" ? (
+                <span className="inline-block animate-spin">⏳</span>
+              ) : (
+                "📄"
+              )}
             </div>
-            <h2 style={{ color: "#1a2940", marginBottom: "1rem" }}>
+            <h2 className="text-slate-800 text-2xl font-bold mb-4">
               {stage === "PROCESSING_RESUME" ? "Processing Resume" : "Upload Your Resume"}
             </h2>
-            <p style={{ color: "#556174", marginBottom: "1.5rem" }}>
+            <p className="text-slate-600 mb-6 max-w-md mx-auto">
               {getResumeUploadText()}
             </p>
             {stage === "WAITING_RESUME" && (
-              <div style={{ marginBottom: "1rem" }}>
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  onChange={handleFileSelect}
-                  style={{
-                    padding: "0.5rem",
-                    border: "1px solid #d2dde9",
-                    borderRadius: "8px",
-                    background: "#fff"
-                  }}
-                />
+              <div className="mb-4">
+                <label className="cursor-pointer bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 transition-colors rounded-lg px-6 py-3 flex items-center justify-center shadow-sm">
+                  <span className="text-blue-600 font-medium">Select Resume File (.pdf, .doc)</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                </label>
               </div>
             )}
           </div>
@@ -194,7 +180,14 @@ export default function InterviewPage() {
           isListening={isListening}
         />
       }
-      cameraPanel={<CandidateCamera isEnabled={true} stream={mediaStream} />}
+      cameraPanel={
+        <CandidateCamera 
+          isEnabled={true} 
+          stream={mediaStream} 
+          isListening={isListening} 
+          isSpeaking={isSpeaking} 
+        />
+      }
     />
   );
 }
