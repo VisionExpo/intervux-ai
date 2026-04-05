@@ -2,53 +2,34 @@ import { useEffect, useRef, useState } from "react";
 
 interface CandidateCameraProps {
   isEnabled?: boolean;
+  stream?: MediaStream | null;
 }
 
-export default function CandidateCamera({ isEnabled = true }: CandidateCameraProps) {
+export default function CandidateCamera({ isEnabled = true, stream }: CandidateCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hasCamera, setHasCamera] = useState(false);
   const [cameraError, setCameraError] = useState<string>("");
   const [micActive, setMicActive] = useState(false);
 
   useEffect(() => {
-    if (!isEnabled) return;
-    const currentVideo = videoRef.current;
-
-    async function initCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          setHasCamera(true);
-          setCameraError("");
-
-          // Check if audio track is active
-          const audioTrack = stream.getAudioTracks()[0];
-          if (audioTrack) {
-            setMicActive(audioTrack.enabled);
-          }
-        }
-      } catch (err) {
-        console.error("Camera access error:", err);
-        setCameraError("Camera access denied or not available");
-        setHasCamera(false);
-      }
+    if (!isEnabled || !stream) {
+      setHasCamera(false);
+      return;
     }
 
-    initCamera();
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      setHasCamera(true);
+      setCameraError("");
 
-    return () => {
-      // Cleanup: stop all tracks
-      if (currentVideo?.srcObject) {
-        const stream = currentVideo.srcObject as MediaStream;
-        stream.getTracks().forEach((track) => track.stop());
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) {
+        setMicActive(audioTrack.enabled);
+      } else {
+        setMicActive(false);
       }
-    };
-  }, [isEnabled]);
+    }
+  }, [isEnabled, stream]);
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>

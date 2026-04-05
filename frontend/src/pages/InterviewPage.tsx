@@ -24,6 +24,7 @@ export default function InterviewPage() {
     visemes,
     emotion,
     transcriptMessages,
+    mediaStream,
     startAudioStream,
     stopAudioStream,
     lastError,
@@ -193,7 +194,7 @@ export default function InterviewPage() {
           isListening={isListening}
         />
       }
-      cameraPanel={<CandidateCamera isEnabled={true} />}
+      cameraPanel={<CandidateCamera isEnabled={true} stream={mediaStream} />}
     />
   );
 }

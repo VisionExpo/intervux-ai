@@ -87,6 +87,7 @@ export function useInterview() {
   const [visemes, setVisemes] = useState<VisemeCue[]>([]);
   const [emotion, setEmotion] = useState("neutral");
   const [transcriptMessages, setTranscriptMessages] = useState<TranscriptMessage[]>([]);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
 
   const isRecording = stage === "LISTENING";
 
@@ -121,6 +122,33 @@ export function useInterview() {
     stageRef.current = stage;
   }, [stage]);
 
+  // Initialization of continuous media stream
+  useEffect(() => {
+    let activeStream: MediaStream | null = null;
+    async function initContinuousStream() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        activeStream = stream;
+        mediaStreamRef.current = stream;
+        setMediaStream(stream);
+      } catch (err) {
+        console.error("Failed to acquire continuous media stream:", err);
+        setLastError("Microphone/Camera access blocked. Please allow browser permissions.");
+        dispatch({ type: "ERROR_OCCURRED" });
+      }
+    }
+    void initContinuousStream();
+
+    return () => {
+      if (activeStream) {
+        activeStream.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (socketInitialized.current) return;
@@ -135,7 +163,7 @@ export function useInterview() {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
       }
-      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      // Note: The global mediaStream cleanup is handled by the dedicated useEffect.
       clearAudioQueue();
       socketRef.current?.close(1000, "Component unmounted");
       socketInitialized.current = false;
@@ -364,23 +392,12 @@ export function useInterview() {
     }
     if (isRecording) return;
 
-    try {
-      const permissionStatus = await navigator.permissions.query({
-        name: "microphone" as PermissionName,
-      });
-      if (permissionStatus.state === "denied") {
-        setLastError(
-          "Microphone access is blocked. Please allow microphone access in your browser settings and refresh the page."
-        );
-        dispatch({ type: "ERROR_OCCURRED" });
-        return;
-      }
-    } catch {
-      // permissions API not supported - proceed
+    const stream = mediaStreamRef.current;
+    if (!stream) {
+      setLastError("Media stream is not available.");
+      dispatch({ type: "ERROR_OCCURRED" });
+      return;
     }
-
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaStreamRef.current = stream;
 
     const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
       ? "audio/webm;codecs=opus"
@@ -402,8 +419,8 @@ export function useInterview() {
         socketRef.current.send(JSON.stringify({ type: "stream_end" }));
         dispatch({ type: "ANSWER_PROCESSING_START" });
       }
-      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
+      // DO NOT stop the tracks or nullify mediaStreamRef here!
+      // This allows the continuous camera feed to persist.
       mediaRecorderRef.current = null;
     };
 
@@ -505,29 +522,30 @@ export function useInterview() {
     setVisemes([]);
   }
 
-  return {
-    stage,
-    avatarState,
-    avatarText,
-    isSpeaking,
-    isConnected,
-    questionIndex,
-    totalQuestions,
-    partialTranscript,
-    isRecording,
-    lastEvaluation,
-    finalReport,
-    lastError,
-    audioRef,
-    visemes,
-    emotion,
-    transcriptMessages,
-    addTranscriptMessage,
-    clearTranscript,
-    uploadResume,
-    startAudioStream,
-    stopAudioStream,
-  };
+    return {
+      stage,
+      avatarState,
+      avatarText,
+      isSpeaking,
+      isConnected,
+      questionIndex,
+      totalQuestions,
+      partialTranscript,
+      isRecording,
+      lastEvaluation,
+      finalReport,
+      lastError,
+      audioRef,
+      visemes,
+      emotion,
+      transcriptMessages,
+      mediaStream,
+      addTranscriptMessage,
+      clearTranscript,
+      uploadResume,
+      startAudioStream,
+      stopAudioStream,
+    };
 }
 
 async function fileToBase64(file: File): Promise<string> {
