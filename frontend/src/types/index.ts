@@ -1,4 +1,4 @@
-export type DashboardTab = "candidates" | "interviews" | "analytics" | "evaluation";
+export type DashboardTab = "candidates" | "interviews" | "analytics" | "evaluation" | "job_posts";
 
 export interface CandidateListItem {
   id: string;
@@ -144,4 +144,24 @@ export interface EvaluationDashboardResponse {
   system_health: SystemHealthMetrics;
   alerts: AlertItem[];
   ai_hiring_summary: string;
+}
+
+export interface JobPostCreate {
+  title: string;
+  description: string;
+  required_skills: string[];
+  experience_level: string;
+  salary_range_min?: number;
+  salary_range_max?: number;
+  employment_type: string;
+  location?: string;
+  interview_focus_areas: string[];
+  evaluation_weights: Record<string, number>;
+}
+
+export interface JobPost extends JobPostCreate {
+  id: string;
+  recruiter_id: string;
+  status: string;
+  created_at: string;
 }

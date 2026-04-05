@@ -5,6 +5,7 @@ import CandidateComparison from "../components/dashboard/CandidateComparison";
 import CandidateList from "../components/dashboard/CandidateList";
 import InterviewReplay from "../components/dashboard/InterviewReplay";
 import InterviewReport from "../components/dashboard/InterviewReport";
+import JobPostManager from "../components/dashboard/JobPostManager";
 import SkillAnalytics from "../components/dashboard/SkillAnalytics";
 import { authFetch, useAuth } from "../hooks/useAuth";
 import type {
@@ -76,6 +77,7 @@ export default function RecruiterDashboard() {
   const tabs: Array<{ id: DashboardTab; label: string }> = [
     { id: "candidates", label: "Candidates" },
     { id: "interviews", label: "Interviews" },
+    { id: "job_posts", label: "Job Posts" },
     { id: "analytics", label: "Analytics" },
   ];
 
@@ -133,7 +135,7 @@ export default function RecruiterDashboard() {
 
         {tab === "analytics" && <SkillAnalytics analytics={analytics} />}
 
-
+        {tab === "job_posts" && <JobPostManager />}
       </div>
     </main>
   );
