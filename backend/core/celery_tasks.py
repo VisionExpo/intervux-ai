@@ -47,6 +47,11 @@ def transcribe_audio_task(self, filepath: str, suffix: str, session_id: str) -> 
     try:
         with open(filepath, "rb") as f:
             audio_bytes = f.read()
+            
+        # Enforce minimum byte size (e.g., typical WAV header is 44 bytes) to prevent crashes on malformed chunks
+        if len(audio_bytes) < 44:
+            logger.warning(f"Audio file {filepath} is too small ({len(audio_bytes)} bytes) or malformed.")
+            return ""
     except Exception as e:
         logger.error(f"Failed to read audio file {filepath}: {e}")
         return ""

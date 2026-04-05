@@ -38,6 +38,7 @@ class InterviewGateway:
         
         # Local tracker for clean shutdown
         self._connections: Set[WebSocket] = set()
+        self._active_celery_tasks: Dict[str, Set[Any]] = {}
 
     async def _ping_loop(self, ws: WebSocket, session_id: str):
         """Keep LoadBalancers happy with 20s pings."""
@@ -136,6 +137,7 @@ class InterviewGateway:
         }
         await self._registry.register(session_id, metadata)
         self._connections.add(ws)
+        self._active_celery_tasks[session_id] = set()
         
         ping_task = asyncio.create_task(self._ping_loop(ws, session_id))
         pubsub_task = asyncio.create_task(self._pubsub_listener(ws, session_id, session))
@@ -151,7 +153,7 @@ class InterviewGateway:
                     "questions based on your experience."
                 )
                 # Send greeting asynchronously — don't block the receive loop
-                asyncio.create_task(self._send_avatar_with_audio(ws, full_text, 0, 0))
+                asyncio.create_task(self._send_avatar_with_audio(ws, session, full_text, 0, 0))
                 session.state.greeting_sent = True
 
             session.state.transition_to(InterviewPhase.WAITING_RESUME)
@@ -208,6 +210,16 @@ class InterviewGateway:
         finally:
             ping_task.cancel()
             pubsub_task.cancel()
+            
+            # Revoke any lingering Celery TTS tasks for this session
+            pending_tts = self._active_celery_tasks.pop(session_id, set())
+            for tts_task in pending_tts:
+                try:
+                    if not tts_task.ready():
+                        tts_task.revoke(terminate=True)
+                except Exception:
+                    pass
+                    
             await session.cleanup()
             await self._registry.unregister(session_id)
             self._connections.discard(ws)
@@ -218,7 +230,7 @@ class InterviewGateway:
         question_index = question_data.get("question_index", 1)
         total_questions = question_data.get("total_questions", 2)
         await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions})
-        audio_chunks = await self._synthesize_tts_chunks(text)
+        audio_chunks = await self._synthesize_tts_chunks(session.session_id, text)
         for chunk in audio_chunks:
             visemes = chunk.get("visemes", [])
             audio_bytes = chunk.get("audio_bytes", b"")
@@ -228,9 +240,9 @@ class InterviewGateway:
             await self._send_bytes(ws, bytes(audio_bytes))
         await self._send_json(ws, {"type": "phase", "value": "LISTENING"})
 
-    async def _send_avatar_with_audio(self, ws: WebSocket, text: str, question_index: int, total_questions: int) -> None:
+    async def _send_avatar_with_audio(self, ws: WebSocket, session: InterviewSession, text: str, question_index: int, total_questions: int) -> None:
         await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions})
-        audio_chunks = await self._synthesize_tts_chunks(text)
+        audio_chunks = await self._synthesize_tts_chunks(session.session_id, text)
         for chunk in audio_chunks:
             visemes = chunk.get("visemes", [])
             audio_bytes = chunk.get("audio_bytes", b"")
@@ -305,7 +317,7 @@ class InterviewGateway:
     def _client_ip(ws: WebSocket) -> str:
         return ws.client.host if ws.client and ws.client.host else "unknown"
 
-    async def _synthesize_tts_chunks(self, text: str) -> list:
+    async def _synthesize_tts_chunks(self, session_id: str, text: str) -> list:
         if os.getenv("DISABLE_TTS", "false").lower() == "true":
             return []
 
@@ -316,6 +328,12 @@ class InterviewGateway:
 
         # Fire all Celery TTS tasks in parallel
         celery_tasks = [synthesize_tts_task.delay(seg) for seg in segments]
+        
+        # Track these tasks for the session
+        session_task_set = self._active_celery_tasks.get(session_id)
+        if session_task_set is not None:
+            for task in celery_tasks:
+                session_task_set.add(task)
 
         chunks = []
         for seg, task in zip(segments, celery_tasks):
@@ -323,12 +341,20 @@ class InterviewGateway:
             # doesn't hang the entire WebSocket session.
             deadline = asyncio.get_event_loop().time() + 15.0  # 15 s per segment
             while not task.ready():
+                if task.failed():
+                    logger.error(f"TTS task failed for segment: {seg[:40]!r}")
+                    break
                 if asyncio.get_event_loop().time() > deadline:
                     logger.warning(f"TTS task timed out for segment: {seg[:40]!r}")
                     break
                 await asyncio.sleep(0.05)
 
-            result = task.result if task.ready() else None
+            result = task.result if task.ready() and not task.failed() else None
+            
+            # Remove from tracking as it's completed/failed/timeout
+            if session_task_set is not None:
+                session_task_set.discard(task)
+                
             if result:
                 b64_audio = result.get("audio_b64", "")
                 audio_bytes = base64.b64decode(b64_audio) if b64_audio else b""

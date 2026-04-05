@@ -22,6 +22,8 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     speechsdk = None
 
+import httpx
+
 # Use /app/static for Docker, or ./backend/static for local development
 if os.path.exists("/app"):
     STATIC_DIR = Path("/app/static/audio")
@@ -137,7 +139,41 @@ class AzureNativeTTSService:
 
 
 _local_tts = LocalTTSService()
-_azure_tts = AzureNativeTTSService()
+
+class ElevenLabsTTSService:
+    """
+    ElevenLabs API integration for premium voice synthesis.
+    """
+    def __init__(self):
+        self.api_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
+        # Default to a generic voice if not specified (e.g. 'Rachel': 21m00Tcm4TlvDq8ikWAM)
+        self.voice_id = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM").strip()
+        self.url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.voice_id}"
+
+    @property
+    def is_enabled(self) -> bool:
+        return bool(self.api_key)
+
+    async def synthesize(self, text: str) -> bytes:
+        headers = {
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "xi-api-key": self.api_key
+        }
+        data = {
+            "text": text,
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.5
+            }
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(self.url, json=data, headers=headers, timeout=30.0)
+            response.raise_for_status()
+            return response.content
+
+_elevenlabs_tts = ElevenLabsTTSService()
 
 
 async def _edge_tts_bytes(text: str) -> bytes:
@@ -162,7 +198,7 @@ def synthesize_speech_with_visemes(text: str) -> Tuple[bytes, List[Dict[str, int
     """
     audio_bytes = b""
 
-    # Primary: Edge TTS
+    # Primary: ElevenLabs TTS
     try:
         try:
             loop = asyncio.get_running_loop()
@@ -170,16 +206,19 @@ def synthesize_speech_with_visemes(text: str) -> Tuple[bytes, List[Dict[str, int
             loop = None
 
         if loop and loop.is_running():
-            # Called from inside an async context (e.g. asyncio.to_thread)
-            # Run in a new thread with its own event loop
             import concurrent.futures
-
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                audio_bytes = pool.submit(asyncio.run, _edge_tts_bytes(text)).result(timeout=30)
+                if _elevenlabs_tts.is_enabled:
+                    audio_bytes = pool.submit(asyncio.run, _elevenlabs_tts.synthesize(text)).result(timeout=30)
+                else:
+                    audio_bytes = pool.submit(asyncio.run, _edge_tts_bytes(text)).result(timeout=30)
         else:
-            audio_bytes = asyncio.run(_edge_tts_bytes(text))
+            if _elevenlabs_tts.is_enabled:
+                audio_bytes = asyncio.run(_elevenlabs_tts.synthesize(text))
+            else:
+                audio_bytes = asyncio.run(_edge_tts_bytes(text))
     except Exception:
-        logger.warning("Edge TTS failed, falling back to pyttsx3", exc_info=True)
+        logger.warning("ElevenLabs/Edge TTS failed, falling back to pyttsx3", exc_info=True)
 
     # Fallback: pyttsx3
     if not audio_bytes:
