@@ -81,7 +81,15 @@ function App() {
   }
 
   // Recruiter
-  return <RecruiterDashboard />;
+  const recruiterPage = (() => {
+    switch (hash) {
+      case "/dashboard": return <RecruiterDashboard />;
+      // Extra recruiter routes would go here (e.g. /candidates, /jobs)
+      default: return <RecruiterDashboard />;
+    }
+  })();
+
+  return <AppShell currentPath={hash}>{recruiterPage}</AppShell>;
 }
 
 export default App;
