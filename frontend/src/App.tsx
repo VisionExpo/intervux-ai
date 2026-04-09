@@ -77,7 +77,20 @@ function App() {
   }
 
   if (userRole === "admin") {
-    return <AdminDashboard />;
+    if (hash === "/logout") return <LogoutRedirect />;
+
+    const adminPage = (() => {
+      switch (hash) {
+        case "/dashboard":      return <AdminDashboard />;
+        case "/users":         return <AdminDashboard />;
+        case "/system-health": return <AdminDashboard />;
+        case "/audit-logs":    return <AdminDashboard />;
+        case "/settings":      return <AdminDashboard />;
+        default:               return <AdminDashboard />;
+      }
+    })();
+
+    return <AppShell currentPath={hash}>{adminPage}</AppShell>;
   }
 
   // Recruiter

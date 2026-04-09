@@ -37,10 +37,13 @@ export const ROLE_NAVIGATION: Record<Role, NavSection[]> = {
   admin: [
     {
       items: [
-        { id: 'dashboard', label: 'System Health', path: '/dashboard', icon: 'health_and_safety' },
-        { id: 'experiment', label: 'Experiments', path: '/experiments', icon: 'science' },
-        { id: 'users', label: 'User Management', path: '/users', icon: 'manage_accounts' },
+        { id: 'dashboard', label: 'Global Metrics', path: '/dashboard', icon: 'dashboard' },
+        { id: 'users', label: 'User Management', path: '/users', icon: 'group' },
+        { id: 'experiments', label: 'Experiments', path: '/experiments', icon: 'science' },
+        { id: 'evaluation', label: 'Evaluation Dashboard', path: '/evaluation', icon: 'analytics' },
+        { id: 'system-health', label: 'System Health', path: '/system-health', icon: 'monitor_heart' },
         { id: 'settings', label: 'Platform Settings', path: '/settings', icon: 'settings' },
+        { id: 'audit-logs', label: 'Audit Logs', path: '/audit-logs', icon: 'history' },
       ],
     },
   ],
