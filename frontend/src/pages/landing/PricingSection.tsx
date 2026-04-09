@@ -29,9 +29,9 @@ export const PricingSection: React.FC = () => {
                 <span className="material-symbols-outlined text-primary text-lg">check_circle</span> Email Support
               </li>
             </ul>
-            <button className="w-full py-4 rounded-xl border border-outline-variant font-bold hover:bg-surface-container-low transition-all">
+            <a href="#/signup" className="block text-center w-full py-4 rounded-xl border border-outline-variant font-bold hover:bg-surface-container-low transition-all">
               Get Started
-            </button>
+            </a>
           </div>
           
           {/* Growth */}
@@ -59,9 +59,9 @@ export const PricingSection: React.FC = () => {
                 <span className="material-symbols-outlined text-primary text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span> Priority Support
               </li>
             </ul>
-            <button className="w-full py-4 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
+            <a href="#/signup" className="block text-center w-full py-4 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
               Get Started
-            </button>
+            </a>
           </div>
           
           {/* Enterprise */}
@@ -85,9 +85,9 @@ export const PricingSection: React.FC = () => {
                 <span className="material-symbols-outlined text-primary text-lg">check_circle</span> Dedicated Account Manager
               </li>
             </ul>
-            <button className="w-full py-4 rounded-xl border border-outline-variant font-bold hover:bg-surface-container-low transition-all">
+            <a href="#/signup" className="block text-center w-full py-4 rounded-xl border border-outline-variant font-bold hover:bg-surface-container-low transition-all">
               Contact Sales
-            </button>
+            </a>
           </div>
         </div>
       </div>

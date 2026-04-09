@@ -52,11 +52,11 @@ export default function Sidebar({ currentPath }: SidebarProps) {
       {/* Footer */}
       <div className="mt-auto pt-4 space-y-1 border-t border-outline-variant/20">
         {role !== 'candidate' && (
-          <button className="w-full mb-4 py-2.5 bg-primary text-white font-semibold rounded-lg shadow-lg shadow-primary/20 active:scale-95 transition-transform">
+          <button className="w-full mb-4 py-2.5 bg-primary text-white font-semibold rounded-lg shadow-lg shadow-primary/20 hover:bg-primary/90 active:scale-95 transition-all">
             New Workspace
           </button>
         )}
-        <a className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-surface-container-high transition-all duration-200" href="#">
+        <a className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-surface-container-high transition-all duration-200" href="#/support">
           <span className="material-symbols-outlined">headset_mic</span>
           <span>Support</span>
         </a>

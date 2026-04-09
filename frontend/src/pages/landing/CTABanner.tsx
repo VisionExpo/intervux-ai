@@ -9,12 +9,12 @@ export const CTABanner: React.FC = () => {
           Start Building Smarter Hiring Workflows Today
         </h2>
         <div className="flex flex-wrap justify-center gap-6 relative z-10">
-          <button className="bg-white text-primary px-10 py-5 rounded-xl font-headline font-bold text-lg hover:bg-surface-container transition-all">
+          <a href="#/signup" className="inline-block bg-white text-primary px-10 py-5 rounded-xl font-headline font-bold text-lg hover:bg-surface-container transition-all">
             Start Free Trial
-          </button>
-          <button className="bg-primary-container text-white px-10 py-5 rounded-xl font-headline font-bold text-lg hover:bg-blue-700 transition-all border border-white/20">
+          </a>
+          <a href="#/signup" className="inline-block bg-primary-container text-white px-10 py-5 rounded-xl font-headline font-bold text-lg hover:bg-blue-700 transition-all border border-white/20">
             Book Live Demo
-          </button>
+          </a>
         </div>
       </div>
     </section>

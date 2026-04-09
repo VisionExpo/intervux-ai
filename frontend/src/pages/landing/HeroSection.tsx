@@ -15,12 +15,12 @@ export const HeroSection: React.FC = () => {
             Automate candidate interviews, generate AI-powered scorecards, and help recruiters make faster, better hiring decisions with high-fidelity conversational intelligence.
           </p>
           <div className="flex flex-wrap gap-4">
-            <button className="bg-primary hover:bg-primary/90 text-white px-8 py-4 rounded-xl font-headline font-bold text-base transition-all shadow-lg shadow-primary/20">
+            <a href="#/signup" className="inline-block bg-primary hover:bg-primary/90 text-white px-8 py-4 rounded-xl font-headline font-bold text-base transition-all shadow-lg shadow-primary/20">
               Start Free Trial
-            </button>
-            <button className="bg-surface-container-lowest border border-outline-variant/30 text-on-surface px-8 py-4 rounded-xl font-headline font-bold text-base hover:bg-surface-container-low transition-all">
+            </a>
+            <a href="#/signup" className="inline-block bg-surface-container-lowest border border-outline-variant/30 text-on-surface px-8 py-4 rounded-xl font-headline font-bold text-base hover:bg-surface-container-low transition-all">
               Book Live Demo
-            </button>
+            </a>
           </div>
         </div>
         
