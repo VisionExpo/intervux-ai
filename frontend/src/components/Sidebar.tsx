@@ -13,7 +13,7 @@ export default function Sidebar({ currentPath }: SidebarProps) {
   const navSections = ROLE_NAVIGATION[role] || ROLE_NAVIGATION['candidate'];
 
   return (
-    <aside className="h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-slate-950 flex flex-col p-4 gap-2 font-body text-sm font-medium z-40 border-r border-outline-variant/20">
+    <aside className="w-64 h-full bg-surface-container-low dark:bg-slate-950 flex flex-col p-4 gap-2 font-body text-sm font-medium z-40 border-r border-outline-variant/20 flex-shrink-0">
       {/* Brand */}
       <div className="mb-8 px-2 flex items-center gap-3">
         <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white">
