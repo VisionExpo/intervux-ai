@@ -5,6 +5,7 @@ import { UpcomingInterview } from '../components/dashboard/candidate/UpcomingInt
 import { NextStepsChecklist } from '../components/dashboard/candidate/NextStepsChecklist';
 import { PerformanceSummary } from '../components/dashboard/candidate/PerformanceSummary';
 import { AIInsightsCard } from '../components/dashboard/candidate/AIInsightsCard';
+import { KPISkeleton, CardSkeleton } from '../components/shared/SkeletonLoader';
 
 export default function CandidateDashboard() {
   const { user } = useAuth();
@@ -17,17 +18,24 @@ export default function CandidateDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-4">
-          <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-sm text-slate-500 font-medium">Loading your workspace…</p>
+      <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="h-48 bg-slate-200 animate-pulse rounded-3xl" />
+        <div className="grid grid-cols-12 gap-6">
+          <div className="col-span-8 bg-slate-100 animate-pulse rounded-2xl h-[300px]" />
+          <div className="col-span-4 space-y-4">
+             <CardSkeleton />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-6">
+           <CardSkeleton />
+           <CardSkeleton />
         </div>
       </div>
     );
   }
 
   return (
-    <>
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
       <HeroGreeting
         userName={firstName}
         applicationStatus={dashboard?.mock_interviews_remaining !== undefined && dashboard.mock_interviews_remaining > 0 ? 'Active' : 'Complete'}
@@ -35,7 +43,7 @@ export default function CandidateDashboard() {
       />
 
       {error && (
-        <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-sm text-amber-700 font-medium">
+        <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-sm text-amber-700 font-medium animate-in slide-in-from-top-4 duration-500 shadow-sm">
           <span className="material-symbols-outlined text-amber-500">warning</span>
           <span>Using offline workspace mode: {error}</span>
         </div>
@@ -63,6 +71,6 @@ export default function CandidateDashboard() {
           skills={profile?.skills ?? []}
         />
       </div>
-    </>
+    </div>
   );
 }

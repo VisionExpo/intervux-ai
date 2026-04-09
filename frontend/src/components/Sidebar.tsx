@@ -3,9 +3,11 @@ import { ROLE_NAVIGATION, type Role } from '../config/navConfig';
 
 interface SidebarProps {
   currentPath: string;
+  isOpen: boolean;
+  setIsOpen: (open: boolean) => void;
 }
 
-export default function Sidebar({ currentPath }: SidebarProps) {
+export default function Sidebar({ currentPath, isOpen, setIsOpen }: SidebarProps) {
   const { user } = useAuth();
   
   // Default to candidate if no role or unauthenticated
@@ -13,7 +15,11 @@ export default function Sidebar({ currentPath }: SidebarProps) {
   const navSections = ROLE_NAVIGATION[role] || ROLE_NAVIGATION['candidate'];
 
   return (
-    <aside className="w-64 h-full bg-surface-container-low dark:bg-slate-950 flex flex-col p-4 gap-2 font-body text-sm font-medium z-40 border-r border-outline-variant/20 flex-shrink-0">
+    <aside className={`
+      h-screen w-64 bg-surface-container-low dark:bg-slate-950 flex flex-col p-4 gap-2 font-body text-sm font-medium z-40 border-r border-outline-variant/20 flex-shrink-0
+      fixed inset-y-0 left-0 lg:static transform transition-transform duration-300 ease-in-out
+      ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+    `}>
       {/* Brand */}
       <div className="mb-8 px-2 flex items-center gap-3">
         <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white">

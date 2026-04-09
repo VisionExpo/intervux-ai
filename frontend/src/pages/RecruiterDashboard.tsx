@@ -7,6 +7,7 @@ import { ScheduleWidget } from "../components/dashboard/recruiter/ScheduleWidget
 import { CandidateRecommendations } from "../components/dashboard/recruiter/CandidateRecommendations";
 import { RecentCandidatesTable } from "../components/dashboard/recruiter/RecentCandidatesTable";
 import { ActiveJobsWidget } from "../components/dashboard/recruiter/ActiveJobsWidget";
+import { KPISkeleton, CardSkeleton, TableSkeleton } from "../components/shared/SkeletonLoader";
 
 export default function RecruiterDashboard() {
   const { user } = useAuth();
@@ -18,21 +19,29 @@ export default function RecruiterDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-4">
-          <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-sm text-slate-500 font-medium">Loading dashboard…</p>
+      <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="h-20 w-1/3 bg-slate-200 animate-pulse rounded-2xl" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <KPISkeleton />
+          <KPISkeleton />
+          <KPISkeleton />
+          <KPISkeleton />
         </div>
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          <div className="xl:col-span-2 h-[300px] bg-slate-100 animate-pulse rounded-2xl" />
+          <CardSkeleton />
+        </div>
+        <TableSkeleton rows={3} />
       </div>
     );
   }
 
   return (
-    <>
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
       <WelcomeHeader userName={user?.name?.split(' ')[0] || "User"} />
       
       {error && (
-        <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-sm text-amber-700 font-medium animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-sm text-amber-700 font-medium shadow-sm">
           <span className="material-symbols-outlined text-amber-500">warning</span>
           <span>Connectivity issue: {error}. Showing cached/offline data.</span>
         </div>
@@ -53,6 +62,6 @@ export default function RecruiterDashboard() {
         <RecentCandidatesTable candidates={candidates} />
         <ActiveJobsWidget jobPosts={jobPosts} />
       </div>
-    </>
+    </div>
   );
 }

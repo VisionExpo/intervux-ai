@@ -1,6 +1,10 @@
 import { useAuth } from '../hooks/useAuth';
 
-export default function DashboardHeader() {
+interface DashboardHeaderProps {
+  onMenuOpen?: () => void;
+}
+
+export default function DashboardHeader({ onMenuOpen }: DashboardHeaderProps) {
   const { user } = useAuth();
   
   const initials = user?.name
@@ -11,9 +15,19 @@ export default function DashboardHeader() {
   const roleName = user?.role === 'candidate' ? 'Candidate Dashboard' : 'Intelligence Layer';
 
   return (
-    <header className="w-full sticky top-0 z-30 bg-surface/70 dark:bg-slate-900/70 backdrop-blur-xl flex items-center justify-between px-8 py-4 border-b border-outline-variant/10">
-      <div className="flex items-center gap-8">
-        <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white font-headline">{roleName}</h1>
+    <header className="w-full sticky top-0 z-30 bg-surface/70 dark:bg-slate-900/70 backdrop-blur-xl flex items-center justify-between px-4 md:px-8 py-4 border-b border-outline-variant/10">
+      <div className="flex items-center gap-3 md:gap-8">
+        {onMenuOpen && (
+          <button 
+            onClick={onMenuOpen}
+            className="lg:hidden p-2 hover:bg-surface-container rounded-lg transition-colors"
+          >
+            <span className="material-symbols-outlined">menu</span>
+          </button>
+        )}
+        <h1 className="text-base md:text-lg font-bold tracking-tight text-slate-900 dark:text-white font-headline truncate max-w-[150px] md:max-w-none">
+          {roleName}
+        </h1>
         {user?.role !== 'candidate' && (
           <div className="relative hidden md:block">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>

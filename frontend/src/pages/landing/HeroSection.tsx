@@ -2,16 +2,16 @@ import React from 'react';
 
 export const HeroSection: React.FC = () => {
   return (
-    <header className="relative pt-32 pb-24 lg:pt-48 lg:pb-40 overflow-hidden bg-surface">
-      <div className="max-w-7xl mx-auto px-8 grid lg:grid-cols-2 gap-16 items-center">
+    <header className="relative pt-24 pb-16 lg:pt-48 lg:pb-40 overflow-hidden bg-surface">
+      <div className="max-w-7xl mx-auto px-4 md:px-8 grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
         <div className="relative z-10">
-          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-container/10 text-primary font-label text-xs font-bold uppercase tracking-widest mb-6">
+          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-container/10 text-primary font-label text-[10px] md:text-xs font-bold uppercase tracking-widest mb-4 md:mb-6">
             <span className="material-symbols-outlined text-[14px]">bolt</span> New: Version 2.0 Released
           </span>
-          <h1 className="text-display-lg font-headline font-bold text-on-surface tracking-tight leading-[1.1] mb-6 text-5xl lg:text-7xl">
+          <h1 className="text-3xl md:text-4xl lg:text-7xl font-headline font-bold text-on-surface tracking-tight leading-[1.1] mb-4 md:mb-6">
             AI-Powered Interview <span className="text-primary">Intelligence</span> for Smarter Hiring
           </h1>
-          <p className="text-lg text-on-surface-variant font-body leading-relaxed mb-10 max-w-xl">
+          <p className="text-base md:text-lg text-on-surface-variant font-body leading-relaxed mb-6 md:mb-10 max-w-xl">
             Automate candidate interviews, generate AI-powered scorecards, and help recruiters make faster, better hiring decisions with high-fidelity conversational intelligence.
           </p>
           <div className="flex flex-wrap gap-4">

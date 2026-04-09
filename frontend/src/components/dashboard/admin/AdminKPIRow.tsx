@@ -1,5 +1,6 @@
 import React from 'react';
 import type { EvaluationDashboardResponse } from '../../../types';
+import { formatCurrency, formatPercent } from '../../../hooks/useDashboardApi';
 
 interface AdminKPIRowProps {
   evaluationData?: EvaluationDashboardResponse | null;
@@ -20,15 +21,15 @@ export const AdminKPIRow: React.FC<AdminKPIRowProps> = ({ evaluationData }) => {
   const kpis: KPI[] = [
     {
       label: 'AI Inference Precision',
-      value: d?.model_quality ? `${(d.model_quality.accuracy * 100).toFixed(1)}%` : '94.0%',
-      trend: d?.model_quality ? `Consistency: ${(d.model_quality.consistency_score * 100).toFixed(0)}%` : 'Target: 95%+',
+      value: d?.model_quality ? formatPercent(d.model_quality.accuracy) : '94.0%',
+      trend: d?.model_quality ? `Consistency: ${formatPercent(d.model_quality.consistency_score)}` : 'Target: 95%+',
       trendColor: 'text-primary',
       accent: true,
     },
     {
       label: 'Global Interviews',
       value: d?.system_health ? `${d.system_health.active_interview_sessions.toLocaleString()}` : '—',
-      trend: d?.interview_metrics ? `${(d.interview_metrics.candidate_success_rate * 100).toFixed(0)}% success` : '',
+      trend: d?.interview_metrics ? `${formatPercent(d.interview_metrics.candidate_success_rate)} success` : '',
       trendColor: 'text-tertiary',
     },
     {
@@ -39,7 +40,7 @@ export const AdminKPIRow: React.FC<AdminKPIRowProps> = ({ evaluationData }) => {
     },
     {
       label: 'System Error Rate',
-      value: d?.performance ? `${(d.performance.error_rate * 100).toFixed(2)}%` : '0.05%',
+      value: d?.performance ? formatPercent(d.performance.error_rate) : '0.05%',
       bar: d?.performance ? Math.min(d.performance.error_rate * 1000, 100) : 5,
     },
     {
@@ -50,14 +51,14 @@ export const AdminKPIRow: React.FC<AdminKPIRowProps> = ({ evaluationData }) => {
     },
     {
       label: 'Cloud Infrastructure Spend',
-      value: d?.cost ? `$${d.cost.daily_ai_spend.toFixed(2)}` : '$145.50',
+      value: d?.cost ? formatCurrency(d.cost.daily_ai_spend) : '$145.50',
       trend: d?.cost ? `Avg: $${d.cost.average_cost_per_request.toFixed(3)}/req` : '',
       trendColor: 'text-primary',
     },
   ];
 
   return (
-    <section className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+    <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
       {kpis.map(({ label, value, trend, trendColor, accent, bar }) => (
         <div
           key={label}

@@ -28,15 +28,31 @@ export const SystemHealthGrid: React.FC<SystemHealthGridProps> = ({ evaluationDa
   const d = evaluationData;
 
   // Derive service status from real data when available
-  const queueHealthy = d?.system_health ? d.system_health.queue_length < 50 : true;
-  const gpuOk = d?.system_health ? d.system_health.gpu_memory_allocated_mb < d.system_health.gpu_memory_reserved_mb * 0.9 : true;
+  const queueStatus = d?.system_health 
+    ? (d.system_health.queue_length > 20 ? 'warn' : 'ok') 
+    : 'ok';
+    
+  const gpuStatus = d?.system_health 
+    ? (d.system_health.gpu_memory_allocated_mb > d.system_health.gpu_memory_reserved_mb * 0.95 ? 'down' : 
+       d.system_health.gpu_memory_allocated_mb > d.system_health.gpu_memory_reserved_mb * 0.8 ? 'warn' : 'ok') 
+    : 'ok';
+
+  const latencyStatus = d?.performance?.latency?.p95 
+    ? (d.performance.latency.p95 > 2000 ? 'down' : 
+       d.performance.latency.p95 > 1000 ? 'warn' : 'ok') 
+    : 'ok';
+
+  const errorStatus = d?.performance?.error_rate !== undefined
+    ? (d.performance.error_rate > 0.05 ? 'down' : 
+       d.performance.error_rate > 0.01 ? 'warn' : 'ok')
+    : 'ok';
 
   const services: Service[] = [
-    { icon: 'dns', label: 'API Gateway', status: 'ok' },
-    { icon: 'database', label: 'Postgres', status: 'ok' },
-    { icon: 'bolt', label: 'Redis Cache', status: queueHealthy ? 'ok' : 'warn' },
-    { icon: 'psychology', label: 'LLM Service', status: gpuOk ? 'ok' : 'warn', highlighted: true },
-    { icon: 'settings_voice', label: 'Voice Engine', status: 'ok' },
+    { icon: 'dns', label: 'API Gateway', status: latencyStatus },
+    { icon: 'database', label: 'Postgres', status: 'ok' }, // Typically binary ok/down, keep simple
+    { icon: 'bolt', label: 'Redis Cache', status: queueStatus },
+    { icon: 'psychology', label: 'LLM Service', status: gpuStatus, highlighted: true },
+    { icon: 'settings_voice', label: 'Voice Engine', status: errorStatus },
     { icon: 'hub', label: 'WebSocket', status: d ? 'ok' : 'down' },
   ];
 
@@ -58,13 +74,20 @@ export const SystemHealthGrid: React.FC<SystemHealthGridProps> = ({ evaluationDa
         {services.map(({ icon, label, status, highlighted }) => (
           <div
             key={label}
-            className={`bg-surface-container-lowest p-4 rounded-xl flex items-center justify-between ${highlighted ? 'border-2 border-primary-fixed' : ''} ${status === 'down' ? 'opacity-50' : ''}`}
+            className={`bg-surface-container-lowest p-4 rounded-xl flex items-center justify-between transition-all hover:shadow-md
+              ${highlighted ? 'border-2 border-primary-fixed' : 'border border-outline-variant/10'} 
+              ${status === 'down' ? 'opacity-50 ring-1 ring-error/20 bg-error/5' : ''}
+              ${status === 'warn' ? 'ring-1 ring-tertiary/20 bg-tertiary/5' : ''}
+            `}
           >
             <div className="flex items-center gap-2">
               <span className={`material-symbols-outlined text-xl ${STATUS_ICON[status]}`}>{icon}</span>
-              <span className="text-sm font-semibold text-slate-900 dark:text-slate-800">{label}</span>
+              <span className="text-xs font-bold text-slate-900 dark:text-slate-800">{label}</span>
             </div>
-            <span className={`w-2.5 h-2.5 rounded-full ${STATUS_DOT[status]}`}></span>
+            <div className="relative flex items-center justify-center">
+               <span className={`w-2 h-2 rounded-full ${STATUS_DOT[status]}`}></span>
+               {status === 'warn' && <span className="absolute w-4 h-4 rounded-full border border-tertiary animate-ping opacity-25"></span>}
+            </div>
           </div>
         ))}
       </div>

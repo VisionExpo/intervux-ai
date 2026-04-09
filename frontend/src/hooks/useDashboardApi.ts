@@ -99,6 +99,35 @@ const MOCK_DATA: Record<string, any> = {
   }
 };
 
+function handleApiError(err: unknown): string {
+  if (err instanceof Error) {
+    if (err.message.includes('401')) return 'Session expired. Please log in again.';
+    if (err.message.includes('403')) return 'Permission denied for this dashboard.';
+    if (err.message.includes('500')) return 'Server overload. Retrying soon...';
+    if (err.message === 'Failed to fetch') return 'Network lost. Check your connection.';
+    return err.message;
+  }
+  return 'An unexpected error occurred';
+}
+
+/**
+ * Currency Formatter for Admin costs
+ */
+export const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+  }).format(value);
+};
+
+/**
+ * Percentage Formatter
+ */
+export const formatPercent = (value: number) => {
+  return `${(value * 100).toFixed(1)}%`;
+};
+
 function useApiFetch<T>(path: string): UseFetchResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -116,7 +145,7 @@ function useApiFetch<T>(path: string): UseFetchResult<T> {
         console.warn(`[API MOCK] Falling back to mock data for ${path}`);
         setData(MOCK_DATA[path] as T);
       } else {
-        setError(err instanceof Error ? err.message : 'Request failed');
+        setError(handleApiError(err));
       }
     } finally {
       setIsLoading(false);
