@@ -58,6 +58,7 @@ media/uploads/*
 media/local_cache/*
 !media/uploads/.gitkeep
 !media/local_cache/.gitkeep
+website template/
 
 # Logs
 *.log

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import AppShell from "./components/AppShell";
-import HomePage from "./pages/HomePage";
+import { LandingPage } from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import RecruiterDashboard from "./pages/RecruiterDashboard";
@@ -50,7 +50,7 @@ function App() {
   if (!isAuthenticated) {
     if (hash === "/login") return <Login />;
     if (hash === "/signup") return <Signup />;
-    return <HomePage />;
+    return <LandingPage />;
   }
 
   const userRole = user?.role;
