@@ -48,7 +48,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Fetch user profile on mount if token exists
   useEffect(() => {
+    const hash = window.location.hash;
+    const isDemoQuery = hash.includes('demo=true');
+    
     const initAuth = async () => {
+      // Priority: URL param > localStorage demo flag > standard auth
+      let demoRole = null;
+      if (isDemoQuery) {
+        const hashParts = hash.split('?');
+        const params = new URLSearchParams(hashParts[1] || '');
+        demoRole = params.get('role');
+        if (demoRole) localStorage.setItem('intervux_demo_role', demoRole);
+      } else {
+        demoRole = localStorage.getItem('intervux_demo_role');
+      }
+
+      if (isDemoQuery || demoRole) {
+        const activeRole = demoRole || 'admin';
+        setUser({ 
+          id: 'demo-123', 
+          email: `demo-${activeRole}@intervux.ai`, 
+          name: `Demo Hero`, 
+          role: activeRole as any 
+        });
+        setIsLoading(false);
+        return;
+      }
+
       const storedToken = localStorage.getItem("auth_token");
       if (storedToken) {
         try {
@@ -131,7 +157,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handleUnauthorized = () => {
-      resetAuthState();
+      if (!window.location.hash.includes('demo=true')) {
+        resetAuthState();
+      }
     };
 
     window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
@@ -148,7 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         logout,
-        isAuthenticated: !!token && !!user,
+        isAuthenticated: !!token && !!user || window.location.hash.includes('demo=true'),
       }}
     >
       {children}
@@ -169,6 +197,7 @@ export async function authFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const isDemo = window.location.hash.includes('demo=true');
   const token = localStorage.getItem("auth_token");
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -184,7 +213,7 @@ export async function authFetch<T>(
   });
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && !isDemo) {
       // Token expired or invalid
       localStorage.removeItem("auth_token");
       window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));

@@ -15,19 +15,109 @@ interface UseFetchResult<T> {
   refetch: () => void;
 }
 
+// ──────────────────────────────────────────
+// Mock Data for Demo Mode
+// ──────────────────────────────────────────
+const MOCK_DATA: Record<string, any> = {
+  '/api/candidate/dashboard': {
+    profile_score: 82,
+    resume_score: 75,
+    mock_interview_score: 88,
+    mock_interviews_remaining: 3,
+    recent_activity: ['Resume uploaded', 'Mock interview completed', 'Profile updated'],
+  },
+  '/api/candidate/profile': {
+    id: 1,
+    user_id: 'demo-123',
+    name: 'Demo Candidate',
+    skills: ['React', 'TypeScript', 'Node.js', 'Python'],
+    resume_url: 'https://example.com/resume.pdf',
+    profile_score: 82,
+    created_at: new Date().toISOString(),
+  },
+  '/api/recruiter/candidates': [
+    { id: '1', name: 'Alice Smith', email: 'alice@example.com', role: 'Frontend Developer', created_at: new Date().toISOString() },
+    { id: '2', name: 'Bob Johnson', email: 'bob@example.com', role: 'Backend Engineer', created_at: new Date().toISOString(), interview_id: 'int-1' },
+    { id: '3', name: 'Charlie Brown', email: 'charlie@example.com', role: 'Fullstack Dev', created_at: new Date().toISOString() },
+  ],
+  '/api/recruiter/job-posts': [
+    { id: 'j1', title: 'Senior React Developer', status: 'active', experience_level: 'Senior', created_at: new Date().toISOString() },
+    { id: 'j2', title: 'Python Backend Engineer', status: 'active', experience_level: 'Mid', created_at: new Date().toISOString() },
+    { id: 'j3', title: 'UX Designer', status: 'paused', experience_level: 'Lead', created_at: new Date().toISOString() },
+  ],
+  '/api/admin/evaluation-dashboard': {
+    generated_at: new Date().toISOString(),
+    model_quality: {
+      accuracy: 0.94,
+      hallucination_rate: 0.02,
+      consistency_score: 0.89,
+      reasoning_score: 0.91,
+    },
+    performance: {
+      latency: { p50: 450, p95: 1200, p99: 2500 },
+      throughput: { requests_per_second: 12.5, tokens_per_second: 450 },
+      error_rate: 0.005,
+    },
+    cost: {
+      total_spend_usd: 145.50,
+      average_cost_per_request: 0.012,
+      daily_ai_spend: 145.5,
+      cost_by_model: [
+        { model: 'GPT-4o', cost: 85.2 },
+        { model: 'Gemini 1.5 Pro', cost: 60.3 },
+      ],
+    },
+    token_usage: {
+      average_prompt_tokens: 1200,
+      average_completion_tokens: 450,
+      total_tokens_today: 1250000,
+    },
+    model_usage: [
+      { model: 'GPT-4o', percentage: 65, requests: 850 },
+      { model: 'Gemini 1.5 Pro', percentage: 35, requests: 460 },
+    ],
+    interview_metrics: {
+      candidate_success_rate: 0.76,
+      average_interview_duration_minutes: 42,
+      skill_evaluation_distribution: [
+        { skill: 'Problem Solving', score: 8.5 },
+        { skill: 'Technical Depth', score: 7.9 },
+      ],
+    },
+    system_health: {
+      active_interview_sessions: 24,
+      queue_length: 3,
+      gpu_memory_allocated_mb: 4096,
+      gpu_memory_reserved_mb: 8192,
+      max_concurrent_sessions: 100,
+    },
+    alerts: [
+      { severity: 'high', message: 'Spike in p95 latency detected in us-east-1' },
+      { severity: 'medium', message: 'Budget alert: 15% of daily limit reached' },
+    ],
+    ai_hiring_summary: 'Overall recruitment efficiency is up 12%.'
+  }
+};
+
 function useApiFetch<T>(path: string): UseFetchResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
+    const isMock = window.location.hash.includes('mock=true') || window.location.hash.includes('demo=true');
     setIsLoading(true);
     setError(null);
     try {
       const result = await authFetch<T>(path);
       setData(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Request failed');
+      if (isMock && MOCK_DATA[path]) {
+        console.warn(`[API MOCK] Falling back to mock data for ${path}`);
+        setData(MOCK_DATA[path] as T);
+      } else {
+        setError(err instanceof Error ? err.message : 'Request failed');
+      }
     } finally {
       setIsLoading(false);
     }

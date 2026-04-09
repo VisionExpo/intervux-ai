@@ -28,8 +28,8 @@ export const SystemHealthGrid: React.FC<SystemHealthGridProps> = ({ evaluationDa
   const d = evaluationData;
 
   // Derive service status from real data when available
-  const queueHealthy = d ? d.system_health.queue_length < 50 : true;
-  const gpuOk = d ? d.system_health.gpu_memory_allocated_mb < d.system_health.gpu_memory_reserved_mb * 0.9 : true;
+  const queueHealthy = d?.system_health ? d.system_health.queue_length < 50 : true;
+  const gpuOk = d?.system_health ? d.system_health.gpu_memory_allocated_mb < d.system_health.gpu_memory_reserved_mb * 0.9 : true;
 
   const services: Service[] = [
     { icon: 'dns', label: 'API Gateway', status: 'ok' },

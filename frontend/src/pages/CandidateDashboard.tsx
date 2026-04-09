@@ -8,11 +8,12 @@ import { AIInsightsCard } from '../components/dashboard/candidate/AIInsightsCard
 
 export default function CandidateDashboard() {
   const { user } = useAuth();
-  const { data: dashboard, isLoading: dashLoading } = useCandidateDashboard();
-  const { data: profile, isLoading: profileLoading } = useCandidateProfile();
+  const { data: dashboard, isLoading: dashLoading, error: dashError } = useCandidateDashboard();
+  const { data: profile, isLoading: profileLoading, error: profileError } = useCandidateProfile();
 
   const firstName = profile?.name?.split(' ')[0] || user?.name?.split(' ')[0] || 'Candidate';
   const isLoading = dashLoading || profileLoading;
+  const error = dashError || profileError;
 
   if (isLoading) {
     return (
@@ -33,9 +34,16 @@ export default function CandidateDashboard() {
         matchScore={dashboard?.profile_score ? `${dashboard.profile_score.toFixed(0)}% Profile` : '—'}
       />
 
+      {error && (
+        <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-sm text-amber-700 font-medium">
+          <span className="material-symbols-outlined text-amber-500">warning</span>
+          <span>Using offline workspace mode: {error}</span>
+        </div>
+      )}
+
       {/* Bento grid — main focal row */}
       <div className="grid grid-cols-12 gap-6 mb-6">
-        <UpcomingInterview />
+        <UpcomingInterview interviewScheduled={dashboard?.mock_interviews_remaining !== undefined && dashboard.mock_interviews_remaining < 5} />
         <NextStepsChecklist
           resumeUploaded={!!profile?.resume_url}
           profileScore={dashboard?.profile_score ?? 0}

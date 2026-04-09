@@ -1,7 +1,24 @@
 import React from 'react';
 import { DashboardCard } from '../shared/DashboardCard';
 
-export const UpcomingInterview: React.FC = () => {
+interface UpcomingInterviewProps {
+  interviewScheduled?: boolean;
+}
+
+export const UpcomingInterview: React.FC<UpcomingInterviewProps> = ({ interviewScheduled = false }) => {
+  if (!interviewScheduled) {
+    return (
+      <DashboardCard className="col-span-12 md:col-span-8 relative overflow-hidden group border-2 border-dashed border-slate-200 bg-slate-50/30 flex flex-col items-center justify-center min-h-[220px]">
+        <span className="material-symbols-outlined text-slate-300 text-5xl mb-4">event_available</span>
+        <h3 className="text-lg font-bold text-slate-400 font-headline">No Interviews Scheduled</h3>
+        <p className="text-xs text-slate-400 mt-1">Check back once you've been invited to evaluate</p>
+        <button className="mt-6 px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:border-primary hover:text-primary transition-all">
+          Browse Active Jobs
+        </button>
+      </DashboardCard>
+    );
+  }
+
   return (
     <DashboardCard className="col-span-12 md:col-span-8 relative overflow-hidden group hover:shadow-xl transition-shadow duration-500">
       {/* Decorative animated pulse */}
@@ -27,8 +44,8 @@ export const UpcomingInterview: React.FC = () => {
                 <span className="material-symbols-outlined text-slate-600">calendar_month</span>
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-800">Tomorrow, Oct 24</p>
-                <p className="text-xs text-slate-500">10:00 AM – 11:30 AM EST</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-800">Tomorrow, at 10:00 AM</p>
+                <p className="text-xs text-slate-500">Duration: 90m EST</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -36,7 +53,7 @@ export const UpcomingInterview: React.FC = () => {
                 <span className="material-symbols-outlined text-slate-600">video_call</span>
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-800">Technical Deep-Dive</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-800">Final Candidate Review</p>
                 <p className="text-xs text-slate-500">Hosted on Intervux AI Video</p>
               </div>
             </div>
