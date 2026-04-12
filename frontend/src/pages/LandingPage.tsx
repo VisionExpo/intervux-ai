@@ -1,39 +1,14 @@
-﻿import { motion } from "framer-motion";
-import { ArrowRight, CheckCircle2, ShieldCheck, Sparkles, Users, Workflow } from "lucide-react";
+import { motion } from "framer-motion";
+import { ArrowRight, CheckCircle2, ShieldCheck, Sparkles, Workflow, Users, LayoutDashboard, Activity, Terminal } from "lucide-react";
 import { Link } from "react-router-dom";
 import { usePageMeta } from "../hooks/usePageMeta";
-import { SurfaceCard } from "../components/ui/SurfaceCard";
-
-const trustStats = [
-  { label: "Enterprise teams", value: "240+" },
-  { label: "Interviews processed", value: "1.2M" },
-  { label: "Decision confidence", value: "97.4%" },
-];
-
-const workflowSteps = [
-  "Intake role rubric and competency schema",
-  "AI interview orchestration and scoring",
-  "Recruiter alignment and confidence checks",
-  "Decision intelligence with auditability",
-];
+import styles from "./LandingPage.module.css";
 
 const pricingTiers = [
   { name: "Growth", price: "$299", description: "For scaling teams", features: ["3 recruiter seats", "AI scorecards", "Core analytics"] },
   { name: "Enterprise", price: "$999", description: "For hiring operations", features: ["Unlimited seats", "RBAC + SSO", "Drift and bias analytics"] },
   { name: "Strategic", price: "Custom", description: "For global orgs", features: ["Dedicated workspace", "Model governance", "Priority support"] },
 ];
-
-function MockupBar({ width, delay }: { width: string; delay: number }) {
-  return (
-    <motion.div
-      initial={{ scaleX: 0.3, opacity: 0.5 }}
-      animate={{ scaleX: 1, opacity: 1 }}
-      transition={{ repeat: Infinity, duration: 1.4, delay, repeatType: "reverse" }}
-      className="h-2 origin-left rounded-full bg-gradient-to-r from-[#004ac6] to-[#2563eb]"
-      style={{ width }}
-    />
-  );
-}
 
 export default function LandingPage() {
   usePageMeta(
@@ -42,151 +17,206 @@ export default function LandingPage() {
   );
 
   return (
-    <div className="bg-[#f7f9fb] text-slate-900">
-      <header className="sticky top-0 z-40 bg-white/70 backdrop-blur-2xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#004ac6] to-[#2563eb] text-white">
-              <Sparkles className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="font-[Manrope] text-lg font-bold">Intervux AI</p>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Hiring Intelligence OS</p>
-            </div>
-          </div>
+    <div className={styles.landingRoot}>
+      {/* Animated Background Elements */}
+      <div className={styles.bgGradient} />
+      <div className={styles.bgOrbs} />
+      <div className={styles.bgOrbs2} />
 
-          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
-            <button onClick={() => document.getElementById("workflow")?.scrollIntoView({ behavior: "smooth" })} className="hover:text-[#004ac6]">Workflow</button>
-            <button onClick={() => document.getElementById("platform")?.scrollIntoView({ behavior: "smooth" })} className="hover:text-[#004ac6]">Platform</button>
-            <button onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })} className="hover:text-[#004ac6]">Pricing</button>
-          </nav>
-
-          <div className="flex items-center gap-2">
-            <Link to="/login" className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-700">Sign in</Link>
-            <Link to="/signup" className="rounded-xl bg-[#004ac6] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#003ea8]">Start trial</Link>
+      {/* Glossy Navigation */}
+      <header className={styles.header}>
+        <div className={styles.logo}>
+          <div className={styles.logoIcon}>
+            <Sparkles size={20} color="#fff" />
           </div>
+          <span style={{ color: "var(--text-primary)" }}>Intervux AI</span>
+        </div>
+
+        <nav className={styles.navLinks}>
+          <button onClick={() => document.getElementById("workflow")?.scrollIntoView({ behavior: "smooth" })}>Workflow</button>
+          <button onClick={() => document.getElementById("platform")?.scrollIntoView({ behavior: "smooth" })}>Platform</button>
+          <button onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}>Pricing</button>
+        </nav>
+
+        <div className={styles.authActions}>
+          <Link to="/login" className={styles.signInBtn}>Sign in</Link>
+          <Link to="/signup" className={styles.startTrialBtn}>Start trial</Link>
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-8 px-4 pb-14 pt-14 md:grid-cols-2 md:px-8">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
-          <p className="inline-flex items-center gap-2 rounded-full bg-[#dbe1ff] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#003ea8]">
-            <ShieldCheck className="h-3.5 w-3.5" />
+      {/* Hero Section */}
+      <section className={styles.heroSection}>
+        <motion.div 
+          className={styles.fadeUp} 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          transition={{ duration: 0.6 }}
+        >
+          <div className={styles.heroBadge}>
+            <ShieldCheck size={14} />
             Enterprise-grade AI Recruiting
-          </p>
-          <h1 className="mt-5 font-[Manrope] text-4xl font-bold leading-tight tracking-tight md:text-6xl">
+          </div>
+          
+          <h1 className={styles.heroTitle}>
             The intelligence layer for
-            <span className="text-[#004ac6]"> high-trust hiring decisions</span>
+            <br />
+            <span className={styles.heroTitleHighlight}>high-trust hiring decisions</span>
           </h1>
-          <p className="mt-4 max-w-xl text-lg text-slate-600">
-            Intervux AI transforms candidate interviews, recruiter operations, and governance controls into one premium command center.
+
+          <p className={styles.heroSubtitle}>
+            Intervux AI transforms candidate interviews, recruiter operations, and governance controls into one premium command center with guaranteed deterministic outcomes.
           </p>
 
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/signup" className="inline-flex items-center gap-2 rounded-xl bg-[#004ac6] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#003ea8]">
+          <div className={styles.heroCta}>
+            <Link to="/signup" className={styles.primaryCta}>
               Launch workspace
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight size={18} />
             </Link>
-            <button onClick={() => document.getElementById("platform")?.scrollIntoView({ behavior: "smooth" })} className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-700">Explore product</button>
-          </div>
-
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            {trustStats.map((stat) => (
-              <SurfaceCard key={stat.label} className="bg-white p-4">
-                <p className="font-[Manrope] text-2xl font-bold text-slate-900">{stat.value}</p>
-                <p className="text-sm text-slate-500">{stat.label}</p>
-              </SurfaceCard>
-            ))}
+            <button 
+              onClick={() => document.getElementById("platform")?.scrollIntoView({ behavior: "smooth" })} 
+              className={styles.secondaryCta}
+            >
+              Explore product
+            </button>
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
-          <SurfaceCard className="bg-white p-0">
-            <div className="bg-[#f2f4f6] px-5 py-3 text-sm font-semibold text-slate-700">Live AI Product Mockup</div>
-            <div className="grid gap-4 p-5">
-              <div className="rounded-2xl bg-[#f7f9fb] p-4">
-                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Candidate confidence model</p>
-                <p className="mt-2 font-[Manrope] text-3xl font-bold text-[#004ac6]">91.2%</p>
-                <div className="mt-4 space-y-2">
-                  <MockupBar width="92%" delay={0} />
-                  <MockupBar width="68%" delay={0.2} />
-                  <MockupBar width="84%" delay={0.4} />
+        {/* Interactive Simulated UI Mockup */}
+        <motion.div 
+          className={`${styles.mockupContainer} ${styles.fadeUp}`}
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+        >
+          <div className={styles.mockupWindow}>
+            <div className={styles.mockupHeader}>
+              <div className={`${styles.macDot} ${styles.red}`} />
+              <div className={`${styles.macDot} ${styles.yellow}`} />
+              <div className={`${styles.macDot} ${styles.green}`} />
+              <div style={{ marginLeft: "1rem", fontSize: "0.75rem", color: "var(--text-secondary)"}}>intervux-ai-dashboard</div>
+            </div>
+            
+            <div className={styles.mockupBody}>
+              <div className={styles.mockupSidebar}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "2rem", color: "var(--text-primary)", fontWeight: 600 }}>
+                  <LayoutDashboard size={18} color="var(--accent-primary)"/> Dashboard
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", color: "var(--text-secondary)" }}>
+                  <Users size={16} /> Active Pipelines
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", color: "var(--text-secondary)" }}>
+                  <Terminal size={16} /> Technical Review
                 </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl bg-[#f2f4f6] p-4">
-                  <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Decision SLA</p>
-                  <p className="mt-1 font-[Manrope] text-2xl font-bold">18 hrs</p>
+
+              <div className={styles.mockupContent}>
+                <div style={{ display: "flex", gap: "1rem" }}>
+                  <div className={styles.mockCard} style={{ flex: 1 }}>
+                    <div className={styles.cardDesc}>Candidate Confidence Model</div>
+                    <div className={styles.scoreDisplay}>
+                      <span className={styles.scoreValue}>91.2<span style={{ fontSize: "1.5rem" }}>%</span></span>
+                    </div>
+                  </div>
+                  <div className={styles.mockCard} style={{ flex: 1 }}>
+                    <div className={styles.cardDesc}>Decision SLA</div>
+                    <div className={styles.scoreDisplay}>
+                      <span className={styles.scoreValue}>18<span style={{ fontSize: "1.5rem", color: "var(--text-secondary)"}}> hrs</span></span>
+                    </div>
+                  </div>
                 </div>
-                <div className="rounded-2xl bg-[#f2f4f6] p-4">
-                  <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Recruiter alignment</p>
-                  <p className="mt-1 font-[Manrope] text-2xl font-bold">94%</p>
+
+                <div className={styles.mockCard}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
+                    <div style={{ color: "var(--text-primary)", fontWeight: 600 }}>Real-time Interview Feed</div>
+                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", fontSize: "0.75rem", color: "var(--text-secondary)"}}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981" }} />
+                      Actively analyzing
+                    </div>
+                  </div>
+                  <div className={styles.mockSkeletonText} style={{ width: "80%" }} />
+                  <div className={styles.mockSkeletonText} style={{ width: "90%" }} />
+                  <div className={styles.mockSkeletonText} style={{ width: "60%" }} />
                 </div>
               </div>
             </div>
-          </SurfaceCard>
+          </div>
         </motion.div>
       </section>
 
-      <section id="workflow" className="mx-auto max-w-7xl px-4 py-10 md:px-8">
-        <div className="grid gap-4 md:grid-cols-4">
-          {workflowSteps.map((step, index) => (
-            <SurfaceCard key={step} title={`Step ${index + 1}`} className="h-full bg-white">
-              <p className="text-sm text-slate-600">{step}</p>
-            </SurfaceCard>
-          ))}
+      {/* Platform Features - Bento Grid */}
+      <section id="platform" className={styles.featuresSection}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Built for intelligence and scale</h2>
+          <p style={{ color: "var(--text-secondary)" }}>Mission-critical recruitment infrastructure that doesn't compromise on design or data security.</p>
         </div>
-      </section>
 
-      <section id="platform" className="mx-auto max-w-7xl px-4 py-10 md:px-8">
-        <div className="grid gap-4 lg:grid-cols-3">
-          <SurfaceCard title="AI analytics workspace" subtitle="Real-time operational intelligence">
-            <div className="space-y-3 text-sm text-slate-600">
-              <p className="flex items-center gap-2"><Workflow className="h-4 w-4 text-[#004ac6]" />Pipeline-aware scoring with trend context.</p>
-              <p className="flex items-center gap-2"><Users className="h-4 w-4 text-[#004ac6]" />Team collaboration across recruiter pods.</p>
-              <p className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#004ac6]" />Role-based governance and audit trails.</p>
+        <div className={styles.bentoGrid}>
+          <div className={`${styles.bentoCard} ${styles.bentoLarge}`}>
+            <div className={styles.cardIcon}>
+              <Activity size={24} />
             </div>
-          </SurfaceCard>
-          <SurfaceCard title="Team collaboration" subtitle="Shared intelligence for every decision">
-            <p className="text-sm text-slate-600">Recruiters, hiring managers, and admins collaborate with contextual notes, AI recommendations, and confidence narratives.</p>
-          </SurfaceCard>
-          <SurfaceCard title="Enterprise controls" subtitle="Secure and compliant by design">
-            <p className="text-sm text-slate-600">RBAC policies, model confidence monitoring, scoring drift alerts, and deployment guardrails for mission-critical operations.</p>
-          </SurfaceCard>
+            <h3 className={styles.cardTitle}>Real-Time Evaluation Engine</h3>
+            <p className={styles.cardDesc}>
+              Intervux AI captures thousands of non-verbal and verbal data points during the session, computing an algorithmic health score mapped strictly to your core competencies. This removes interviewer bias and ensures a mathematical baseline of candidate quality.
+            </p>
+          </div>
+
+          <div className={styles.bentoCard}>
+            <div className={styles.cardIcon}>
+              <Workflow size={24} />
+            </div>
+            <h3 className={styles.cardTitle}>Intelligent Orchestration</h3>
+            <p className={styles.cardDesc}>Sync seamlessly with ATS to drive dynamic scoring and automated workflows.</p>
+          </div>
+
+          <div className={styles.bentoCard}>
+            <div className={styles.cardIcon}>
+              <Users size={24} />
+            </div>
+            <h3 className={styles.cardTitle}>Recruiter Collaboration</h3>
+            <p className={styles.cardDesc}>Share live, interactive evidence and context-rich AI scorecards to streamline hiring panel consensus.</p>
+          </div>
+
+          <div className={styles.bentoCard}>
+            <div className={styles.cardIcon}>
+              <ShieldCheck size={24} />
+            </div>
+            <h3 className={styles.cardTitle}>Enterprise Controls</h3>
+            <p className={styles.cardDesc}>Rigorous RBAC policies, bias drift alerts, and robust audit trails keep operations compliant.</p>
+          </div>
         </div>
       </section>
 
-      <section id="pricing" className="mx-auto max-w-7xl px-4 py-10 md:px-8">
-        <div className="grid gap-4 md:grid-cols-3">
+      {/* Pricing Section */}
+      <section id="pricing" className={styles.featuresSection} style={{ marginTop: "4rem" }}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Transparent Enterprise Plans</h2>
+        </div>
+        <div className={styles.bentoGrid}>
           {pricingTiers.map((tier) => (
-            <SurfaceCard key={tier.name} title={tier.name} subtitle={tier.description}>
-              <p className="font-[Manrope] text-3xl font-bold tracking-tight text-slate-900">{tier.price}<span className="text-base font-medium text-slate-500">/mo</span></p>
-              <ul className="mt-4 space-y-2 text-sm text-slate-600">
-                {tier.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#004ac6]" />{feature}</li>
+            <div key={tier.name} className={styles.bentoCard}>
+              <h3 className={styles.cardTitle}>{tier.name}</h3>
+              <p className={styles.cardDesc} style={{ marginBottom: "1.5rem" }}>{tier.description}</p>
+              <div style={{ fontSize: "2.5rem", fontWeight: 800, color: "var(--text-primary)", marginBottom: "1.5rem" }}>
+                {tier.price} <span style={{ fontSize: "1rem", color: "var(--text-secondary)", fontWeight: 500 }}>/mo</span>
+              </div>
+              <ul style={{ display: "flex", flexDirection: "column", gap: "0.75rem", padding: 0 }}>
+                {tier.features.map(feat => (
+                  <li key={feat} style={{ display: "flex", gap: "0.5rem", alignItems: "center", color: "var(--text-secondary)", fontSize: "0.875rem" }}>
+                    <CheckCircle2 size={16} color="var(--accent-primary)" />
+                    {feat}
+                  </li>
                 ))}
               </ul>
-            </SurfaceCard>
+            </div>
           ))}
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-12 md:px-8">
-        <div className="rounded-[2rem] bg-gradient-to-r from-[#004ac6] to-[#2563eb] p-8 text-white shadow-xl">
-          <p className="text-xs uppercase tracking-[0.2em] text-blue-100">AI-powered enterprise hiring intelligence operating system</p>
-          <h2 className="mt-2 font-[Manrope] text-3xl font-bold tracking-tight">Unify recruiting decisions with measurable AI confidence.</h2>
-          <Link to="/signup" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-[#004ac6]">
-            Activate Intervux AI
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </section>
-
-      <footer className="bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-8 text-sm text-slate-500 md:flex-row md:items-center md:justify-between md:px-8">
-          <p>© 2026 Intervux AI. Built for intelligent, equitable hiring.</p>
-          <p>Security • Compliance • Intelligence</p>
-        </div>
+      {/* Footer */}
+      <footer className={styles.footer}>
+        <div>© 2026 Intervux AI. Built for intelligent, equitable hiring.</div>
+        <div>Security • Compliance • Intelligence</div>
       </footer>
     </div>
   );
