@@ -1,0 +1,65 @@
+/* =============================================
+   DESIGN TOKENS — Deep Ocean & Indigo
+   ============================================= */
+:root {
+  /* Ocean Colors */
+  --bg-ocean-base: #060913;
+  --bg-ocean-elevated: #090e1a;
+  --bg-ocean-overlay: #101625;
+  
+  /* Accents */
+  --accent-indigo: #4f46e5;
+  --accent-indigo-hover: #4338ca;
+  --accent-indigo-glow: rgba(79, 70, 229, 0.35);
+  
+  --accent-ocean: #0ea5e9;
+  --accent-ocean-hover: #0284c7;
+  --accent-ocean-glow: rgba(14, 165, 233, 0.35);
+
+  --accent-danger: #e11d48;
+  --accent-danger-glow: rgba(225, 29, 72, 0.35);
+
+  --accent-success: #10b981;
+  --accent-success-glow: rgba(16, 185, 129, 0.35);
+
+  /* Glass Effects */
+  --surface-glass-light: rgba(255, 255, 255, 0.03);
+  --surface-glass-heavy: rgba(255, 255, 255, 0.08);
+  --border-glass: rgba(255, 255, 255, 0.06);
+  --border-glass-glow: rgba(79, 70, 229, 0.3);
+
+  /* Text Colors */
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+
+  /* Typography */
+  --font-primary: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-heading: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "Fira Code", ui-monospace, SFMono-Regular, monospace;
+
+  /* Shadows (with base dark theme) */
+  --shadow-sm: 0 4px 15px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px var(--accent-indigo-glow);
+  
+  /* Blur Scales */
+  --blur-sm: blur(4px);
+  --blur-md: blur(8px);
+  --blur-lg: blur(16px);
+  
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+}

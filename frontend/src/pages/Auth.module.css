@@ -3,7 +3,7 @@
   min-height: 100vh;
   align-items: center;
   justify-content: center;
-  background-color: var(--bg-primary);
+  background-color: var(--bg-ocean-base);
   color: var(--text-primary);
   padding: 1rem;
   position: relative;
@@ -18,7 +18,7 @@
   width: 100vw;
   height: 100vh;
   z-index: 0;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, rgba(79, 70, 229, 0.1) 100%);
+  background: linear-gradient(135deg, var(--bg-ocean-base) 0%, var(--bg-ocean-elevated) 50%, var(--accent-indigo-glow) 100%);
   pointer-events: none;
 }
 
@@ -28,8 +28,8 @@
   right: -10%;
   width: 600px;
   height: 600px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  border-radius: var(--radius-full);
+  background: radial-gradient(circle, var(--accent-ocean-glow) 0%, transparent 70%);
   filter: blur(100px);
   animation: float 20s ease-in-out infinite alternate;
   z-index: 0;
@@ -42,18 +42,11 @@
   100% { transform: translate(30px, -50px) scale(0.95); }
 }
 
-.authCard {
+.authCardWrapper {
   position: relative;
   z-index: 10;
   width: 100%;
   max-width: 440px;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  background: var(--surface-glass);
-  border: 1px solid var(--surface-border);
-  border-radius: 24px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
-  padding: 2.5rem;
 }
 
 .brandHeader {
@@ -69,14 +62,14 @@
   width: 2.5rem;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--accent-indigo), var(--accent-ocean));
   color: white;
-  box-shadow: 0 4px 20px var(--accent-glow);
+  box-shadow: 0 4px 20px var(--accent-indigo-glow);
 }
 
 .brandTitle {
-  font-family: 'Manrope', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: 1.125rem;
   color: var(--text-primary);
@@ -106,77 +99,27 @@
 }
 
 .errorBox {
-  background: rgba(220, 38, 38, 0.15);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  color: #fca5a5;
+  background: rgba(225, 29, 72, 0.15); /* accent-danger at 15% */
+  border: 1px solid rgba(225, 29, 72, 0.3);
+  color: #fda4af;
   padding: 0.75rem 1rem;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   font-size: 0.875rem;
   margin-bottom: 1.5rem;
 }
 
-.inputGroup {
-  margin-bottom: 1.25rem;
-}
-
-.inputLabel {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  margin-bottom: 0.5rem;
-}
-
-.inputField {
-  width: 100%;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--surface-border);
-  border-radius: 12px;
-  padding: 0.75rem 1rem;
-  font-size: 0.875rem;
-  color: var(--text-primary);
-  outline: none;
-  font-family: inherit;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.inputField:focus {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-}
-
-.submitBtn {
-  width: 100%;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  color: white;
-  border: none;
-  border-radius: 12px;
-  padding: 0.875rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  margin-top: 1rem;
-  transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
-  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
-}
-
-.submitBtn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(79, 70, 229, 0.5);
-}
-
-.submitBtn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+.formGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 
 .demoBox {
   margin-top: 2rem;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--surface-border);
-  border-radius: 16px;
+  background: var(--surface-glass-light);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
   padding: 1rem;
   font-size: 0.75rem;
   color: var(--text-secondary);
@@ -201,11 +144,11 @@
 
 .authLink {
   font-weight: 600;
-  color: var(--accent-primary);
+  color: var(--accent-ocean);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: var(--transition-fast);
 }
 
 .authLink:hover {
-  color: #60a5fa;
+  color: #7dd3fc;
 }

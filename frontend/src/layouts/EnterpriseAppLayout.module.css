@@ -1,7 +1,7 @@
 .appLayout {
   display: flex;
   min-height: 100vh;
-  background-color: var(--bg-primary);
+  background-color: var(--bg-ocean-base);
   color: var(--text-primary);
   position: relative;
 }
@@ -11,10 +11,10 @@
   display: none;
   width: 280px;
   flex-shrink: 0;
-  background: rgba(17, 24, 39, 0.4);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-right: 1px solid var(--surface-border);
+  background: var(--surface-glass-light);
+  backdrop-filter: var(--blur-lg);
+  -webkit-backdrop-filter: var(--blur-lg);
+  border-right: 1px solid var(--border-glass);
   padding: 1.75rem 1.5rem;
   flex-direction: column;
   z-index: 50;
@@ -42,14 +42,14 @@
   width: 2.75rem;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--accent-indigo), var(--accent-ocean));
   color: white;
-  box-shadow: 0 4px 20px var(--accent-glow);
+  box-shadow: 0 4px 20px var(--accent-indigo-glow);
 }
 
 .brandText {
-  font-family: 'Manrope', sans-serif;
+  font-family: var(--font-heading);
   font-size: 1.125rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -61,7 +61,7 @@
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.2em;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   margin: 0;
 }
 
@@ -75,13 +75,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 0.625rem 0.75rem;
   font-size: 0.875rem;
   font-weight: 500;
   text-decoration: none;
   color: var(--text-secondary);
-  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+  transition: var(--transition-fast);
 }
 
 .navItem span {
@@ -91,19 +91,19 @@
 }
 
 .navItem:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-glass-heavy);
   color: var(--text-primary);
 }
 
 .navItemActive {
-  background: rgba(79, 70, 229, 0.14);
+  background: var(--accent-indigo-glow);
   color: var(--text-primary);
-  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.3);
+  box-shadow: inset 0 0 0 1px var(--border-glass-glow);
 }
 
 .navBadge {
-  border-radius: 9999px;
-  background: var(--accent-primary);
+  border-radius: var(--radius-full);
+  background: var(--accent-indigo);
   padding: 0.125rem 0.5rem;
   font-size: 0.625rem;
   color: white;
@@ -111,9 +111,9 @@
 
 .userProfile {
   margin-top: auto;
-  border-radius: 16px;
-  background: var(--surface-glass);
-  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-glass-light);
+  border: 1px solid var(--border-glass);
   padding: 1rem;
 }
 
@@ -121,7 +121,7 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   margin: 0 0 0.5rem 0;
 }
 
@@ -145,20 +145,20 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  background: var(--surface-glass-light);
   border: 1px solid transparent;
   padding: 0.5rem;
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
+  transition: var(--transition-fast);
 }
 
 .logoutBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: var(--surface-glass-heavy);
+  border-color: var(--border-glass);
 }
 
 /* Mobile Nav Overlay */
@@ -166,15 +166,15 @@
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: rgba(11, 18, 32, 0.6);
-  backdrop-filter: blur(8px);
+  background: var(--bg-ocean-overlay);
+  backdrop-filter: var(--blur-md);
 }
 
 .mobileSidebar {
   height: 100%;
   width: 280px;
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--surface-border);
+  background: var(--bg-ocean-elevated);
+  border-right: 1px solid var(--border-glass);
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
@@ -186,6 +186,7 @@
   justify-content: space-between;
   margin-bottom: 2rem;
   color: var(--text-primary);
+  font-family: var(--font-heading);
   font-weight: 600;
 }
 
@@ -214,10 +215,10 @@
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(11, 18, 32, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--surface-border);
+  background: rgba(6, 9, 19, 0.75); /* matches ocean base mostly */
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  border-bottom: 1px solid var(--border-glass);
   padding: 0.75rem 1.5rem;
   display: flex;
   align-items: center;
@@ -231,9 +232,9 @@
 }
 
 .mobileMenuBtn {
-  background: var(--surface-glass);
-  border: 1px solid var(--surface-border);
-  border-radius: 8px;
+  background: var(--surface-glass-light);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
   padding: 0.5rem;
   color: var(--text-primary);
   display: none;
@@ -255,12 +256,12 @@
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   margin: 0;
 }
 
 .pageContextTitle {
-  font-family: 'Manrope', sans-serif;
+  font-family: var(--font-heading);
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -277,9 +278,9 @@
   display: none;
   align-items: center;
   gap: 0.5rem;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-glass-light);
+  border: 1px solid var(--border-glass);
   padding: 0.5rem 0.75rem;
 }
 
@@ -302,18 +303,18 @@
 }
 
 .iconBtn {
-  background: var(--surface-glass);
-  border: 1px solid var(--surface-border);
-  border-radius: 8px;
+  background: var(--surface-glass-light);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
   padding: 0.5rem;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: color 0.2s, background 0.2s;
+  transition: var(--transition-fast);
 }
 
 .iconBtn:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--surface-glass-heavy);
 }
 
 .contentArea {

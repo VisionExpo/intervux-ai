@@ -1,0 +1,90 @@
+/* =============================================
+   GLOBAL RESET & TYPOGRAPHY
+   ============================================= */
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-primary);
+  background-color: var(--bg-ocean-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+  min-height: 100vh;
+  min-width: 320px;
+  overflow-x: hidden;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin-bottom: var(--space-4);
+  letter-spacing: -0.02em;
+}
+
+p, span, div {
+  font-family: var(--font-primary);
+}
+
+p {
+  margin-bottom: var(--space-4);
+  color: var(--text-secondary);
+}
+
+a {
+  color: var(--accent-indigo);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--accent-indigo-hover);
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  border: none;
+  background: none;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent-ocean);
+  outline-offset: 2px;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+ul, ol {
+  list-style: none;
+}
+
+::selection {
+  background: var(--accent-indigo-glow);
+  color: var(--text-primary);
+}
