@@ -1,8 +1,9 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { usePageMeta } from "../hooks/usePageMeta";
+import styles from "./Auth.module.css";
 
 export default function Login() {
   const { login, isAuthenticated, user } = useAuth();
@@ -37,62 +38,64 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
-      <div className="w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-8 shadow-xl">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-500 text-white">
-            <Sparkles className="h-5 w-5" />
+    <div className={styles.authRoot}>
+      <div className={styles.bgGradient} />
+      <div className={styles.bgOrbs} />
+      
+      <div className={styles.authCard}>
+        <div className={styles.brandHeader}>
+          <div className={styles.brandIcon}>
+            <Sparkles size={18} />
           </div>
           <div>
-            <p className="font-semibold text-slate-900">Intervux AI</p>
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Enterprise Workspace</p>
+            <h2 className={styles.brandTitle}>Intervux AI</h2>
+            <p className={styles.brandSubtext}>Enterprise Workspace</p>
           </div>
         </div>
 
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Sign in</h1>
-        <p className="mt-1 text-sm text-slate-500">Access your AI hiring intelligence command center.</p>
+        <h1 className={styles.pageTitle}>Sign in</h1>
+        <p className={styles.pageSubtitle}>Access your AI hiring intelligence command center.</p>
 
-        {error ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
+        {error ? <div className={styles.errorBox}>{error}</div> : null}
 
-        <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="email">Email</label>
+        <form onSubmit={handleSubmit}>
+          <div className={styles.inputGroup}>
+            <label className={styles.inputLabel} htmlFor="email">Email</label>
             <input
               id="email"
               type="email"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-400"
+              className={styles.inputField}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
             />
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="password">Password</label>
+          <div className={styles.inputGroup}>
+            <label className={styles.inputLabel} htmlFor="password">Password</label>
             <input
               id="password"
               type="password"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-400"
+              className={styles.inputField}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
             />
           </div>
-          <button disabled={isLoading} className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60">
+          <button disabled={isLoading} className={styles.submitBtn}>
             {isLoading ? "Signing in..." : "Sign in"}
           </button>
         </form>
 
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-          <p className="font-semibold text-slate-700">Demo Credentials</p>
+        <div className={styles.demoBox}>
+          <p className={styles.demoBoxTitle}>Demo Credentials</p>
           <p>Admin: admin@intervux.ai / admin123</p>
           <p>Recruiter: recruiter@intervux.ai / recruiter123</p>
         </div>
 
-        <p className="mt-5 text-sm text-slate-600">
-          No account yet? <Link to="/signup" className="font-semibold text-blue-700">Create candidate account</Link>
-        </p>
+        <div className={styles.authFooter}>
+          No account yet? <Link to="/signup" className={styles.authLink}>Create candidate account</Link>
+        </div>
       </div>
     </div>
   );
 }
-

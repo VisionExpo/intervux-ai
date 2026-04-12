@@ -5,8 +5,15 @@
 
 :root {
   font-family: "Plus Jakarta Sans", "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #0f172a;
-  background: #f1f5f9;
+  --bg-primary: #0b1220;
+  --bg-secondary: #111827;
+  --surface-glass: rgba(255, 255, 255, 0.08);
+  --surface-border: rgba(255, 255, 255, 0.12);
+  --accent-primary: #2563eb;
+  --accent-secondary: #4f46e5;
+  --accent-glow: rgba(79, 70, 229, 0.35);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
 }
 
 * {
@@ -25,16 +32,16 @@ body,
 }
 
 body {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: rgba(37, 99, 235, 0.2);
-  color: #0f172a;
+  background: var(--accent-glow);
+  color: var(--text-primary);
 }
 
 /* Interview workspace styles retained for full-screen interview route */

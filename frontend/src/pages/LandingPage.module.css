@@ -1,14 +1,4 @@
 .landingRoot {
-  --bg-primary: #0b1220;
-  --bg-secondary: #111827;
-  --surface-glass: rgba(255, 255, 255, 0.08);
-  --surface-border: rgba(255, 255, 255, 0.12);
-  --accent-primary: #2563eb;
-  --accent-secondary: #4f46e5;
-  --accent-glow: rgba(79, 70, 229, 0.45);
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-
   background-color: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
