@@ -12,14 +12,14 @@ interface SurfaceCardProps {
 export function SurfaceCard({ title, subtitle, action, children, className = "" }: SurfaceCardProps) {
   return (
     <motion.section
-      whileHover={{ y: -3 }}
-      transition={{ type: "spring", stiffness: 280, damping: 26 }}
-      className={`rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_10px_30px_-15px_rgba(15,23,42,0.25)] ${className}`}
+      whileHover={{ y: -4 }}
+      transition={{ type: "spring", stiffness: 260, damping: 24 }}
+      className={`rounded-3xl bg-white p-6 shadow-[0_24px_48px_-36px_rgba(15,23,42,0.35)] ${className}`}
     >
       {(title || subtitle || action) && (
-        <header className="mb-4 flex items-start justify-between gap-3">
+        <header className="mb-5 flex items-start justify-between gap-3">
           <div>
-            {title ? <h3 className="text-base font-semibold text-slate-900">{title}</h3> : null}
+            {title ? <h3 className="font-[Manrope] text-lg font-semibold tracking-tight text-slate-900">{title}</h3> : null}
             {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
           </div>
           {action}
@@ -29,4 +29,3 @@ export function SurfaceCard({ title, subtitle, action, children, className = "" 
     </motion.section>
   );
 }
-

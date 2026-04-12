@@ -1,4 +1,5 @@
-﻿import { motion } from "framer-motion";
+﻿import { useState } from "react";
+import { motion } from "framer-motion";
 import {
   Bar,
   BarChart,
@@ -14,7 +15,6 @@ import {
 import { SurfaceCard } from "../components/ui/SurfaceCard";
 import { StatCard } from "../components/ui/StatCard";
 import { usePageMeta } from "../hooks/usePageMeta";
-import analyticsReference from "../assets/templates/analytics-reference.png";
 
 const funnelData = [
   { stage: "Applied", value: 540 },
@@ -24,13 +24,19 @@ const funnelData = [
   { stage: "Hired", value: 39 },
 ];
 
-const trendData = [
-  { week: "W1", score: 82, alignment: 88 },
-  { week: "W2", score: 84, alignment: 90 },
-  { week: "W3", score: 87, alignment: 91 },
-  { week: "W4", score: 89, alignment: 93 },
-  { week: "W5", score: 90, alignment: 94 },
-];
+const trendData = {
+  "30D": [
+    { week: "W1", score: 82, alignment: 88 },
+    { week: "W2", score: 84, alignment: 90 },
+    { week: "W3", score: 87, alignment: 91 },
+    { week: "W4", score: 89, alignment: 93 },
+  ],
+  "90D": [
+    { week: "M1", score: 78, alignment: 84 },
+    { week: "M2", score: 83, alignment: 89 },
+    { week: "M3", score: 90, alignment: 94 },
+  ],
+};
 
 const departmentPerformance = [
   { department: "Engineering", value: 92 },
@@ -47,13 +53,15 @@ const heatmap = [
 ];
 
 export default function AnalyticsIntelligencePage() {
+  const [range, setRange] = useState<"30D" | "90D">("30D");
+
   usePageMeta("Analytics Dashboard | Intervux AI", "Hiring funnel metrics, model trend analytics, bias detection, confidence, and department performance.");
 
   return (
     <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-      <section className="rounded-[2rem] border border-slate-200 bg-white px-6 py-6 shadow-sm">
+      <section className="rounded-[2rem] bg-white px-6 py-6 shadow-sm">
         <p className="text-sm text-slate-500">Intelligence Analytics</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">Hiring funnel, model performance, and alignment insights</h1>
+        <h1 className="mt-1 font-[Manrope] text-3xl font-bold tracking-tight text-slate-900">Hiring funnel, model performance, and alignment insights</h1>
       </section>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -74,7 +82,7 @@ export default function AnalyticsIntelligencePage() {
                 <Tooltip />
                 <Bar dataKey="value" radius={[10, 10, 0, 0]}>
                   {funnelData.map((entry) => (
-                    <Cell key={entry.stage} fill="#3b82f6" />
+                    <Cell key={entry.stage} fill="#004ac6" />
                   ))}
                 </Bar>
               </BarChart>
@@ -84,24 +92,29 @@ export default function AnalyticsIntelligencePage() {
 
         <SurfaceCard title="Bias detection" subtitle="Protected attribute variance">
           <div className="space-y-3 text-sm text-slate-600">
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-700">Gender variance: 0.04 (Healthy)</div>
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-700">Experience variance: 0.07 (Healthy)</div>
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-amber-700">Education variance: 0.13 (Review)</div>
+            <div className="rounded-2xl bg-[#dbe1ff] p-3 text-[#003ea8]">Gender variance: 0.04 (Healthy)</div>
+            <div className="rounded-2xl bg-[#dbe1ff] p-3 text-[#003ea8]">Experience variance: 0.07 (Healthy)</div>
+            <div className="rounded-2xl bg-[#ffdbcd] p-3 text-[#7d2d00]">Education variance: 0.13 (Review)</div>
           </div>
         </SurfaceCard>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <SurfaceCard title="Model score trends" subtitle="Weekly score and alignment trajectory" className="xl:col-span-2">
+        <SurfaceCard
+          title="Model score trends"
+          subtitle="Weekly score and alignment trajectory"
+          className="xl:col-span-2"
+          action={<div className="flex items-center gap-1 rounded-xl bg-[#f2f4f6] p-1 text-xs font-semibold"><button onClick={() => setRange("30D")} className={`rounded-lg px-2 py-1 ${range === "30D" ? "bg-white text-[#004ac6]" : "text-slate-500"}`}>30D</button><button onClick={() => setRange("90D")} className={`rounded-lg px-2 py-1 ${range === "90D" ? "bg-white text-[#004ac6]" : "text-slate-500"}`}>90D</button></div>}
+        >
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendData}>
+              <LineChart data={trendData[range]}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="week" stroke="#94a3b8" />
                 <YAxis stroke="#94a3b8" />
                 <Tooltip />
-                <Line type="monotone" dataKey="score" stroke="#2563eb" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="alignment" stroke="#14b8a6" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="score" stroke="#004ac6" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="alignment" stroke="#2563eb" strokeWidth={2.5} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -112,12 +125,7 @@ export default function AnalyticsIntelligencePage() {
             {heatmap.map((row, rowIndex) => (
               <div key={rowIndex} className="grid grid-cols-5 gap-2">
                 {row.map((value, cellIndex) => (
-                  <div
-                    key={`${rowIndex}-${cellIndex}`}
-                    className="h-10 rounded-lg"
-                    style={{ backgroundColor: `rgba(37,99,235,${value})` }}
-                    title={`Confidence ${(value * 100).toFixed(0)}%`}
-                  />
+                  <div key={`${rowIndex}-${cellIndex}`} className="h-10 rounded-lg" style={{ backgroundColor: `rgba(0,74,198,${value})` }} title={`Confidence ${(value * 100).toFixed(0)}%`} />
                 ))}
               </div>
             ))}
@@ -128,18 +136,13 @@ export default function AnalyticsIntelligencePage() {
       <SurfaceCard title="Department performance" subtitle="Composite hiring intelligence score">
         <div className="grid gap-3 md:grid-cols-4">
           {departmentPerformance.map((item) => (
-            <div key={item.department} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div key={item.department} className="rounded-2xl bg-[#f2f4f6] p-4">
               <p className="text-sm text-slate-500">{item.department}</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-900">{item.value}</p>
+              <p className="mt-2 font-[Manrope] text-3xl font-bold text-slate-900">{item.value}</p>
             </div>
           ))}
         </div>
       </SurfaceCard>
-
-      <SurfaceCard title="Reference Analytics Dashboard" subtitle="Using website template analytics asset">
-        <img src={analyticsReference} alt="Analytics template reference" className="w-full rounded-2xl border border-slate-200 object-cover" />
-      </SurfaceCard>
     </motion.div>
   );
 }
-
