@@ -47,7 +47,7 @@ export const ProductShowcase: React.FC = () => {
               <img 
                 alt="Dashboard Mockup" 
                 className="rounded-[2rem] w-full object-cover aspect-[4/3] shadow-inner" 
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAO3VPMgkQzZfi8_K4GcHoZH_tqygY07pM4uMC1bY_kEASbB85fMUy9O3aSzbN27mdiOtqDqoU4aD9wSOmHe4pqCKznJO_ZiO5RxI6BehwAKUtBhiVid8_BhtIhjBSshka_IPuykJNMDg9pZjuitkLyv8wc5IqSFyQe3kIzuubqE51Bok2-gDJXPzcEvoKljzkvWkuFVkSN16qRd1BLJRJb_KQ1TSVehgN3kNn0SJUGdVNfMqNSYThTFRXE2Mzz1aMqtd_qfGgjG6Q"
+                src="/assets/hero-dashboard.png"
               />
             </div>
           </div>

@@ -4,10 +4,9 @@ import { ROLE_NAVIGATION, type Role } from '../config/navConfig';
 interface SidebarProps {
   currentPath: string;
   isOpen: boolean;
-  setIsOpen: (open: boolean) => void;
 }
 
-export default function Sidebar({ currentPath, isOpen, setIsOpen }: SidebarProps) {
+export default function Sidebar({ currentPath, isOpen }: SidebarProps) {
   const { user } = useAuth();
   
   // Default to candidate if no role or unauthenticated

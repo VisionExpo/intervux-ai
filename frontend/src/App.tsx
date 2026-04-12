@@ -1,123 +1,199 @@
-import { useEffect, useState } from "react";
+﻿import { Suspense, lazy, useEffect, type ReactNode } from "react";
+import { HashRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { Sparkles } from "lucide-react";
 import { useAuth } from "./hooks/useAuth";
-import AppShell from "./components/AppShell";
-import { LandingPage } from "./pages/LandingPage";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import RecruiterDashboard from "./pages/RecruiterDashboard";
-import AdminDashboard from "./pages/AdminDashboard";
-import CandidateDashboard from "./pages/CandidateDashboard";
-import CandidateProfile from "./pages/CandidateProfile";
-import MockInterview from "./pages/MockInterview";
-import InterviewHistory from "./pages/InterviewHistory";
-import CandidateNotifications from "./pages/CandidateNotifications";
-import InterviewPage from "./pages/InterviewPage";
-import CandidateInterviewReport from "./pages/CandidateInterviewReport";
-import "./App.css";
+import { EnterpriseAppLayout } from "./layouts/EnterpriseAppLayout";
 
-function getRoute(): string {
-  return window.location.hash.replace("#", "").split("?")[0] || "/";
-}
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const Login = lazy(() => import("./pages/Login"));
+const Signup = lazy(() => import("./pages/Signup"));
 
-function App() {
-  const { user, isAuthenticated, isLoading } = useAuth();
-  const [hash, setHash] = useState(getRoute);
+const CandidateIntelligencePage = lazy(() => import("./dashboard/CandidateIntelligencePage"));
+const RecruiterOperationsPage = lazy(() => import("./dashboard/RecruiterOperationsPage"));
+const AdminCommandCenterPage = lazy(() => import("./admin/AdminCommandCenterPage"));
+const RbacAccessControlPage = lazy(() => import("./admin/RbacAccessControlPage"));
+const AnalyticsIntelligencePage = lazy(() => import("./analytics/AnalyticsIntelligencePage"));
 
-  useEffect(() => {
-    const handleHashChange = () => setHash(getRoute());
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
-  }, []);
+const CandidateProfile = lazy(() => import("./pages/CandidateProfile"));
+const MockInterview = lazy(() => import("./pages/MockInterview"));
+const InterviewHistory = lazy(() => import("./pages/InterviewHistory"));
+const CandidateNotifications = lazy(() => import("./pages/CandidateNotifications"));
+const InterviewPage = lazy(() => import("./pages/InterviewPage"));
+const CandidateInterviewReport = lazy(() => import("./pages/CandidateInterviewReport"));
 
-  // After login, redirect to dashboard if still at root
-  useEffect(() => {
-    if (isAuthenticated && (!window.location.hash || window.location.hash === "#/" || window.location.hash === "")) {
-      window.location.hash = "#/dashboard";
-    }
-  }, [isAuthenticated]);
-
-  if (isLoading) {
-    return (
-      <div className="login-page">
-      <div className="login-container loading-screen">
-        <div className="loading-icon">⚡</div>
-        <p className="loading-text">Loading Intervux AI...</p>
-      </div>
-    </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    if (hash === "/login") return <Login />;
-    if (hash === "/signup") return <Signup />;
-    return <LandingPage />;
-  }
-
-  const userRole = user?.role;
-
-  if (userRole === "candidate") {
-    // Pages that use the full-screen interview layout (no sidebar)
-    if (hash === "/interview-session") return <InterviewPage />;
-    if (hash === "/report")            return <CandidateInterviewReport />;
-    if (hash === "/logout")            return <LogoutRedirect />;
-
-    // All other candidate pages get the sidebar shell
-    const page = (() => {
-      switch (hash) {
-        case "/dashboard":         return <CandidateDashboard />;
-        case "/profile":           return <CandidateProfile />;
-        case "/mock-interview":    return <MockInterview />;
-        case "/interview-history": return <InterviewHistory />;
-        case "/notifications":     return <CandidateNotifications />;
-        default:                   return <CandidateDashboard />;
-      }
-    })();
-
-    return <AppShell currentPath={hash}>{page}</AppShell>;
-  }
-
-  if (userRole === "admin") {
-    if (hash === "/logout") return <LogoutRedirect />;
-
-    const adminPage = (() => {
-      switch (hash) {
-        case "/dashboard":      return <AdminDashboard />;
-        case "/users":         return <AdminDashboard />;
-        case "/system-health": return <AdminDashboard />;
-        case "/audit-logs":    return <AdminDashboard />;
-        case "/settings":      return <AdminDashboard />;
-        default:               return <AdminDashboard />;
-      }
-    })();
-
-    return <AppShell currentPath={hash}>{adminPage}</AppShell>;
-  }
-
-  // Recruiter
-  const recruiterPage = (() => {
-    switch (hash) {
-      case "/dashboard": return <RecruiterDashboard />;
-      // Extra recruiter routes would go here (e.g. /candidates, /jobs)
-      default: return <RecruiterDashboard />;
-    }
-  })();
-
-  return <AppShell currentPath={hash}>{recruiterPage}</AppShell>;
-}
-
-export default App;
-
-function LogoutRedirect() {
-  useEffect(() => {
-    localStorage.removeItem("auth_token");
-    window.location.hash = "#/";
-    window.location.reload();
-  }, []);
+function LoadingScreen() {
   return (
-    <div className="login-page">
-      <div className="login-container loading-screen">
-        <p className="loading-text">Logging out...</p>
+    <div className="flex min-h-screen items-center justify-center bg-slate-100">
+      <div className="rounded-2xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
+        <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <Sparkles className="h-4 w-4 text-blue-600" />
+          Loading Intervux AI workspace...
+        </p>
       </div>
     </div>
   );
 }
+
+function RoleHomeRedirect() {
+  const { user } = useAuth();
+  if (user?.role === "admin") return <Navigate to="/admin" replace />;
+  if (user?.role === "recruiter") return <Navigate to="/recruiter" replace />;
+  return <Navigate to="/candidate" replace />;
+}
+
+function ProtectedRoute({ children, allowedRoles }: { children: ReactNode; allowedRoles?: string[] }) {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (allowedRoles && user?.role && !allowedRoles.includes(user.role)) return <RoleHomeRedirect />;
+  return <>{children}</>;
+}
+
+function LogoutRoute() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    logout();
+    navigate("/", { replace: true });
+  }, [logout, navigate]);
+
+  return <LoadingScreen />;
+}
+
+function AppContent() {
+  const { isLoading, isAuthenticated } = useAuth();
+
+  if (isLoading) return <LoadingScreen />;
+
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <Routes>
+        <Route path="/" element={isAuthenticated ? <RoleHomeRedirect /> : <LandingPage />} />
+        <Route path="/login" element={isAuthenticated ? <RoleHomeRedirect /> : <Login />} />
+        <Route path="/signup" element={isAuthenticated ? <RoleHomeRedirect /> : <Signup />} />
+
+        <Route
+          path="/candidate"
+          element={
+            <ProtectedRoute allowedRoles={["candidate"]}>
+              <EnterpriseAppLayout>
+                <CandidateIntelligencePage />
+              </EnterpriseAppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/recruiter"
+          element={
+            <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
+              <EnterpriseAppLayout>
+                <RecruiterOperationsPage />
+              </EnterpriseAppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <EnterpriseAppLayout>
+                <AdminCommandCenterPage />
+              </EnterpriseAppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/rbac"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <EnterpriseAppLayout>
+                <RbacAccessControlPage />
+              </EnterpriseAppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
+              <EnterpriseAppLayout>
+                <AnalyticsIntelligencePage />
+              </EnterpriseAppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <EnterpriseAppLayout>
+                <CandidateProfile />
+              </EnterpriseAppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mock-interview"
+          element={
+            <ProtectedRoute>
+              <EnterpriseAppLayout>
+                <MockInterview />
+              </EnterpriseAppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/interview-history"
+          element={
+            <ProtectedRoute>
+              <EnterpriseAppLayout>
+                <InterviewHistory />
+              </EnterpriseAppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <EnterpriseAppLayout>
+                <CandidateNotifications />
+              </EnterpriseAppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/interview-session"
+          element={
+            <ProtectedRoute>
+              <InterviewPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/report"
+          element={
+            <ProtectedRoute>
+              <CandidateInterviewReport />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route path="/dashboard" element={<RoleHomeRedirect />} />
+        <Route path="/logout" element={<LogoutRoute />} />
+        <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />} />
+      </Routes>
+    </Suspense>
+  );
+}
+
+export default function App() {
+  return (
+    <HashRouter>
+      <AppContent />
+    </HashRouter>
+  );
+}
+

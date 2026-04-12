@@ -14,7 +14,7 @@ export const TopNavbar: React.FC = () => {
         </div>
         <div className="flex items-center gap-2 md:gap-4 shrink-0">
           <a href="#/login" className="font-headline text-sm font-semibold tracking-tight text-slate-600 dark:text-slate-400 hover:text-blue-700 transition-colors duration-200 px-2">Login</a>
-          <a href="#/signup" className="hidden sm:inline-block bg-surface-container-high text-on-surface px-4 py-2 rounded-xl font-headline text-sm font-semibold tracking-tight hover:scale-95 active:opacity-80 transition-all">Book Demo</a>
+          <a href="#/signup" className="bg-surface-container-high text-on-surface px-4 py-2 rounded-xl font-headline text-sm font-semibold tracking-tight hover:scale-95 active:opacity-80 transition-all">Book Demo</a>
           <a href="#/signup" className="bg-primary text-on-primary px-4 md:px-5 py-2 md:py-2.5 rounded-xl font-headline text-xs md:text-sm font-semibold tracking-tight hover:scale-95 active:opacity-80 transition-all">Get Started</a>
         </div>
       </div>

@@ -5,7 +5,7 @@ import { UpcomingInterview } from '../components/dashboard/candidate/UpcomingInt
 import { NextStepsChecklist } from '../components/dashboard/candidate/NextStepsChecklist';
 import { PerformanceSummary } from '../components/dashboard/candidate/PerformanceSummary';
 import { AIInsightsCard } from '../components/dashboard/candidate/AIInsightsCard';
-import { KPISkeleton, CardSkeleton } from '../components/shared/SkeletonLoader';
+import { CardSkeleton } from '../components/shared/SkeletonLoader';
 
 export default function CandidateDashboard() {
   const { user } = useAuth();

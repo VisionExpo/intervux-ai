@@ -12,7 +12,7 @@ export default function AppShell({ children, currentPath }: AppShellProps) {
 
   return (
     <div className="h-screen bg-surface font-body text-on-surface flex overflow-hidden relative">
-      <Sidebar currentPath={currentPath} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <Sidebar currentPath={currentPath} isOpen={isSidebarOpen} />
       
       {/* Mobile Overlay */}
       {isSidebarOpen && (
