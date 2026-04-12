@@ -1,10 +1,11 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Bell, Filter, Search, Sparkles, Star } from "lucide-react";
 import { SurfaceCard } from "../components/ui/SurfaceCard";
 import { StatCard } from "../components/ui/StatCard";
 import { DashboardSkeleton } from "../components/ui/DashboardSkeleton";
 import { usePageMeta } from "../hooks/usePageMeta";
+import sharedStyles from "./DashboardShared.module.css";
 
 const candidates = [
   { name: "Aisha Rao", role: "Senior Frontend Engineer", score: 95, stage: "Panel" },
@@ -38,85 +39,100 @@ export default function RecruiterOperationsPage() {
   if (loading) return <DashboardSkeleton />;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-      <section className="rounded-[2rem] bg-white px-6 py-6 shadow-sm">
-        <p className="text-sm text-slate-500">Recruiter Intelligence Workspace</p>
-        <h1 className="mt-1 font-[Manrope] text-3xl font-bold tracking-tight text-slate-900">Modern ATS workflow command center</h1>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <label className="inline-flex items-center gap-2 rounded-xl bg-[#f2f4f6] px-3 py-2 text-sm font-medium text-slate-700">
-            <Search className="h-4 w-4" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search candidate" className="w-40 bg-transparent text-sm outline-none" />
+    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <section style={{
+        background: 'var(--surface-glass-heavy)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '2rem',
+        border: '1px solid var(--border-glass)',
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Recruiter Intelligence Workspace</p>
+        <h1 style={{ marginTop: '0.25rem', fontFamily: 'var(--font-heading)', fontSize: '2.5rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+          Modern ATS workflow command center
+        </h1>
+        <div style={{ marginTop: '1.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', borderRadius: 'var(--radius-md)', background: 'rgba(0, 0, 0, 0.2)', padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', border: '1px solid var(--border-glass)' }}>
+            <Search size={16} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search candidate" style={{ width: '12rem', background: 'transparent', color: 'var(--text-primary)', border: 'none', outline: 'none' }} />
           </label>
-          <label className="inline-flex items-center gap-2 rounded-xl bg-[#f2f4f6] px-3 py-2 text-sm font-medium text-slate-700">
-            <Filter className="h-4 w-4" />
-            <select value={stageFilter} onChange={(event) => setStageFilter(event.target.value)} className="bg-transparent text-sm outline-none">
-              <option>All</option>
-              <option>Recruiter Screen</option>
-              <option>System Design</option>
-              <option>Panel</option>
-              <option>Offer Review</option>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', borderRadius: 'var(--radius-md)', background: 'rgba(0, 0, 0, 0.2)', padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', border: '1px solid var(--border-glass)' }}>
+            <Filter size={16} />
+            <select value={stageFilter} onChange={(event) => setStageFilter(event.target.value)} style={{ background: 'transparent', color: 'var(--text-primary)', border: 'none', outline: 'none' }}>
+              <option value="All" style={{ color: 'black' }}>All Stages</option>
+              <option value="Recruiter Screen" style={{ color: 'black' }}>Recruiter Screen</option>
+              <option value="System Design" style={{ color: 'black' }}>System Design</option>
+              <option value="Panel" style={{ color: 'black' }}>Panel</option>
+              <option value="Offer Review" style={{ color: 'black' }}>Offer Review</option>
             </select>
           </label>
-          <button className="inline-flex items-center gap-2 rounded-xl bg-[#dbe1ff] px-3 py-2 text-sm font-medium text-[#003ea8]"><Bell className="h-4 w-4" />7 notifications</button>
+          <button style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', borderRadius: 'var(--radius-md)', background: 'var(--accent-ocean-glow)', padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-ocean)', border: '1px solid rgba(14, 165, 233, 0.3)', cursor: 'pointer' }}>
+            <Bell size={16} />
+            7 notifications
+          </button>
         </div>
       </section>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
         <StatCard label="Open Roles" value="18" change="4 critical roles" />
-        <StatCard label="Active Candidates" value="246" change="+12% week-over-week" />
+        <StatCard label="Active Candidates" value="246" change="+12% WoW" />
         <StatCard label="Avg Time-to-Decision" value="2.4d" change="-14% faster" />
         <StatCard label="Alignment Score" value="94%" change="Across hiring pods" />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <SurfaceCard title="Pipeline overview" subtitle="Role-based candidate scoring by stage" className="xl:col-span-2">
-          <div className="grid gap-3 md:grid-cols-4 text-sm">
+      <div className={sharedStyles.bentoGrid}>
+        <SurfaceCard title="Pipeline overview" subtitle="Role-based candidate scoring by stage" className={sharedStyles.bentoColSpan2}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '1rem', fontSize: '0.875rem' }}>
             {[
               ["Sourced", "72"],
               ["Screening", "49"],
               ["Panel", "31"],
               ["Offer", "11"],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-2xl bg-[#f2f4f6] p-4">
-                <p className="text-slate-500">{label}</p>
-                <p className="mt-2 font-[Manrope] text-3xl font-bold text-slate-900">{value}</p>
+              <div key={label} style={{ background: 'var(--surface-glass-light)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid var(--border-glass)' }}>
+                <p style={{ color: 'var(--text-secondary)' }}>{label}</p>
+                <p style={{ marginTop: '0.5rem', fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{value}</p>
               </div>
             ))}
           </div>
         </SurfaceCard>
 
         <SurfaceCard title="AI ranking system" subtitle="Top candidates by weighted fit">
-          <ul className="space-y-3">
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {filteredCandidates.slice(0, 3).map((candidate) => (
-              <li key={candidate.name} className="rounded-2xl bg-[#f2f4f6] p-3">
-                <p className="text-sm font-semibold text-slate-900">{candidate.name}</p>
-                <p className="text-xs text-slate-500">{candidate.role}</p>
-                <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#dbe1ff] px-2 py-1 text-xs font-semibold text-[#003ea8]"><Sparkles className="h-3.5 w-3.5" />{candidate.score} fit score</p>
+              <li key={candidate.name} style={{ background: 'var(--surface-glass-light)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid var(--border-glass)' }}>
+                <p style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{candidate.name}</p>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{candidate.role}</p>
+                <p style={{ marginTop: '0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', borderRadius: '999px', background: 'var(--accent-indigo-glow)', padding: '0.25rem 0.5rem', fontSize: '0.75rem', fontWeight: 600, color: '#cedaff', border: '1px solid rgba(79, 70, 229, 0.4)' }}>
+                  <Sparkles size={14} />{candidate.score} fit score
+                </p>
               </li>
             ))}
           </ul>
         </SurfaceCard>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <SurfaceCard title="Candidate list" subtitle="Ranked for current role selection" className="xl:col-span-2">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[540px] text-left text-sm">
+      <div className={sharedStyles.bentoGrid}>
+        <SurfaceCard title="Candidate list" subtitle="Ranked for current role selection" className={sharedStyles.bentoColSpan2}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: '540px', textAlign: 'left', fontSize: '0.875rem', borderCollapse: 'collapse' }}>
               <thead>
-                <tr className="text-slate-500">
-                  <th className="pb-2 font-medium">Candidate</th>
-                  <th className="pb-2 font-medium">Role</th>
-                  <th className="pb-2 font-medium">AI Score</th>
-                  <th className="pb-2 font-medium">Stage</th>
+                <tr style={{ color: 'var(--text-secondary)' }}>
+                  <th style={{ paddingBottom: '0.5rem', fontWeight: 500, borderBottom: '1px solid var(--border-glass)' }}>Candidate</th>
+                  <th style={{ paddingBottom: '0.5rem', fontWeight: 500, borderBottom: '1px solid var(--border-glass)' }}>Role</th>
+                  <th style={{ paddingBottom: '0.5rem', fontWeight: 500, borderBottom: '1px solid var(--border-glass)' }}>AI Score</th>
+                  <th style={{ paddingBottom: '0.5rem', fontWeight: 500, borderBottom: '1px solid var(--border-glass)' }}>Stage</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredCandidates.map((candidate) => (
-                  <tr key={candidate.name} className="rounded-2xl even:bg-[#f7f9fb]">
-                    <td className="py-3 font-semibold text-slate-900">{candidate.name}</td>
-                    <td className="py-3 text-slate-600">{candidate.role}</td>
-                    <td className="py-3"><span className="rounded-full bg-[#dbe1ff] px-2.5 py-1 text-xs font-semibold text-[#003ea8]">{candidate.score}</span></td>
-                    <td className="py-3 text-slate-600">{candidate.stage}</td>
+                  <tr key={candidate.name} style={{ borderBottom: '1px solid var(--border-glass)' }}>
+                    <td style={{ padding: '0.75rem 0', fontWeight: 600, color: 'var(--text-primary)' }}>{candidate.name}</td>
+                    <td style={{ padding: '0.75rem 0', color: 'var(--text-secondary)' }}>{candidate.role}</td>
+                    <td style={{ padding: '0.75rem 0' }}>
+                      <span className={sharedStyles.badgePrimary} style={{ display: 'inline-block' }}>{candidate.score}</span>
+                    </td>
+                    <td style={{ padding: '0.75rem 0', color: 'var(--text-secondary)' }}>{candidate.stage}</td>
                   </tr>
                 ))}
               </tbody>
@@ -125,13 +141,13 @@ export default function RecruiterOperationsPage() {
         </SurfaceCard>
 
         <SurfaceCard title="Activity stream" subtitle="Live recruiter and system events">
-          <ul className="space-y-3 text-sm text-slate-600">
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
             {["Priya moved Aisha Rao to final panel.", "Model v4.2 recalibrated backend weightage.", "2 candidates flagged for low confidence delta.", "Interview report synced to hiring manager workspace."].map((item) => (
-              <li key={item} className="rounded-2xl bg-[#f2f4f6] p-3">{item}</li>
+              <li key={item} style={{ background: 'var(--surface-glass-light)', borderRadius: 'var(--radius-md)', padding: '0.75rem', border: '1px solid var(--border-glass)' }}>{item}</li>
             ))}
           </ul>
-          <div className="mt-4 rounded-2xl bg-[#ffdbcd] p-3 text-xs font-semibold text-[#7d2d00]">
-            <Star className="mr-1 inline h-3.5 w-3.5" />Review two low-confidence scorecards before final shortlist.
+          <div style={{ marginTop: '1rem', background: 'var(--accent-danger-glow)', borderRadius: 'var(--radius-md)', padding: '0.75rem', fontSize: '0.75rem', fontWeight: 600, color: '#fca5a5', border: '1px solid rgba(225, 29, 72, 0.3)' }}>
+            <Star style={{ display: 'inline', marginRight: '0.25rem' }} size={14} />Review two low-confidence scorecards before final shortlist.
           </div>
         </SurfaceCard>
       </div>
