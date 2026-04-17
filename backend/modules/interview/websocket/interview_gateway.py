@@ -152,8 +152,8 @@ class InterviewGateway:
                     "Before we begin, please upload your resume so I can tailor "
                     "questions based on your experience."
                 )
-                # Send greeting asynchronously — don't block the receive loop
-                asyncio.create_task(self._send_avatar_with_audio(ws, session, full_text, 0, 0))
+                # Send greeting synchronously to prevent AnyIO stream lockups in TestClient
+                await self._send_avatar_with_audio(ws, session, full_text, 0, 0)
                 session.state.greeting_sent = True
 
             session.state.transition_to(InterviewPhase.WAITING_RESUME)
@@ -223,6 +223,12 @@ class InterviewGateway:
             await session.cleanup()
             await self._registry.unregister(session_id)
             self._connections.discard(ws)
+
+            # Clean up the PubSub results channel key from Redis
+            try:
+                await self.redis.delete(f"interview:results:{session_id}")
+            except Exception:
+                pass
 
     # Audio Helpers
     async def _send_question_with_audio(self, ws: WebSocket, session: InterviewSession, question_data: Dict[str, Any]) -> None:

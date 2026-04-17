@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { authFetch } from "../hooks/useAuth";
+import { authFetch } from "../hooks/authFetch";
+import { GlassCard } from "../components/ui/GlassCard/GlassCard";
+import { Button } from "../components/ui/Button/Button";
+import { History, X, ChevronRight, BarChart3 } from "lucide-react";
+import styles from "./InterviewHistory.module.css";
 
 interface InterviewRecord {
   id: number;
@@ -21,19 +25,22 @@ interface SelectedDetail {
 function ScoreBar({ label, value }: { label: string; value: number | null }) {
   const pct = value ?? 0;
   return (
-    <div className="score-bar-item">
-      <span className="score-label">{label}</span>
-      <div className="score-bar">
-        <div className="score-fill" style={{ width: `${pct}%` }} />
+    <div className={styles.scoreBarWrap}>
+      <div className={styles.scoreBarHeader}>
+        <span className={styles.scoreBarLabel}>{label}</span>
+        <span className={styles.scoreBarValue}>{value !== null ? value.toFixed(0) : "-"}</span>
       </div>
-      <span className="score-number">{value !== null ? value.toFixed(0) : "-"}</span>
+      <div className={styles.scoreBarTrack}>
+        <div className={styles.scoreBarFill} style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const isCompleted = status === "completed";
   return (
-    <span className={`status-badge status-${status}`}>
+    <span className={`${styles.statusBadge} ${isCompleted ? styles.statusCompleted : styles.statusOther}`}>
       {status.replace("_", " ")}
     </span>
   );
@@ -54,8 +61,13 @@ export default function InterviewHistory() {
 
   if (isLoading) {
     return (
-      <div className="page-container">
-        <div className="loading">Loading interview history...</div>
+      <div className={styles.loadingState}>
+        <GlassCard padding="lg">
+          <div className={styles.loadingRow}>
+            <div className={styles.spinner} />
+            <p className={styles.loadingText}>Loading interview history...</p>
+          </div>
+        </GlassCard>
       </div>
     );
   }
@@ -67,67 +79,74 @@ export default function InterviewHistory() {
       : null;
 
   return (
-    <div className="page-container">
-      <div className="history-header">
-        <h1>Interview History</h1>
-        <div className="nav-links">
-          <a href="#/dashboard">Dashboard</a>
-          <a href="#/profile">Profile</a>
-          <a href="#/mock-interview">New Interview</a>
-          <a href="#/notifications">Notifications</a>
-        </div>
+    <div className={styles.page}>
+      <div className={styles.header}>
+        <h1 className={styles.title}>
+          <History /> Interview History
+        </h1>
+        <p className={styles.subtitle}>Review your past performance and mock interview results.</p>
       </div>
 
-      {error && <div className="error-message">{error}</div>}
+      {error && (
+        <GlassCard className={styles.errorCard}>
+          <p className={styles.errorText}>{error}</p>
+        </GlassCard>
+      )}
 
       {/* Summary cards */}
-      <div className="dashboard-cards" style={{ marginBottom: "1.5rem" }}>
-        <div className="score-card">
-          <h3>Total sessions</h3>
-          <div className="score-value">{interviews.length}</div>
-        </div>
-        <div className="score-card">
-          <h3>Completed</h3>
-          <div className="score-value">{completed.length}</div>
-        </div>
-        <div className="score-card highlight">
-          <h3>Average score</h3>
-          <div className="score-value">
+      <div className={styles.summaryGrid}>
+        <GlassCard className={styles.summaryCard}>
+          <div className={`${styles.summaryOverlay} ${styles.summaryOverlayBlue}`} />
+          <h3 className={styles.summaryLabel}>Total Sessions</h3>
+          <p className={styles.summaryValue}>{interviews.length}</p>
+        </GlassCard>
+        <GlassCard className={styles.summaryCard}>
+          <div className={`${styles.summaryOverlay} ${styles.summaryOverlayGreen}`} />
+          <h3 className={styles.summaryLabel}>Completed</h3>
+          <p className={styles.summaryValue}>{completed.length}</p>
+        </GlassCard>
+        <GlassCard className={`${styles.summaryCard} ${styles.summaryBorderAccent}`}>
+          <div className={`${styles.summaryOverlay} ${styles.summaryOverlayIndigo}`} />
+          <h3 className={`${styles.summaryLabel} ${styles.summaryLabelWide}`}>Average Score</h3>
+          <p className={styles.summaryValueAccent}>
             {avgScore !== null ? avgScore.toFixed(0) : "-"}
-          </div>
-        </div>
+          </p>
+        </GlassCard>
       </div>
 
-      <div className="history-content">
-        <h2>All sessions</h2>
+      <GlassCard padding="none" style={{ overflow: "hidden" }}>
+        <div className={styles.tableHeader}>
+          <h2 className={styles.tableTitle}>All Sessions</h2>
+        </div>
 
         {interviews.length === 0 ? (
-          <div className="no-interviews">
-            <p>No mock interviews yet.</p>
-            <a href="#/mock-interview" className="action-button primary" style={{ display: "inline-block", marginTop: "1rem" }}>
+          <div className={styles.emptyState}>
+            <BarChart3 className={styles.emptyIcon} size={48} />
+            <p className={styles.emptyText}>No mock interviews yet.</p>
+            <Button onClick={() => window.location.hash = "#/mock-interview"}>
               Start your first interview
-            </a>
+            </Button>
           </div>
         ) : (
-          <div className="interview-table">
-            <table>
-              <thead>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead className={styles.tableHead}>
                 <tr>
-                  <th>#</th>
+                  <th>Session</th>
                   <th>Date</th>
                   <th>Status</th>
-                  <th>Overall</th>
-                  <th>Technical</th>
-                  <th>Communication</th>
-                  <th>Reasoning</th>
+                  <th className={styles.thCenter}>Overall</th>
+                  <th className={`${styles.thCenter} ${styles.thHiddenMd}`}>Technical</th>
+                  <th className={`${styles.thCenter} ${styles.thHiddenMd}`}>Comm</th>
+                  <th className={`${styles.thCenter} ${styles.thHiddenLg}`}>Reasoning</th>
                   <th></th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className={styles.tableBody}>
                 {interviews.map((interview) => (
                   <tr
                     key={interview.id}
-                    className={selected?.interview.id === interview.id ? "selected" : ""}
+                    className={`${styles.tableRow} ${selected?.interview.id === interview.id ? styles.tableRowSelected : ""}`}
                     onClick={() =>
                       setSelected(
                         selected?.interview.id === interview.id
@@ -136,15 +155,33 @@ export default function InterviewHistory() {
                       )
                     }
                   >
-                    <td>#{interview.interview_number}</td>
-                    <td>{new Date(interview.created_at).toLocaleDateString()}</td>
-                    <td><StatusBadge status={interview.status} /></td>
-                    <td>{interview.score !== null ? interview.score.toFixed(0) : "-"}</td>
-                    <td>{interview.technical_score !== null ? interview.technical_score.toFixed(0) : "-"}</td>
-                    <td>{interview.communication_score !== null ? interview.communication_score.toFixed(0) : "-"}</td>
-                    <td>{interview.reasoning_score !== null ? interview.reasoning_score.toFixed(0) : "-"}</td>
-                    <td style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>
-                      {interview.status === "completed" ? "View >" : ""}
+                    <td className={`${styles.td} ${styles.tdSession}`}>
+                      #{interview.interview_number}
+                    </td>
+                    <td className={`${styles.td} ${styles.tdDate}`}>
+                      {new Date(interview.created_at).toLocaleDateString()}
+                    </td>
+                    <td className={styles.td}>
+                      <StatusBadge status={interview.status} />
+                    </td>
+                    <td className={`${styles.td} ${styles.tdScore}`}>
+                      {interview.score !== null ? interview.score.toFixed(0) : "-"}
+                    </td>
+                    <td className={`${styles.td} ${styles.tdSecondary} ${styles.tdHiddenMd}`}>
+                      {interview.technical_score !== null ? interview.technical_score.toFixed(0) : "-"}
+                    </td>
+                    <td className={`${styles.td} ${styles.tdSecondary} ${styles.tdHiddenMd}`}>
+                      {interview.communication_score !== null ? interview.communication_score.toFixed(0) : "-"}
+                    </td>
+                    <td className={`${styles.td} ${styles.tdSecondary} ${styles.tdHiddenLg}`}>
+                      {interview.reasoning_score !== null ? interview.reasoning_score.toFixed(0) : "-"}
+                    </td>
+                    <td className={`${styles.td} ${styles.tdAction}`}>
+                      {interview.status === "completed" ? (
+                        <div className={styles.viewLink}>
+                          View <ChevronRight size={14} />
+                        </div>
+                      ) : ""}
                     </td>
                   </tr>
                 ))}
@@ -152,35 +189,40 @@ export default function InterviewHistory() {
             </table>
           </div>
         )}
-      </div>
+      </GlassCard>
 
-      {/* Detail drawer */}
+      {/* Detail Modal */}
       {selected && (
-        <div className="interview-details-modal" onClick={() => setSelected(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Mock Interview #{selected.interview.interview_number}</h3>
+        <div className={styles.modalBackdrop} onClick={() => setSelected(null)}>
+          <div className={styles.modalPanel} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>Mock Interview #{selected.interview.interview_number}</h3>
+              <button onClick={() => setSelected(null)} className={styles.modalClose}>
+                <X size={20} />
+              </button>
+            </div>
 
-            <div className="detail-grid">
-              <div className="detail-item">
-                <label>Date</label>
-                <span>{new Date(selected.interview.created_at).toLocaleString()}</span>
+            <div className={styles.modalDetails}>
+              <div className={styles.detailRow}>
+                <span className={styles.detailLabel}>Date</span>
+                <span className={styles.detailValue}>{new Date(selected.interview.created_at).toLocaleString()}</span>
               </div>
               {selected.interview.completed_at && (
-                <div className="detail-item">
-                  <label>Completed</label>
-                  <span>{new Date(selected.interview.completed_at).toLocaleString()}</span>
+                <div className={styles.detailRow}>
+                  <span className={styles.detailLabel}>Completed</span>
+                  <span className={styles.detailValue}>{new Date(selected.interview.completed_at).toLocaleString()}</span>
                 </div>
               )}
-              <div className="detail-item">
-                <label>Status</label>
-                <span><StatusBadge status={selected.interview.status} /></span>
+              <div className={styles.detailRow}>
+                <span className={styles.detailLabel}>Status</span>
+                <StatusBadge status={selected.interview.status} />
               </div>
             </div>
 
             {selected.interview.score !== null && (
-              <div className="score-breakdown">
-                <h4>Score breakdown</h4>
-                <div className="score-bars">
+              <div className={styles.modalScores}>
+                <h4 className={styles.modalScoresTitle}>Score Breakdown</h4>
+                <div className={styles.modalScoresGrid}>
                   <ScoreBar label="Overall" value={selected.interview.score} />
                   <ScoreBar label="Technical" value={selected.interview.technical_score} />
                   <ScoreBar label="Communication" value={selected.interview.communication_score} />
@@ -189,19 +231,15 @@ export default function InterviewHistory() {
               </div>
             )}
 
-            <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.5rem" }}>
+            <div className={styles.modalActions}>
               {selected.interview.status === "completed" && (
-                <a
-                  href="#/report"
-                  className="action-button primary"
-                  style={{ display: "inline-block", textDecoration: "none" }}
-                >
-                  View full report
-                </a>
+                <Button onClick={() => window.location.hash = "#/report"}>
+                  View Full Report
+                </Button>
               )}
-              <button className="close-button" style={{ flex: 1 }} onClick={() => setSelected(null)}>
+              <Button variant="secondary" onClick={() => setSelected(null)}>
                 Close
-              </button>
+              </Button>
             </div>
           </div>
         </div>

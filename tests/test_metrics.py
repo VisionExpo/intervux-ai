@@ -32,7 +32,7 @@ class TestMetricsAggregates:
         - Response contains time-based aggregates
         """
         response = await client.get(
-            "/api/metrics/aggregates",
+            "/api/admin/metrics/aggregates",
             headers=recruiter_headers,
         )
         
@@ -49,7 +49,7 @@ class TestMetricsAggregates:
         Validates:
         - HTTP 401 status code
         """
-        response = await client.get("/api/metrics/aggregates")
+        response = await client.get("/api/admin/metrics/aggregates")
         
         assert response.status_code == 401
 
@@ -64,7 +64,7 @@ class TestMetricsAggregates:
         - HTTP 200 status code
         """
         response = await client.get(
-            "/api/metrics/aggregates",
+            "/api/admin/metrics/aggregates",
             headers=admin_headers,
         )
         
@@ -81,7 +81,7 @@ class TestMetricsAggregates:
         - HTTP 403 status code (forbidden)
         """
         response = await client.get(
-            "/api/metrics/aggregates",
+            "/api/admin/metrics/aggregates",
             headers=candidate_headers,
         )
         
@@ -103,7 +103,7 @@ class TestMetricsTrends:
         - Response contains trend data
         """
         response = await client.get(
-            "/api/metrics/trends?days=30",
+            "/api/admin/metrics/trends?days=30",
             headers=recruiter_headers,
         )
         
@@ -124,7 +124,7 @@ class TestMetricsTrends:
         - Custom days parameter is accepted
         """
         response = await client.get(
-            "/api/metrics/trends?days=7",
+            "/api/admin/metrics/trends?days=7",
             headers=recruiter_headers,
         )
         
@@ -138,7 +138,7 @@ class TestMetricsTrends:
         Validates:
         - HTTP 401 status code
         """
-        response = await client.get("/api/metrics/trends")
+        response = await client.get("/api/admin/metrics/trends")
         
         assert response.status_code == 401
 
@@ -153,7 +153,7 @@ class TestMetricsTrends:
         - HTTP 403 status code (forbidden)
         """
         response = await client.get(
-            "/api/metrics/trends",
+            "/api/admin/metrics/trends",
             headers=candidate_headers,
         )
         

@@ -1,0 +1,473 @@
+/* InterviewHistory Page — Vanilla CSS Module */
+
+.page {
+  padding: var(--space-8);
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: var(--space-8);
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-size: 1.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.title svg {
+  color: var(--accent-indigo);
+}
+
+.subtitle {
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+}
+
+.errorCard {
+  border-color: rgba(225, 29, 72, 0.3);
+  background: rgba(225, 29, 72, 0.1);
+  margin-bottom: var(--space-6);
+}
+
+.errorText {
+  color: #fb7185;
+  padding: 0 var(--space-4);
+}
+
+/* Summary stat cards */
+.summaryGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
+}
+
+@media (min-width: 768px) {
+  .summaryGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.summaryCard {
+  position: relative;
+  overflow: hidden;
+}
+
+.summaryOverlay {
+  position: absolute;
+  inset: 0;
+  transition: background var(--transition-fast);
+}
+
+.summaryOverlayBlue {
+  background: rgba(59, 130, 246, 0.05);
+}
+.summaryCard:hover .summaryOverlayBlue {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.summaryOverlayGreen {
+  background: rgba(16, 185, 129, 0.05);
+}
+.summaryCard:hover .summaryOverlayGreen {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.summaryOverlayIndigo {
+  background: rgba(79, 70, 229, 0.05);
+}
+.summaryCard:hover .summaryOverlayIndigo {
+  background: rgba(79, 70, 229, 0.1);
+}
+
+.summaryLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-1);
+}
+
+.summaryLabelWide {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.summaryValue {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.025em;
+}
+
+.summaryValueAccent {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: var(--accent-indigo);
+  letter-spacing: -0.025em;
+}
+
+.summaryBorderAccent {
+  border-color: rgba(79, 70, 229, 0.2);
+}
+
+/* Table header bar */
+.tableHeader {
+  padding: var(--space-6);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tableTitle {
+  font-family: var(--font-heading);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0;
+}
+
+/* Empty */
+.emptyState {
+  text-align: center;
+  padding: var(--space-12) 0;
+}
+
+.emptyIcon {
+  margin: 0 auto var(--space-4);
+  color: var(--text-tertiary);
+}
+
+.emptyText {
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-6);
+}
+
+/* Table */
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  text-align: left;
+  border-collapse: collapse;
+}
+
+.tableHead tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.tableHead th {
+  padding: var(--space-4) var(--space-6);
+  font-weight: 500;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+}
+
+.thCenter {
+  text-align: center;
+}
+
+.thHiddenMd {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .thHiddenMd {
+    display: table-cell;
+  }
+}
+
+.thHiddenLg {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .thHiddenLg {
+    display: table-cell;
+  }
+}
+
+/* Table body */
+.tableBody {
+  /* Divider lines between rows */
+}
+
+.tableBody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.tableRow {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.tableRow:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tableRowSelected {
+  background: rgba(79, 70, 229, 0.1);
+}
+
+.td {
+  padding: var(--space-4) var(--space-6);
+  white-space: nowrap;
+  font-size: 0.875rem;
+}
+
+.tdSession {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.tdDate {
+  color: var(--text-secondary);
+}
+
+.tdScore {
+  font-weight: 700;
+  color: var(--accent-indigo);
+  text-align: center;
+}
+
+.tdSecondary {
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.tdHiddenMd {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .tdHiddenMd {
+    display: table-cell;
+  }
+}
+
+.tdHiddenLg {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .tdHiddenLg {
+    display: table-cell;
+  }
+}
+
+.tdAction {
+  color: var(--accent-indigo);
+  text-align: right;
+}
+
+.viewLink {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.tableRow:hover .viewLink {
+  opacity: 1;
+}
+
+/* Status badge */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.625rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid;
+}
+
+.statusCompleted {
+  background: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.statusOther {
+  background: rgba(59, 130, 246, 0.1);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+/* Score bar component */
+.scoreBarWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.scoreBarHeader {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+}
+
+.scoreBarLabel {
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.scoreBarValue {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.scoreBarTrack {
+  height: 0.5rem;
+  width: 100%;
+  background: var(--bg-ocean-elevated);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.scoreBarFill {
+  height: 100%;
+  background: var(--accent-indigo);
+  border-radius: var(--radius-full);
+}
+
+/* Detail Modal */
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: var(--blur-sm);
+}
+
+.modalPanel {
+  background: var(--bg-ocean-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  width: 100%;
+  max-width: 28rem;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-6);
+}
+
+.modalTitle {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  color: var(--text-primary);
+  margin-bottom: 0;
+}
+
+.modalClose {
+  color: var(--text-tertiary);
+  transition: color var(--transition-fast);
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.modalClose:hover {
+  color: var(--text-primary);
+}
+
+.modalDetails {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
+.detailRow {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.detailLabel {
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+}
+
+.detailValue {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.modalScores {
+  margin-bottom: var(--space-8);
+}
+
+.modalScoresTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-4);
+}
+
+.modalScoresGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.modalActions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.modalActions > * {
+  flex: 1;
+}
+
+/* Loading */
+.loadingState {
+  padding: var(--space-8);
+}
+
+.loadingRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.spinner {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  border: 2px solid var(--accent-indigo);
+  border-top-color: transparent;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loadingText {
+  color: var(--text-secondary);
+}

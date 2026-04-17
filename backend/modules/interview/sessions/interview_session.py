@@ -150,6 +150,9 @@ class InterviewSession:
         If the interview did not complete normally and we have a
         mock_interview_session_id, the DB row is marked as abandoned
         so it doesn't stay stuck in 'in_progress'.
+
+        Also explicitly deletes all Redis keys scoped to this session
+        to prevent zombie state from lingering.
         """
         logger.info(
             "Cleaning up interview session",
@@ -166,6 +169,22 @@ class InterviewSession:
         # Mark abandoned if we have a DB row and didn't complete normally
         if self.mock_interview_session_id and not self._completed_normally:
             await fail_mock_interview(self.mock_interview_session_id, "session_cleanup")
+
+        # ── Redis zombie state cleanup ──
+        # Delete all session-scoped keys so they don't linger until TTL expiry.
+        try:
+            await redis_client.clear_session_state(self.session_id)
+            await redis_client.clear_cache(self.session_id)
+            # Clear the pickled state object (binary client)
+            await redis_client.redis_bin.delete(
+                f"interview:state_obj:{self.session_id}"
+            )
+            logger.debug(
+                "Redis keys cleaned for session",
+                extra={"extra_data": {"session_id": self.session_id}},
+            )
+        except Exception as e:
+            logger.warning(f"Redis cleanup error for {self.session_id}: {e}")
 
         self.state.reset()
         self.audio_buffer.clear()

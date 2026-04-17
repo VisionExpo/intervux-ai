@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
   useCallback,
@@ -25,8 +26,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
-const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
+import { API_BASE_URL, AUTH_UNAUTHORIZED_EVENT } from "./authFetch";
 
 interface LoginResponse {
   access_token: string;
@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id: 'demo-123', 
           email: `demo-${activeRole}@intervux.ai`, 
           name: `Demo Hero`, 
-          role: activeRole as any 
+          role: activeRole as string 
         });
         setIsLoading(false);
         return;
@@ -192,37 +192,4 @@ export function useAuth() {
   return context;
 }
 
-// Helper function for authenticated fetch
-export async function authFetch<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const isDemo = window.location.hash.includes('demo=true');
-  const token = localStorage.getItem("auth_token");
-  const headers: Record<string, string> = {
-    ...(options.headers as Record<string, string>),
-  };
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    if (response.status === 401 && !isDemo) {
-      // Token expired or invalid
-      localStorage.removeItem("auth_token");
-      window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
-      window.location.hash = "#/login";
-      throw new Error("Unauthorized");
-    }
-    const error = await response.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(error.detail || "Request failed");
-  }
-
-  return response.json();
-}

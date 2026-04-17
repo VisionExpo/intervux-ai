@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState } from "react";
 
 interface CandidateCameraProps {
@@ -9,19 +10,19 @@ interface CandidateCameraProps {
 
 export default function CandidateCamera({ isEnabled = true, stream, isListening, isSpeaking }: CandidateCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [hasCamera, setHasCamera] = useState(false);
+  const hasCamera = Boolean(isEnabled && stream);
   const [cameraError, setCameraError] = useState<string>("");
   const [micActive, setMicActive] = useState(false);
 
   useEffect(() => {
     if (!isEnabled || !stream) {
-      setHasCamera(false);
+
       return;
     }
 
     if (videoRef.current) {
       videoRef.current.srcObject = stream;
-      setHasCamera(true);
+
       setCameraError("");
 
       const audioTrack = stream.getAudioTracks()[0];

@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { authFetch } from "../hooks/useAuth";
+import { authFetch } from "../hooks/authFetch";
+import { GlassCard } from "../components/ui/GlassCard/GlassCard";
+import { Calendar, FileText, BarChart3, Bell, Check, BellRing } from "lucide-react";
+import styles from "./CandidateNotifications.module.css";
 
 interface Notification {
   id: number;
@@ -35,7 +38,6 @@ export default function CandidateNotifications() {
         method: "POST"
       });
       
-      // Update local state
       setNotifications(notifications.map(n => 
         n.id === notificationId ? { ...n, is_read: true } : n
       ));
@@ -47,20 +49,25 @@ export default function CandidateNotifications() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "interview_invite":
-        return "📅";
+        return <Calendar className={styles.iconBlue} size={20} />;
       case "resume_analyzed":
-        return "📄";
+        return <FileText className={styles.iconGreen} size={20} />;
       case "report_ready":
-        return "📊";
+        return <BarChart3 className={styles.iconPurple} size={20} />;
       default:
-        return "🔔";
+        return <Bell className={styles.iconIndigo} size={20} />;
     }
   };
 
   if (isLoading) {
     return (
-      <div className="page-container">
-        <div className="loading">Loading notifications...</div>
+      <div className={styles.loadingState}>
+        <GlassCard padding="lg">
+          <div className={styles.loadingRow}>
+            <div className={styles.spinner} />
+            <p className={styles.loadingText}>Loading notifications...</p>
+          </div>
+        </GlassCard>
       </div>
     );
   }
@@ -68,59 +75,79 @@ export default function CandidateNotifications() {
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
-    <div className="page-container">
-      <div className="notifications-header">
-        <h1>Notifications</h1>
-        <div className="nav-links">
-          <a href="#/dashboard">Dashboard</a>
-          <a href="#/profile">Profile</a>
-          <a href="#/mock-interview">Mock Interview</a>
-          <a href="#/interview-history">History</a>
+    <div className={styles.page}>
+      <div className={styles.header}>
+        <div>
+          <h1 className={styles.title}>
+            <BellRing /> Notifications
+          </h1>
+          <p className={styles.subtitle}>Stay updated on your interview progress and profile analysis.</p>
+        </div>
+        <div className={styles.badge}>
+          {unreadCount > 0 ? `${unreadCount} unread` : "All caught up!"}
         </div>
       </div>
 
-      {error && <div className="error-message">{error}</div>}
+      {error && (
+        <GlassCard className={styles.errorCard}>
+          <p className={styles.errorText}>{error}</p>
+        </GlassCard>
+      )}
 
-      <div className="notifications-content">
-        <div className="notifications-summary">
-          <span className="notification-count">
-            {unreadCount > 0 ? `${unreadCount} unread` : "All caught up!"}
-          </span>
-        </div>
-
+      <GlassCard padding="none" style={{ overflow: "hidden" }}>
         {notifications.length === 0 ? (
-          <div className="no-notifications">
-            <p>No notifications yet.</p>
-            <p className="hint">You'll receive notifications about interview invites, resume analysis, and more.</p>
+          <div className={styles.emptyState}>
+            <div className={styles.emptyIconWrap}>
+              <Bell size={28} />
+            </div>
+            <p className={styles.emptyTitle}>No notifications yet</p>
+            <p className={styles.emptyDescription}>
+              You'll receive notifications about interview invites, resume structure feedback, and AI reports here.
+            </p>
           </div>
         ) : (
-          <div className="notifications-list">
+          <div className={styles.notificationList}>
             {notifications.map((notification) => (
               <div 
                 key={notification.id} 
-                className={`notification-card ${notification.is_read ? "read" : "unread"}`}
+                className={`${styles.notificationItem} ${
+                  notification.is_read ? styles.notificationRead : styles.notificationUnread
+                }`}
                 onClick={() => !notification.is_read && markAsRead(notification.id)}
               >
-                <div className="notification-icon">
+                <div className={`${styles.iconCircle} ${
+                  notification.is_read ? styles.iconCircleRead : styles.iconCircleUnread
+                }`}>
                   {getNotificationIcon(notification.type)}
                 </div>
-                <div className="notification-body">
-                  <p className="notification-message">{notification.message}</p>
-                  <span className="notification-time">
-                    {new Date(notification.created_at).toLocaleString()}
-                  </span>
-                </div>
-                {!notification.is_read && (
-                  <div className="unread-indicator">
-                    <span className="unread-dot"></span>
+                
+                <div className={styles.notifContent}>
+                  <div className={styles.notifTop}>
+                    <p className={notification.is_read ? styles.notifMessageRead : styles.notifMessageUnread}>
+                      {notification.message}
+                    </p>
+                    <div className={styles.notifMeta}>
+                      <span className={styles.notifDate}>
+                        {new Date(notification.created_at).toLocaleDateString(undefined, { 
+                          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+                        })}
+                      </span>
+                      {!notification.is_read && (
+                        <div className={styles.unreadDot} />
+                      )}
+                    </div>
                   </div>
-                )}
+                  {notification.is_read && (
+                    <div className={styles.readIndicator}>
+                      <Check size={12} /> Read
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </GlassCard>
     </div>
   );
 }
-

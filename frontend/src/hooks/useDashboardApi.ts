@@ -3,7 +3,7 @@
  * Each hook follows the pattern: { data, isLoading, error, refetch }
  */
 import { useCallback, useEffect, useState } from 'react';
-import { authFetch } from './useAuth';
+import { authFetch } from './authFetch';
 
 // ──────────────────────────────────────────
 // Generic fetch wrapper
@@ -18,6 +18,7 @@ interface UseFetchResult<T> {
 // ──────────────────────────────────────────
 // Mock Data for Demo Mode
 // ──────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock data intentionally uses broad types for demo fallback
 const MOCK_DATA: Record<string, any> = {
   '/api/candidate/dashboard': {
     profile_score: 82,
@@ -240,7 +241,8 @@ export interface AdminMetricsAggregates {
   total_candidates: number;
   total_recruiters: number;
   avg_score: number;
-  [key: string]: unknown;
+  active_sessions?: number;
+  completion_rate?: number;
 }
 
 export function useAdminMetricsAggregates() {

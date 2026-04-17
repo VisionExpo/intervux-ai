@@ -34,7 +34,7 @@ class TestEvaluationDashboard:
         - Response contains dashboard metrics
         """
         response = await client.get(
-            "/api/evaluation-dashboard",
+            "/api/admin/evaluation-dashboard",
             headers=recruiter_headers,
         )
         
@@ -52,7 +52,7 @@ class TestEvaluationDashboard:
         Validates:
         - HTTP 401 status code
         """
-        response = await client.get("/api/evaluation-dashboard")
+        response = await client.get("/api/admin/evaluation-dashboard")
         
         assert response.status_code == 401
 
@@ -67,7 +67,7 @@ class TestEvaluationDashboard:
         - HTTP 403 status code (forbidden)
         """
         response = await client.get(
-            "/api/evaluation-dashboard",
+            "/api/admin/evaluation-dashboard",
             headers=candidate_headers,
         )
         
@@ -84,7 +84,7 @@ class TestEvaluationDashboard:
         - Response contains expected sections
         """
         response = await client.get(
-            "/api/evaluation-dashboard",
+            "/api/admin/evaluation-dashboard",
             headers=recruiter_headers,
         )
         
@@ -111,7 +111,7 @@ class TestExperiments:
         - Response is a list
         """
         response = await client.get(
-            "/api/experiments",
+            "/api/admin/experiments",
             headers=admin_headers,
         )
         
@@ -130,7 +130,7 @@ class TestExperiments:
         - HTTP 403 status code (forbidden)
         """
         response = await client.get(
-            "/api/experiments",
+            "/api/admin/experiments",
             headers=recruiter_headers,
         )
         
@@ -144,7 +144,7 @@ class TestExperiments:
         Validates:
         - HTTP 401 status code
         """
-        response = await client.get("/api/experiments")
+        response = await client.get("/api/admin/experiments")
         
         assert response.status_code == 401
 
@@ -164,7 +164,7 @@ class TestCreateExperiment:
         - Response contains experiment details
         """
         response = await client.post(
-            "/api/experiments",
+            "/api/admin/experiments",
             headers=admin_headers,
             json={
                 "experiment_name": "test_experiment",
@@ -191,7 +191,7 @@ class TestCreateExperiment:
         - Default values are applied
         """
         response = await client.post(
-            "/api/experiments",
+            "/api/admin/experiments",
             headers=admin_headers,
             json={
                 "experiment_name": "minimal_experiment",
@@ -213,7 +213,7 @@ class TestCreateExperiment:
         - HTTP 403 status code
         """
         response = await client.post(
-            "/api/experiments",
+            "/api/admin/experiments",
             headers=recruiter_headers,
             json={
                 "experiment_name": "test",
@@ -233,7 +233,7 @@ class TestCreateExperiment:
         - HTTP 401 status code
         """
         response = await client.post(
-            "/api/experiments",
+            "/api/admin/experiments",
             json={
                 "experiment_name": "test",
                 "model_version": "v1",
@@ -259,7 +259,7 @@ class TestCompareExperiments:
         - Response contains comparison data
         """
         response = await client.post(
-            "/api/experiments/compare",
+            "/api/admin/experiments/compare",
             headers=admin_headers,
             json={
                 "experiment_names": ["exp1", "exp2"],
@@ -282,7 +282,7 @@ class TestCompareExperiments:
         - HTTP 422 status code (validation error)
         """
         response = await client.post(
-            "/api/experiments/compare",
+            "/api/admin/experiments/compare",
             headers=admin_headers,
             json={
                 "experiment_names": [],
@@ -303,7 +303,7 @@ class TestCompareExperiments:
         - HTTP 403 status code
         """
         response = await client.post(
-            "/api/experiments/compare",
+            "/api/admin/experiments/compare",
             headers=recruiter_headers,
             json={
                 "experiment_names": ["exp1"],
@@ -321,7 +321,7 @@ class TestCompareExperiments:
         - HTTP 401 status code
         """
         response = await client.post(
-            "/api/experiments/compare",
+            "/api/admin/experiments/compare",
             json={
                 "experiment_names": ["exp1"],
             },
@@ -347,7 +347,7 @@ class TestExperimentWorkflow:
         """
         # Create first experiment
         create_response1 = await client.post(
-            "/api/experiments",
+            "/api/admin/experiments",
             headers=admin_headers,
             json={
                 "experiment_name": "lifecycle_exp_1",
@@ -361,7 +361,7 @@ class TestExperimentWorkflow:
         
         # Create second experiment
         create_response2 = await client.post(
-            "/api/experiments",
+            "/api/admin/experiments",
             headers=admin_headers,
             json={
                 "experiment_name": "lifecycle_exp_2",
@@ -375,14 +375,14 @@ class TestExperimentWorkflow:
         
         # List experiments
         list_response = await client.get(
-            "/api/experiments",
+            "/api/admin/experiments",
             headers=admin_headers,
         )
         assert list_response.status_code == 200
         
         # Compare experiments
         compare_response = await client.post(
-            "/api/experiments/compare",
+            "/api/admin/experiments/compare",
             headers=admin_headers,
             json={
                 "experiment_names": ["lifecycle_exp_1", "lifecycle_exp_2"],

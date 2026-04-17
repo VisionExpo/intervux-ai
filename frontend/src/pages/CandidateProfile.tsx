@@ -1,5 +1,10 @@
 import { useEffect, useState, useRef } from "react";
-import { authFetch } from "../hooks/useAuth";
+import { authFetch } from "../hooks/authFetch";
+import { GlassCard } from "../components/ui/GlassCard/GlassCard";
+import { Button } from "../components/ui/Button/Button";
+import { Input } from "../components/ui/Input/Input";
+import { Sparkles, UserRound, FileText, CheckCircle2 } from "lucide-react";
+import styles from "./CandidateProfile.module.css";
 
 interface ProfileData {
   id: number;
@@ -139,7 +144,6 @@ export default function CandidateProfile() {
       });
     } finally {
       setIsUploading(false);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -148,176 +152,181 @@ export default function CandidateProfile() {
 
   if (isLoading) {
     return (
-      <div className="page-container">
-        <div className="loading">Loading profile...</div>
+      <div className={styles.loadingState}>
+        <GlassCard padding="lg">
+          <div className={styles.loadingRow}>
+            <Sparkles className={styles.loadingIcon} />
+            <p className={styles.loadingText}>Loading profile...</p>
+          </div>
+        </GlassCard>
       </div>
     );
   }
 
   if (error && !profile) {
     return (
-      <div className="page-container">
-        <div className="error-message">{error}</div>
+      <div className={styles.loadingState}>
+        <GlassCard padding="lg">
+          <div className={styles.errorState}>{error}</div>
+        </GlassCard>
       </div>
     );
   }
 
   return (
-    <div className="page-container">
-      <div className="profile-header">
-        <h1>My Profile</h1>
-        <div className="nav-links">
-          <a href="#/dashboard">Dashboard</a>
-          <a href="#/mock-interview">Mock Interview</a>
-          <a href="#/interview-history">History</a>
-          <a href="#/notifications">Notifications</a>
-        </div>
+    <div className={styles.page}>
+      <div className={styles.header}>
+        <h1 className={styles.title}>My Profile</h1>
+        <p className={styles.subtitle}>Manage your skills, experience, and resume.</p>
       </div>
 
-      {error && <div className="error-message">{error}</div>}
+      {error && (
+        <GlassCard className={styles.errorCard}>
+          <p className={styles.errorText}>{error}</p>
+        </GlassCard>
+      )}
 
-      <div className="profile-content">
-        <div className="profile-scores">
-          <div className="score-box">
-            <span className="score-label">Profile Score</span>
-            <span className="score-number">{profile?.profile_score?.toFixed(0) || 0}</span>
-          </div>
-          <div className="score-box">
-            <span className="score-label">Resume Score</span>
-            <span className="score-number">{profile?.resume_score?.toFixed(0) || "N/A"}</span>
-          </div>
-          <div className="score-box">
-            <span className="score-label">Interview Score</span>
-            <span className="score-number">{profile?.interview_score?.toFixed(0) || "N/A"}</span>
-          </div>
-          <div className="score-box">
-            <span className="score-label">Interviews Left</span>
-            <span className="score-number">{profile?.mock_interviews_remaining || 0}</span>
-          </div>
-        </div>
+      {/* Score Cards */}
+      <div className={styles.scoreGrid}>
+        <GlassCard className={styles.scoreCard}>
+          <div className={`${styles.scoreOverlay} ${styles.scoreOverlayIndigo}`} />
+          <h3 className={styles.scoreLabel}>Profile Score</h3>
+          <p className={styles.scoreValue}>{profile?.profile_score?.toFixed(0) || 0}</p>
+        </GlassCard>
+        
+        <GlassCard className={styles.scoreCard}>
+          <div className={`${styles.scoreOverlay} ${styles.scoreOverlayBlue}`} />
+          <h3 className={styles.scoreLabel}>Resume Score</h3>
+          <p className={styles.scoreValue}>{profile?.resume_score?.toFixed(0) || "N/A"}</p>
+        </GlassCard>
+        
+        <GlassCard className={styles.scoreCard}>
+          <div className={`${styles.scoreOverlay} ${styles.scoreOverlayGreen}`} />
+          <h3 className={styles.scoreLabel}>Interview Score</h3>
+          <p className={styles.scoreValue}>{profile?.interview_score?.toFixed(0) || "N/A"}</p>
+        </GlassCard>
+        
+        <GlassCard className={styles.scoreCard}>
+          <div className={`${styles.scoreOverlay} ${styles.scoreOverlayPurple}`} />
+          <h3 className={styles.scoreLabel}>Interviews Left</h3>
+          <p className={styles.scoreValue}>{profile?.mock_interviews_remaining || 0}</p>
+        </GlassCard>
+      </div>
 
+      <GlassCard padding="lg">
         {!isEditing ? (
-          <div className="profile-view">
-            <div className="profile-section">
-              <h3>Basic Information</h3>
-              <p><strong>Name:</strong> {profile?.name}</p>
-              <p><strong>Email:</strong> {profile?.user_id}</p>
-              <p><strong>Experience:</strong> {profile?.experience_years || 0} years</p>
-              <p><strong>Education:</strong> {profile?.education || "Not specified"}</p>
+          <div className={styles.viewLayout}>
+            <div className={styles.viewGrid}>
+              {/* Basic Info */}
+              <div className={styles.section}>
+                <h3 className={styles.sectionTitle}>
+                  <UserRound size={20} /> Basic Information
+                </h3>
+                <div className={styles.fieldList}>
+                  <p><strong className={styles.fieldLabel}>Name:</strong> {profile?.name}</p>
+                  <p><strong className={styles.fieldLabel}>Email:</strong> {profile?.user_id}</p>
+                  <p><strong className={styles.fieldLabel}>Experience:</strong> {profile?.experience_years || 0} years</p>
+                  <p><strong className={styles.fieldLabel}>Education:</strong> {profile?.education || "Not specified"}</p>
+                </div>
+              </div>
+
+              {/* Links & Resume */}
+              <div className={styles.section}>
+                <h3 className={`${styles.sectionTitle} ${styles.sectionTitleGreen}`}>
+                  <FileText size={20} /> Documents & Links
+                </h3>
+                <div className={styles.fieldList}>
+                  <p><strong className={styles.fieldLabel}>GitHub:</strong> {profile?.github_url ? <a href={profile.github_url} className={styles.link} target="_blank" rel="noreferrer">View Profile</a> : "Not provided"}</p>
+                  <p><strong className={styles.fieldLabel}>LinkedIn:</strong> {profile?.linkedin_url ? <a href={profile.linkedin_url} className={styles.link} target="_blank" rel="noreferrer">View Profile</a> : "Not provided"}</p>
+                  <div className={styles.uploadArea}>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      id="resume-upload"
+                      accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"
+                      onChange={handleResumeUpload}
+                      style={{ display: "none" }}
+                    />
+                    <div className={styles.uploadActions}>
+                      {profile?.resume_url && (
+                        <Button variant="secondary" onClick={() => window.open(profile.resume_url!, '_blank')}>
+                          View Current Resume
+                        </Button>
+                      )}
+                      <Button 
+                        variant="secondary" 
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                      >
+                        {isUploading ? "Uploading..." : "Upload New Resume"}
+                      </Button>
+                    </div>
+                  </div>
+                  {uploadMessage && (
+                    <div className={`${styles.uploadMessage} ${uploadMessage.type === 'success' ? styles.uploadSuccess : styles.uploadError}`}>
+                      {uploadMessage.type === 'success' && <CheckCircle2 style={{ display: 'inline', marginRight: '0.5rem' }} size={16} />}
+                      {uploadMessage.text}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
-            <div className="profile-section">
-              <h3>Skills</h3>
-              <div className="skills-list">
+            {/* Skills */}
+            <div className={styles.skillsSection}>
+              <h3 className={styles.skillsSectionTitle}>Skills Set</h3>
+              <div className={styles.skillsList}>
                 {profile?.skills && profile.skills.length > 0 ? (
                   profile.skills.map((skill, index) => (
-                    <span key={index} className="skill-tag">{skill}</span>
+                    <span key={index} className={styles.skillTag}>
+                      {skill}
+                    </span>
                   ))
                 ) : (
-                  <p>No skills added yet.</p>
+                  <p className={styles.noSkills}>No skills added yet.</p>
                 )}
               </div>
             </div>
 
-            <div className="profile-section">
-              <h3>Resume</h3>
-              {profile?.resume_url ? (
-                <p><strong>Resume:</strong> <a href={profile.resume_url} target="_blank" rel="noopener noreferrer">View Resume</a></p>
-              ) : (
-                <p>No resume uploaded yet.</p>
-              )}
-              
-              <div className="resume-upload-section">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  id="resume-upload"
-                  accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"
-                  onChange={handleResumeUpload}
-                  style={{ display: "none" }}
-                />
-                <label htmlFor="resume-upload" className="upload-button">
-                  {isUploading ? "Uploading..." : profile?.resume_url ? "Upload New Resume" : "Upload Resume"}
-                </label>
-                <p className="upload-hint">Supported: PDF, DOCX, DOC, PNG, JPG (max 10MB)</p>
-              </div>
-
-              {uploadMessage && (
-                <div className={`upload-message ${uploadMessage.type}`}>
-                  {uploadMessage.text}
-                </div>
-              )}
+            <div className={styles.editActions}>
+              <Button onClick={() => setIsEditing(true)}>Edit Profile</Button>
             </div>
-
-            <div className="profile-section">
-              <h3>Links</h3>
-              <p><strong>GitHub:</strong> {profile?.github_url || "Not provided"}</p>
-              <p><strong>LinkedIn:</strong> {profile?.linkedin_url || "Not provided"}</p>
-            </div>
-
-            <button onClick={() => setIsEditing(true)} className="edit-button">
-              Edit Profile
-            </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="profile-edit">
-            <div className="form-group">
-              <label htmlFor="name">Name</label>
-              <input
-                id="name"
-                type="text"
+          <form onSubmit={handleSubmit}>
+            <div className={styles.editGrid}>
+              <Input
+                label="Name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="skills">Skills (comma-separated)</label>
-              <input
-                id="skills"
-                type="text"
+              <Input
+                label="Skills (comma-separated)"
                 value={formData.skills}
                 onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
                 placeholder="Python, JavaScript, Machine Learning"
               />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="experience_years">Experience (years)</label>
-              <input
-                id="experience_years"
+              <Input
+                label="Experience (years)"
                 type="number"
                 value={formData.experience_years}
                 onChange={(e) => setFormData({ ...formData, experience_years: e.target.value })}
               />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="education">Education</label>
-              <input
-                id="education"
-                type="text"
+              <Input
+                label="Education"
                 value={formData.education}
                 onChange={(e) => setFormData({ ...formData, education: e.target.value })}
                 placeholder="B.S. Computer Science"
               />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="github_url">GitHub URL</label>
-              <input
-                id="github_url"
+              <Input
+                label="GitHub URL"
                 type="url"
                 value={formData.github_url}
                 onChange={(e) => setFormData({ ...formData, github_url: e.target.value })}
                 placeholder="https://github.com/username"
               />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="linkedin_url">LinkedIn URL</label>
-              <input
-                id="linkedin_url"
+              <Input
+                label="LinkedIn URL"
                 type="url"
                 value={formData.linkedin_url}
                 onChange={(e) => setFormData({ ...formData, linkedin_url: e.target.value })}
@@ -325,16 +334,15 @@ export default function CandidateProfile() {
               />
             </div>
 
-            <div className="form-actions">
-              <button type="submit" className="save-button">Save Changes</button>
-              <button type="button" onClick={() => setIsEditing(false)} className="cancel-button">
+            <div className={styles.editActions}>
+              <Button type="submit">Save Changes</Button>
+              <Button variant="secondary" type="button" onClick={() => setIsEditing(false)}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
         )}
-      </div>
+      </GlassCard>
     </div>
   );
 }
-

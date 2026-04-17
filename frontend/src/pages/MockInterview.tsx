@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { authFetch } from "../hooks/useAuth";
+import { authFetch } from "../hooks/authFetch";
+import { GlassCard } from "../components/ui/GlassCard/GlassCard";
+import { Button } from "../components/ui/Button/Button";
+import { Play, Video, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import styles from "./MockInterview.module.css";
 
 interface DashboardData {
   mock_interviews_remaining: number;
@@ -55,14 +59,7 @@ export default function MockInterview() {
         message: string;
       }>("/api/candidate/mock-interview/start", { method: "POST" });
 
-      // ---------------------------------------------------------------
-      // Store the session_id in sessionStorage so that useInterview can
-      // append it to the WebSocket URL as ?mock_session_id=...
-      // The backend gateway will link the WebSocket session to this
-      // MockInterview row and write scores back on completion.
-      // ---------------------------------------------------------------
       sessionStorage.setItem("mock_session_id", response.session_id);
-
       window.location.hash = `#/interview-session?mock_session_id=${encodeURIComponent(response.session_id)}`;
     } catch (err) {
       console.error("Failed to start interview:", err);
@@ -74,8 +71,13 @@ export default function MockInterview() {
 
   if (isLoading) {
     return (
-      <div className="page-container">
-        <div className="loading">Loading...</div>
+      <div className={styles.loadingState}>
+        <GlassCard padding="lg">
+          <div className={styles.loadingRow}>
+            <div className={styles.spinner} />
+            <p className={styles.loadingText}>Loading mock interviews...</p>
+          </div>
+        </GlassCard>
       </div>
     );
   }
@@ -83,115 +85,113 @@ export default function MockInterview() {
   const canStartInterview = interviewsRemaining > 0 && !isStarting;
 
   return (
-    <div className="page-container">
-      <div className="interview-header">
-        <h1>Mock Interviews</h1>
-        <div className="nav-links">
-          <a href="#/dashboard">Dashboard</a>
-          <a href="#/profile">Profile</a>
-          <a href="#/interview-history">History</a>
-          <a href="#/notifications">Notifications</a>
-        </div>
+    <div className={styles.page}>
+      <div className={styles.header}>
+        <h1 className={styles.title}>Mock Interviews</h1>
+        <p className={styles.subtitle}>Practice with our AI interviewer to perfect your delivery.</p>
       </div>
 
-      {error && <div className="error-message">{error}</div>}
+      {error && (
+        <GlassCard className={styles.errorCard}>
+          <p className={styles.errorText}><AlertCircle size={18}/> {error}</p>
+        </GlassCard>
+      )}
 
-      <div className="interview-start-section">
-        <h2>Start Your Practice Interview</h2>
-        <p>
-          Practice with our AI-powered mock interviewer. You'll get 3 free
-          interviews to improve your skills.
-        </p>
-
-        {interviewsRemaining > 0 ? (
-          <>
-            <p className="interviews-remaining">
-              You have <strong>{interviewsRemaining}</strong> mock interview
-              {interviewsRemaining !== 1 ? "s" : ""} remaining.
+      <div className={styles.grid}>
+        {/* Left Column: Start New Interview */}
+        <div className={styles.startColumn}>
+          <GlassCard padding="lg" className={styles.startCard}>
+            <div className={styles.startCardOverlay} />
+            <h2 className={styles.startHeading}>
+              <Video /> Start Practice
+            </h2>
+            <p className={styles.startDescription}>
+              Practice with our AI-powered mock interviewer. You get 3 free interviews to improve your skills.
             </p>
-            <button
-              onClick={startInterview}
-              disabled={!canStartInterview}
-              className="start-interview-button"
-            >
-              {isStarting ? "Starting..." : "Start Mock Interview"}
-            </button>
-          </>
-        ) : (
-          <div className="limit-reached">
-            <p>You have completed your free mock interviews.</p>
-            <p className="upgrade-hint">Upgrade to get more practice interviews.</p>
-          </div>
-        )}
-      </div>
 
-      <div className="interview-history-section">
-        <h2>Your Interview History</h2>
-
-        {interviewHistory.length === 0 ? (
-          <p className="no-history">
-            You haven't taken any mock interviews yet.
-          </p>
-        ) : (
-          <div className="interview-list">
-            {interviewHistory.map((interview) => (
-              <div key={interview.id} className="interview-card">
-                <div className="interview-info">
-                  <h3>Mock Interview #{interview.interview_number}</h3>
-                  <p className="interview-date">
-                    {new Date(interview.created_at).toLocaleDateString()}
-                  </p>
-                  <p className="interview-status">
-                    Status:{" "}
-                    <span className={`status-${interview.status}`}>
-                      {interview.status}
-                    </span>
-                  </p>
+            {interviewsRemaining > 0 ? (
+              <div className={styles.startContent}>
+                <div className={styles.remainingBox}>
+                  <p className={styles.remainingLabel}>Interviews Remaining</p>
+                  <p className={styles.remainingValue}>{interviewsRemaining}</p>
                 </div>
-
-                {interview.score !== null ? (
-                  <div className="interview-scores">
-                    <div className="score-item">
-                      <span className="score-label">Overall</span>
-                      <span className="score-value">
-                        {interview.score.toFixed(0)}
-                      </span>
-                    </div>
-                    <div className="score-item">
-                      <span className="score-label">Technical</span>
-                      <span className="score-value">
-                        {interview.technical_score?.toFixed(0) ?? "N/A"}
-                      </span>
-                    </div>
-                    <div className="score-item">
-                      <span className="score-label">Communication</span>
-                      <span className="score-value">
-                        {interview.communication_score?.toFixed(0) ?? "N/A"}
-                      </span>
-                    </div>
-                    <div className="score-item">
-                      <span className="score-label">Reasoning</span>
-                      <span className="score-value">
-                        {interview.reasoning_score?.toFixed(0) ?? "N/A"}
-                      </span>
-                    </div>
-                  </div>
-                ) : interview.status === "in_progress" ? (
-                  <div className="interview-pending">
-                    <p>Interview in progress...</p>
-                    <a href="#/interview-session" className="resume-button">
-                      Resume Interview
-                    </a>
-                  </div>
-                ) : (
-                  <div className="interview-pending">
-                    <p>Interview not completed</p>
-                  </div>
-                )}
+                <Button
+                  onClick={startInterview}
+                  disabled={!canStartInterview}
+                  fullWidth
+                >
+                  {isStarting ? "Starting..." : <><Play size={16} /> Start Interview</>}
+                </Button>
               </div>
-            ))}
-          </div>
-        )}
+            ) : (
+              <div className={styles.limitBox}>
+                <p className={styles.limitTitle}>Limit Reached</p>
+                <p className={styles.limitText}>You have completed your free mock interviews.</p>
+                <Button variant="secondary" fullWidth>Upgrade Plan</Button>
+              </div>
+            )}
+          </GlassCard>
+        </div>
+
+        {/* Right Column: History */}
+        <div className={styles.historyColumn}>
+          <h2 className={styles.historyTitle}>Recent Sessions</h2>
+
+          {interviewHistory.length === 0 ? (
+            <GlassCard className={styles.emptyState}>
+              <Clock className={styles.emptyIcon} size={48} />
+              <p className={styles.emptyText}>You haven't taken any mock interviews yet.</p>
+            </GlassCard>
+          ) : (
+            <div className={styles.historyCards}>
+              {interviewHistory.map((interview) => (
+                <GlassCard key={interview.id} className={styles.historyCard}>
+                  <div className={styles.historyCardContent}>
+                    <div>
+                      <h3 className={styles.sessionTitle}>
+                        Session #{interview.interview_number}
+                        {interview.status === "completed" && <CheckCircle2 size={16} />}
+                      </h3>
+                      <p className={styles.sessionDate}>
+                        {new Date(interview.created_at).toLocaleDateString(undefined, {
+                          year: 'numeric', month: 'long', day: 'numeric',
+                          hour: '2-digit', minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+
+                    {interview.score !== null ? (
+                      <div className={styles.scoresRow}>
+                        <div className={styles.scoreItem}>
+                          <p className={styles.scoreLabel}>Overall</p>
+                          <p className={styles.scoreValuePrimary}>{interview.score.toFixed(0)}</p>
+                        </div>
+                        <div className={styles.scoreItem}>
+                          <p className={styles.scoreLabel}>Tech</p>
+                          <p className={styles.scoreValueSecondary}>{interview.technical_score?.toFixed(0) ?? "-"}</p>
+                        </div>
+                        <div className={styles.scoreItem}>
+                          <p className={styles.scoreLabel}>Comm</p>
+                          <p className={styles.scoreValueSecondary}>{interview.communication_score?.toFixed(0) ?? "-"}</p>
+                        </div>
+                      </div>
+                    ) : interview.status === "in_progress" ? (
+                      <div>
+                        <Button variant="secondary" onClick={() => window.location.hash = `#/interview-session?mock_session_id=${encodeURIComponent(interview.session_id)}`}>
+                          Resume Pending
+                        </Button>
+                      </div>
+                    ) : (
+                      <div>
+                        <span className={styles.incompleteBadge}>Incomplete</span>
+                      </div>
+                    )}
+                  </div>
+                </GlassCard>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

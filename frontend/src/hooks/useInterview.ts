@@ -149,7 +149,7 @@ export function useInterview() {
     };
   }, []);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (socketInitialized.current) return;
     socketInitialized.current = true;
@@ -171,6 +171,7 @@ export function useInterview() {
       // Clean up sessionStorage when the interview page unmounts
       sessionStorage.removeItem("mock_session_id");
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function connectSocket() {

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from backend.core.security.rbac import require_admin
+from backend.core.security.rbac import require_admin, require_recruiter
 from backend.infrastructure.database.database import get_db
 from backend.models.evaluation_dashboard import (
     EvaluationDashboardResponse,
@@ -22,14 +22,14 @@ router = APIRouter(tags=["admin-dashboard"], prefix="/admin")
 @router.get("/evaluation-dashboard", response_model=EvaluationDashboardResponse)
 async def get_ai_evaluation_dashboard(
     db: Session = Depends(get_db),
-    user=Depends(require_admin)
+    user=Depends(require_recruiter)
 ):
     return await get_evaluation_dashboard(db)
 
 
 @router.get("/metrics/aggregates")
 async def get_metrics_aggregates(
-    user=Depends(require_admin),
+    user=Depends(require_recruiter),
     db: Session = Depends(get_db)
 ):
     """Get aggregated metrics from PostgreSQL (last 24h, 7d, 30d)."""
@@ -38,7 +38,7 @@ async def get_metrics_aggregates(
 
 @router.get("/metrics/trends")
 async def get_metrics_trends(
-    user=Depends(require_admin),
+    user=Depends(require_recruiter),
     days: int = 30,
     db: Session = Depends(get_db)
 ):

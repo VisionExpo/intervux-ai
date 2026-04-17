@@ -68,6 +68,48 @@ class RedisSessionRegistry:
         except Exception as e:
             logger.error(f"Redis save_state error: {e}")
 
+    async def cleanup_stale_sessions(self) -> int:
+        """
+        Reconcile session_cluster_count with actual session:* keys.
+
+        Returns the corrected count.  This prevents the counter from
+        drifting when a node crashes without calling unregister().
+        """
+        try:
+            keys = []
+            async for key in self.redis.scan_iter("session:*"):
+                keys.append(key)
+
+            # Exclude the counter key itself
+            actual = len([k for k in keys if k != "session_cluster_count"])
+            await self.redis.set("session_cluster_count", actual)
+            logger.info(
+                "Reconciled stale session count",
+                extra={"extra_data": {"actual_count": actual}},
+            )
+            return actual
+        except Exception as e:
+            logger.error(f"cleanup_stale_sessions error: {e}")
+            return 0
+
+    async def clear_all_session_keys(self, session_id: str) -> None:
+        """
+        Delete ALL Redis keys associated with a specific session.
+
+        Useful for full session purge on abnormal shutdown.
+        """
+        prefixes = [
+            f"session:{session_id}",
+            f"interview:state:{session_id}",
+            f"interview:state_obj:{session_id}",
+            f"interview:cache:{session_id}",
+            f"interview:results:{session_id}",
+        ]
+        try:
+            await self.redis.delete(*prefixes)
+        except Exception as e:
+            logger.error(f"clear_all_session_keys error: {e}")
+
 _registry: Optional[RedisSessionRegistry] = None
 
 def get_session_registry() -> RedisSessionRegistry:

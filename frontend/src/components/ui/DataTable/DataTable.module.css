@@ -1,0 +1,129 @@
+/* DataTable — Responsive Glass Table Component */
+
+.tableContainer {
+  background: var(--surface-glass-heavy);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.header {
+  padding: 1.25rem 1.5rem;
+  background: var(--surface-glass-light);
+  border-bottom: 1px solid var(--border-glass);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+.scrollWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 480px;
+  text-align: left;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+/* Head */
+.thead tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.th {
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.thSortable {
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.thSortable:hover {
+  color: var(--text-secondary);
+}
+
+.thSortActive {
+  color: var(--accent-indigo);
+}
+
+.sortIcon {
+  display: inline-block;
+  margin-left: 0.25rem;
+  font-size: 0.625rem;
+  vertical-align: middle;
+}
+
+/* Body */
+.tbody tr {
+  border-bottom: 1px solid var(--border-glass);
+  transition: background var(--transition-fast);
+}
+
+.tbody tr:last-child {
+  border-bottom: none;
+}
+
+.tbody tr:hover {
+  background: var(--surface-glass-light);
+}
+
+.td {
+  padding: 0.875rem 1.5rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Alignment classes */
+.alignCenter {
+  text-align: center;
+}
+
+.alignRight {
+  text-align: right;
+}
+
+/* Empty state */
+.emptyState {
+  text-align: center;
+  padding: 3rem 1.5rem;
+}
+
+.emptyIcon {
+  margin: 0 auto 1rem;
+  color: var(--text-tertiary);
+  opacity: 0.5;
+}
+
+.emptyText {
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  margin: 0;
+}

@@ -52,7 +52,6 @@ from backend.models.recruiter_dashboard_models import (
     Interview,
     JobPost,
     JobPostStatus,
-    JobSkill,
 )
 
 
@@ -212,18 +211,11 @@ async def test_job_post(db_session: AsyncSession) -> JobPost:
         interview_limit=10,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
-        created_by="test-recruiter-001",
+        recruiter_id="test-recruiter-001",
     )
     db_session.add(job)
     
-    # Add skills
-    skill = JobSkill(
-        id=str(uuid.uuid4()),
-        job_post_id=job.id,
-        skill_name="Python",
-        is_required="true",
-    )
-    db_session.add(skill)
+
     
     await db_session.commit()
     await db_session.refresh(job)

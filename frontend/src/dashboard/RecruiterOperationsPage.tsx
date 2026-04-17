@@ -4,14 +4,29 @@ import { Bell, Filter, Search, Sparkles, Star } from "lucide-react";
 import { SurfaceCard } from "../components/ui/SurfaceCard";
 import { StatCard } from "../components/ui/StatCard";
 import { DashboardSkeleton } from "../components/ui/DashboardSkeleton";
+import { DataTable, type Column } from "../components/ui/DataTable/DataTable";
 import { usePageMeta } from "../hooks/usePageMeta";
 import sharedStyles from "./DashboardShared.module.css";
 
-const candidates = [
+interface Candidate {
+  name: string;
+  role: string;
+  score: number;
+  stage: string;
+}
+
+const candidates: Candidate[] = [
   { name: "Aisha Rao", role: "Senior Frontend Engineer", score: 95, stage: "Panel" },
   { name: "Mohan Patel", role: "Platform Engineer", score: 92, stage: "System Design" },
   { name: "Elena Cruz", role: "Data Engineer", score: 88, stage: "Recruiter Screen" },
   { name: "Noah Wright", role: "AI Product Manager", score: 84, stage: "Offer Review" },
+];
+
+const candidateColumns: Column<Candidate>[] = [
+  { key: "name", label: "Candidate", sortable: true, render: (row) => <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{row.name}</span> },
+  { key: "role", label: "Role", sortable: true },
+  { key: "score", label: "AI Score", sortable: true, align: "center", render: (row) => <span className={sharedStyles.badgePrimary}>{row.score}</span> },
+  { key: "stage", label: "Stage", sortable: true },
 ];
 
 export default function RecruiterOperationsPage() {
@@ -113,32 +128,16 @@ export default function RecruiterOperationsPage() {
       </div>
 
       <div className={sharedStyles.bentoGrid}>
-        <SurfaceCard title="Candidate list" subtitle="Ranked for current role selection" className={sharedStyles.bentoColSpan2}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', minWidth: '540px', textAlign: 'left', fontSize: '0.875rem', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ color: 'var(--text-secondary)' }}>
-                  <th style={{ paddingBottom: '0.5rem', fontWeight: 500, borderBottom: '1px solid var(--border-glass)' }}>Candidate</th>
-                  <th style={{ paddingBottom: '0.5rem', fontWeight: 500, borderBottom: '1px solid var(--border-glass)' }}>Role</th>
-                  <th style={{ paddingBottom: '0.5rem', fontWeight: 500, borderBottom: '1px solid var(--border-glass)' }}>AI Score</th>
-                  <th style={{ paddingBottom: '0.5rem', fontWeight: 500, borderBottom: '1px solid var(--border-glass)' }}>Stage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCandidates.map((candidate) => (
-                  <tr key={candidate.name} style={{ borderBottom: '1px solid var(--border-glass)' }}>
-                    <td style={{ padding: '0.75rem 0', fontWeight: 600, color: 'var(--text-primary)' }}>{candidate.name}</td>
-                    <td style={{ padding: '0.75rem 0', color: 'var(--text-secondary)' }}>{candidate.role}</td>
-                    <td style={{ padding: '0.75rem 0' }}>
-                      <span className={sharedStyles.badgePrimary} style={{ display: 'inline-block' }}>{candidate.score}</span>
-                    </td>
-                    <td style={{ padding: '0.75rem 0', color: 'var(--text-secondary)' }}>{candidate.stage}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </SurfaceCard>
+        <div className={sharedStyles.bentoColSpan2}>
+          <DataTable<Candidate>
+            columns={candidateColumns}
+            data={filteredCandidates}
+            rowKey={(row) => row.name}
+            title="Candidate list"
+            subtitle="Ranked for current role selection"
+            emptyText="No candidates match your filters."
+          />
+        </div>
 
         <SurfaceCard title="Activity stream" subtitle="Live recruiter and system events">
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>

@@ -2,10 +2,7 @@
 @import './styles/globals.css';
 @import './styles/motion.css';
 
-/* Remove Tailwind @tailwind base/components/utilities entirely */
-
-/* Keep the legacy interview layout classes here ONLY if they are critically needed 
-   by CandidateInterviewReport or InterviewPage until they are refactored. */
+/* Interview layout classes used by InterviewPage and CandidateInterviewReport */
 
 .interview-layout {
   display: grid;
