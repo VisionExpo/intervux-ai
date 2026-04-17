@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-intervux}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +21,7 @@ services:
     image: redis:7
     container_name: intervux-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -42,6 +42,8 @@ services:
     command: ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
     env_file:
       - .env.docker
+    environment:
+      RUN_DB_MIGRATIONS: "true"
     ports:
       - "8000:8000"
     depends_on:
@@ -56,7 +58,7 @@ services:
     mem_limit: 2g
     memswap_limit: 2g
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')\""]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -72,6 +74,8 @@ services:
     command: celery -A backend.core.celery_app:celery_app worker -l info --concurrency=2
     env_file:
       - .env.docker
+    environment:
+      RUN_DB_MIGRATIONS: "false"
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,6 +102,8 @@ services:
     command: celery -A backend.core.celery_app:celery_app beat -l info
     env_file:
       - .env.docker
+    environment:
+      RUN_DB_MIGRATIONS: "false"
     depends_on:
       redis:
         condition: service_healthy
@@ -109,9 +115,14 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: intervux-flower
-    command: celery -A backend.core.celery_app:celery_app flower --port=5555 --basic_auth=${FLOWER_BASIC_AUTH:-admin:admin}
+    command: >
+      sh -c "test -n \"$$FLOWER_BASIC_AUTH\" ||
+      { echo 'FLOWER_BASIC_AUTH must be set'; exit 1; };
+      celery -A backend.core.celery_app:celery_app flower --port=5555 --basic_auth=$$FLOWER_BASIC_AUTH"
     env_file:
       - .env.docker
+    environment:
+      RUN_DB_MIGRATIONS: "false"
     ports:
       - "5555:5555"
     depends_on:

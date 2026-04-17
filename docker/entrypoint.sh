@@ -43,9 +43,12 @@ done
 
 echo "[entrypoint] Database is ready."
 
-if [ -d "alembic" ] || [ -d "backend/alembic" ]; then
+RUN_DB_MIGRATIONS="${RUN_DB_MIGRATIONS:-true}"
+if [ "$RUN_DB_MIGRATIONS" = "true" ] && ([ -d "alembic" ] || [ -d "backend/alembic" ]); then
     echo "[entrypoint] Running Alembic migrations..."
-    alembic upgrade head || echo "[entrypoint] Alembic failed but continuing..."
+    alembic upgrade head
+elif [ "$RUN_DB_MIGRATIONS" != "true" ]; then
+    echo "[entrypoint] Skipping Alembic migrations (RUN_DB_MIGRATIONS=$RUN_DB_MIGRATIONS)."
 else
     echo "[entrypoint] No alembic folder found. Skipping migrations."
 fi
