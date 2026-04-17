@@ -6,8 +6,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-intervux}
-    ports:
-      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,8 +18,6 @@ services:
   redis:
     image: redis:7
     container_name: intervux-redis
-    ports:
-      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -109,6 +105,8 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+    healthcheck:
+      disable: true
 
   flower:
     build:
@@ -131,7 +129,7 @@ services:
       worker:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5555/')\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request, urllib.error, sys; req=urllib.request.Request('http://localhost:5555/');\ntry:\n urllib.request.urlopen(req); sys.exit(0)\nexcept urllib.error.HTTPError as e:\n sys.exit(0 if e.code==401 else 1)\""]
       interval: 20s
       timeout: 5s
       retries: 5
