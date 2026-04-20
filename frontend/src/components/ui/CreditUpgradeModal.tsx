@@ -22,6 +22,7 @@ export function CreditUpgradeModal({ isOpen, onClose }: CreditUpgradeModalProps)
               <button 
                 onClick={onClose}
                 className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 text-[var(--text-tertiary)]"
+                aria-label="Close upgrade modal"
               >
                 <X size={20} />
               </button>

@@ -23,6 +23,7 @@
   z-index: 10;
   background: rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   padding: 3rem;
   border-radius: 2rem;
   border: 1px solid rgba(255, 255, 255, 0.05);

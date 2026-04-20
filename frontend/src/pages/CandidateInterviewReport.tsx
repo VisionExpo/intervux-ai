@@ -215,11 +215,19 @@ export default function CandidateInterviewReport() {
           </p>
         </div>
         <div className="flex gap-3">
-          <button onClick={() => navigate("/candidate")} className="p-3 rounded-xl bg-[var(--surface-glass-light)] border border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-white transition-all">
-            <LayoutDashboard size={20} />
+          <button 
+            onClick={() => navigate("/candidate")} 
+            className="p-3 rounded-xl bg-[var(--surface-glass-light)] border border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-white transition-all"
+            aria-label="Back to Dashboard"
+          >
+            <LayoutDashboard size={20} title="Dashboard" />
           </button>
-          <button onClick={() => navigate("/interview-history")} className="p-3 rounded-xl bg-[var(--surface-glass-light)] border border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-white transition-all">
-            <History size={20} />
+          <button 
+            onClick={() => navigate("/interview-history")} 
+            className="p-3 rounded-xl bg-[var(--surface-glass-light)] border border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-white transition-all"
+            aria-label="View Interview History"
+          >
+            <History size={20} title="History" />
           </button>
         </div>
       </header>

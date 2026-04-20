@@ -3,20 +3,9 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Bell,
-  BriefcaseBusiness,
-  CalendarCheck2,
-  ChartColumn,
-  ClipboardList,
-  FlaskConical,
-  LayoutDashboard,
-  LineChart,
   Menu,
-  Mic2,
   Search,
-  ShieldCheck,
   Sparkles,
-  UserRound,
-  Users,
   X,
   LogOut,
 } from "lucide-react";
@@ -146,7 +135,7 @@ export function EnterpriseAppLayout({ children }: EnterpriseAppLayoutProps) {
       <div className={styles.mainWrapper}>
         <header className={styles.topHeader}>
           <div className={styles.headerLeft}>
-            <button className={styles.mobileMenuBtn} onClick={() => setMenuOpen(true)} aria-label="Open navigation">
+            <button className={styles.mobileMenuBtn} onClick={() => setMenuOpen(true)} aria-label="Open sidebar navigation menu">
               <Menu size={16} />
             </button>
             <div className={styles.pageContext}>
@@ -163,8 +152,8 @@ export function EnterpriseAppLayout({ children }: EnterpriseAppLayoutProps) {
                 MVP Search Layer: Currently restricted
               </div>
             </div>
-            <button className={styles.iconBtn}>
-              <Bell size={16} />
+            <button className={styles.iconBtn} aria-label="View notifications">
+              <Bell size={16} title="Notifications" />
             </button>
           </div>
         </header>

@@ -220,6 +220,7 @@ export default function CandidateProfile() {
                       ref={fileInputRef}
                       type="file"
                       id="resume-upload"
+                      aria-label="Upload resume"
                       accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"
                       onChange={handleResumeUpload}
                       style={{ display: "none" }}

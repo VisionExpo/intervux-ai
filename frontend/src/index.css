@@ -51,6 +51,7 @@
   position: relative;
   background: var(--surface-glass-heavy);
   backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-glass);
   box-shadow: var(--shadow-sm);
@@ -64,6 +65,7 @@
   right: 1rem;
   background: var(--surface-glass-heavy);
   backdrop-filter: var(--blur-lg);
+  -webkit-backdrop-filter: var(--blur-lg);
   border: 1px solid var(--border-glass);
   border-radius: var(--radius-md);
   padding: 1rem;
@@ -97,6 +99,7 @@
 .transcript-panel {
   background: var(--surface-glass-heavy);
   backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-glass);
   box-shadow: var(--shadow-sm);
