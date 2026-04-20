@@ -30,7 +30,7 @@ export function DashboardError({ message, onRetry }: DashboardErrorProps) {
 interface EmptyStateProps {
   title: string;
   description: string;
-  icon: React.ElementType;
+  icon: React.ElementType<{ size?: number; className?: string }>;
   actionLabel?: string;
   onAction?: () => void;
 }

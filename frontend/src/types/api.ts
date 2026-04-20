@@ -60,6 +60,15 @@ export interface AdminDashboardData {
     model: string;
     score: number;
   }[];
+  stats?: {
+    hiringDecisions: string;
+    modelConfidence: string;
+    scoringDrift: string;
+    uptime: string;
+  };
+  audit_logs?: string[];
+  health?: { label: string; status: string }[];
+  confidence_trend?: { day: string; confidence: number; drift: number }[];
 }
 
 export interface ResumeUploadResponse {

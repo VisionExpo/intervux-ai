@@ -15,7 +15,7 @@ import { DashboardError, EmptyState } from "../components/ui/FeedbackStates";
 import { useAdminDashboard } from "../hooks/useDashboard";
 import { usePageMeta } from "../hooks/usePageMeta";
 import sharedStyles from "../dashboard/DashboardShared.module.css";
-import { AlertCircle, Activity } from "lucide-react";
+import { Activity } from "lucide-react";
 
 const confidenceTrend = [
   { day: "Mon", confidence: 91, drift: 4.2 },
@@ -49,8 +49,7 @@ export default function AdminCommandCenterPage() {
     uptime: "99.98%" 
   };
   const logs = data?.audit_logs || [];
-  const health = data?.health || [];
-  const chartData = data?.confidence_trend || confidenceTrend;
+  const logs = data?.audit_logs || [];
 
   return (
     <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
@@ -75,7 +74,7 @@ export default function AdminCommandCenterPage() {
         <SurfaceCard title="Model confidence and drift" subtitle="Real-time confidence quality" className={sharedStyles.bentoColSpan2}>
           <div className="h-72 w-full mt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={confidenceTrend}>
+              <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                 <XAxis dataKey="day" stroke="var(--text-secondary)" />
                 <YAxis yAxisId="left" stroke="var(--text-secondary)" />
@@ -90,12 +89,12 @@ export default function AdminCommandCenterPage() {
 
         <SurfaceCard title="System health" subtitle="Infrastructure and service checks">
           <ul className="list-none p-0 m-0 flex flex-col gap-3 text-sm">
-            {[
+            {(data?.health || [
               ["Realtime interview gateway", "Healthy"],
               ["Evaluation workers", "Healthy"],
               ["Queue latency", "Normal"],
               ["Storage replication", "Healthy"],
-            ].map(([label, status]) => (
+            ]).map(([label, status]) => (
               <li key={label} className="flex items-center justify-between bg-[var(--surface-glass-light)] px-4 py-3 rounded-[var(--radius-md)] border border-[var(--border-glass)]">
                 <span className="text-[var(--text-primary)]">{label}</span>
                 <span className={sharedStyles.badgePrimary}>{status}</span>
@@ -125,7 +124,7 @@ export default function AdminCommandCenterPage() {
         <SurfaceCard title="Audit logs" subtitle="Recent governance events" className={sharedStyles.bentoColSpan2}>
           {logs.length > 0 ? (
             <ul className="list-none p-0 m-0 flex flex-col gap-2 text-sm text-[var(--text-secondary)]">
-              {logs.map((item, idx) => (
+              {logs.map((item: string, idx: number) => (
                 <li key={idx} className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] px-4 py-3 border border-[var(--border-glass)]">{item}</li>
               ))}
             </ul>

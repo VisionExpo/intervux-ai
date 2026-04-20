@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { authFetch } from "./authFetch";
 import { API } from "../config/api";
-import { 
+import type { 
   CandidateDashboardData, 
   RecruiterDashboardData, 
   AdminDashboardData 
