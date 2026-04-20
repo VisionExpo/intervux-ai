@@ -139,7 +139,7 @@
 }
 
 .logoutBtn {
-  margin-top: 1rem;
+  margin-top: auto;
   display: flex;
   width: 100%;
   align-items: center;

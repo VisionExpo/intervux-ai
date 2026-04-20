@@ -138,6 +138,18 @@
   text-transform: uppercase;
 }
 
+.badgeSuccess, .badgeWarning {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: fit-content;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-full);
+}
+
 .badgeSuccess {
   background: var(--accent-success-glow);
   color: #34d399;

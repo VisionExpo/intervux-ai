@@ -1,18 +1,19 @@
 // Imports removed
 interface ProgressBarProps {
-  label: string;
+  label?: string;
   value: number;
   helper?: string;
+  height?: number;
 }
 
-export function ProgressBar({ label, value, helper }: ProgressBarProps) {
+export function ProgressBar({ label, value, helper, height = 8 }: ProgressBarProps) {
   return (
     <div style={{ marginBottom: '1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
         <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{label}</span>
         <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{value}%</span>
       </div>
-      <div style={{ height: '0.5rem', background: 'var(--surface-glass-light)', borderRadius: '999px', overflow: 'hidden' }}>
+      <div style={{ height: `${height}px`, background: 'var(--surface-glass-light)', borderRadius: '999px', overflow: 'hidden' }}>
         <div
           style={{ 
             height: '100%', 

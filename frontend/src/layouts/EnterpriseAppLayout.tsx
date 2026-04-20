@@ -122,7 +122,7 @@ export function EnterpriseAppLayout({ children }: EnterpriseAppLayoutProps) {
                   );
                 })}
               </nav>
-              <button onClick={handleLogout} className={styles.logoutBtn} style={{ marginTop: "auto" }}>
+              <button onClick={handleLogout} className={styles.logoutBtn}>
                 <LogOut size={14} />
                 Logout
               </button>
@@ -152,8 +152,8 @@ export function EnterpriseAppLayout({ children }: EnterpriseAppLayoutProps) {
                 MVP Search Layer: Currently restricted
               </div>
             </div>
-            <button className={styles.iconBtn} aria-label="View notifications">
-              <Bell size={16} title="Notifications" />
+            <button className={styles.iconBtn} aria-label="View notifications" title="Notifications">
+              <Bell size={16} />
             </button>
           </div>
         </header>

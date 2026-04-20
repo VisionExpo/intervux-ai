@@ -79,7 +79,7 @@ export default function CandidateIntelligencePage() {
                 </li>
               ))
             ) : (
-              <p className="text-sm text-[var(--text-secondary)] p-4 text-center italic">No recent activity detected.</p>
+                <li className="text-sm text-[var(--text-secondary)] p-4 text-center italic">No recent activity detected.</li>
             )}
           </ul>
         </SurfaceCard>

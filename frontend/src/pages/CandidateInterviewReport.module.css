@@ -59,8 +59,8 @@
   border: 1px solid var(--border-glass);
   padding: 1.5rem;
   border-radius: var(--radius-md);
-  backdrop-filter: var(--blur-md);
   -webkit-backdrop-filter: var(--blur-md);
+  backdrop-filter: var(--blur-md);
 }
 
 .dimensionLabel {

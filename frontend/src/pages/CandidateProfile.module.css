@@ -169,6 +169,10 @@
   padding-top: var(--space-2);
 }
 
+.hiddenInput {
+  display: none;
+}
+
 .uploadActions {
   display: flex;
   flex-wrap: wrap;

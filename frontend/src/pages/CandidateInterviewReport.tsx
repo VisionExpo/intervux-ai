@@ -1,16 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
-  Award, 
-  CheckCircle2, 
-  ChevronLeft, 
-  FileBox, 
   History, 
   LayoutDashboard, 
   Lightbulb, 
   MessageSquare, 
-  Sparkles, 
   Target, 
   TrendingUp, 
   Zap 
@@ -136,7 +131,6 @@ export default function CandidateInterviewReport() {
         let completedInterview: InterviewRecord | undefined;
         
         if (hasStored) {
-          const sessionData = JSON.parse(stored);
           // If we have just finished an interview, session storage might contain the immediate result
           // But it's safer to fetch the latest "completed" record from history to be sure it's persisted correctly
         }
@@ -219,15 +213,17 @@ export default function CandidateInterviewReport() {
             onClick={() => navigate("/candidate")} 
             className="p-3 rounded-xl bg-[var(--surface-glass-light)] border border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-white transition-all"
             aria-label="Back to Dashboard"
+            title="Dashboard"
           >
-            <LayoutDashboard size={20} title="Dashboard" />
+            <LayoutDashboard size={20} />
           </button>
           <button 
             onClick={() => navigate("/interview-history")} 
             className="p-3 rounded-xl bg-[var(--surface-glass-light)] border border-[var(--border-glass)] text-[var(--text-secondary)] hover:text-white transition-all"
             aria-label="View Interview History"
+            title="History"
           >
-            <History size={20} title="History" />
+            <History size={20} />
           </button>
         </div>
       </header>

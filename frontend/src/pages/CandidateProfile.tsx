@@ -6,7 +6,7 @@ import { Input } from "../components/ui/Input/Input";
 import { Sparkles, UserRound, FileText, CheckCircle2 } from "lucide-react";
 import styles from "./CandidateProfile.module.css";
 import { API } from "../config/api";
-import { CandidateProfileResponse, ResumeUploadResponse } from "../types/api";
+import type { CandidateProfileResponse, ResumeUploadResponse } from "../types/api";
 
 export default function CandidateProfile() {
   const [profile, setProfile] = useState<CandidateProfileResponse | null>(null);
@@ -223,7 +223,7 @@ export default function CandidateProfile() {
                       aria-label="Upload resume"
                       accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"
                       onChange={handleResumeUpload}
-                      style={{ display: "none" }}
+                      className={styles.hiddenInput}
                     />
                     <div className={styles.uploadActions}>
                       {profile?.resume_url && (
