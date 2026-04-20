@@ -156,9 +156,12 @@ export function EnterpriseAppLayout({ children }: EnterpriseAppLayoutProps) {
           </div>
 
           <div className={styles.headerRight}>
-            <div className={styles.searchBox}>
+            <div className={`${styles.searchBox} group relative`}>
               <Search size={14} color="var(--text-secondary)" />
-              <input className={styles.searchInput} placeholder="Search candidates, jobs, reports" readOnly />
+              <input className={styles.searchInput} placeholder="Search coming soon..." readOnly />
+              <div className="absolute top-full left-0 mt-2 px-2 py-1 bg-[#1e293b] text-[10px] text-white rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                MVP Search Layer: Currently restricted
+              </div>
             </div>
             <button className={styles.iconBtn}>
               <Bell size={16} />

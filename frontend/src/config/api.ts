@@ -13,6 +13,11 @@ export const API = {
   auth: {
     login: "/api/auth/login",
     signup: "/api/candidate/signup",
-    me: "/api/auth/me"
-  }
+    me: "/api/auth/me",
+  },
+  profile: {
+    candidate: "/api/candidate/profile",
+    resume: "/api/candidate/resume",
+  },
+  notifications: "/api/candidate/notifications",
 };

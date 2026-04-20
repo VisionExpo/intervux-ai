@@ -5,34 +5,11 @@ import { Button } from "../components/ui/Button/Button";
 import { Input } from "../components/ui/Input/Input";
 import { Sparkles, UserRound, FileText, CheckCircle2 } from "lucide-react";
 import styles from "./CandidateProfile.module.css";
-
-interface ProfileData {
-  id: number;
-  user_id: string;
-  name: string;
-  skills: string[];
-  experience_years: number | null;
-  education: string | null;
-  resume_url: string | null;
-  resume_score: number | null;
-  interview_score: number | null;
-  profile_score: number | null;
-  github_url: string | null;
-  linkedin_url: string | null;
-  mock_interviews_remaining: number;
-  created_at: string;
-}
-
-interface ResumeUploadResponse {
-  resume_url: string;
-  resume_score: number;
-  skills: string[];
-  strengths: string[];
-  weaknesses: string[];
-}
+import { API } from "../config/api";
+import { CandidateProfileResponse, ResumeUploadResponse } from "../types/api";
 
 export default function CandidateProfile() {
-  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [profile, setProfile] = useState<CandidateProfileResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -51,7 +28,7 @@ export default function CandidateProfile() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const data = await authFetch<ProfileData>("/api/candidate/profile");
+        const data = await authFetch<CandidateProfileResponse>(API.profile.candidate);
         setProfile(data);
         setFormData({
           name: data.name || "",
@@ -85,7 +62,7 @@ export default function CandidateProfile() {
         linkedin_url: formData.linkedin_url || null,
       };
 
-      const updatedProfile = await authFetch<ProfileData>("/api/candidate/profile", {
+      const updatedProfile = await authFetch<CandidateProfileResponse>(API.profile.candidate, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updateData),
@@ -131,7 +108,7 @@ export default function CandidateProfile() {
       });
 
       // Refresh profile to get updated data
-      const updatedProfile = await authFetch<ProfileData>("/api/candidate/profile");
+      const updatedProfile = await authFetch<CandidateProfileResponse>(API.profile.candidate);
       setProfile(updatedProfile);
       setFormData((prev) => ({
         ...prev,

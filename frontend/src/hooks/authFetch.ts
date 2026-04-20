@@ -11,7 +11,6 @@ export async function authFetch<T>(
     ...(options.headers as Record<string, string>),
   };
 
-  const token = localStorage.getItem("auth_token");
   const expiry = localStorage.getItem("auth_token_expires");
 
   if (token && expiry && Date.now() > parseInt(expiry, 10)) {

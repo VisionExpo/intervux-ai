@@ -4,6 +4,7 @@ import { Sparkles } from "lucide-react";
 import { useAuth } from "./hooks/useAuth";
 import { EnterpriseAppLayout } from "./layouts/EnterpriseAppLayout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { LoadingScreen } from "./components/ui/LoadingScreen/LoadingScreen";
 
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const Login = lazy(() => import("./pages/Login"));
@@ -27,18 +28,6 @@ const CandidateNotifications = lazy(() => import("./pages/CandidateNotifications
 const InterviewPage = lazy(() => import("./pages/InterviewPage"));
 const CandidateInterviewReport = lazy(() => import("./pages/CandidateInterviewReport"));
 
-function LoadingScreen() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100">
-      <div className="rounded-2xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
-        <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <Sparkles className="h-4 w-4 text-blue-600" />
-          Loading Intervux AI workspace...
-        </p>
-      </div>
-    </div>
-  );
-}
 
 function RoleHomeRedirect() {
   const { user } = useAuth();
@@ -86,82 +75,24 @@ function AppContent() {
             </ProtectedRoute>
           }
         >
-          <Route
-            path="/candidate"
-            element={
-              <ProtectedRoute allowedRoles={["candidate"]}>
-                <CandidateIntelligencePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/recruiter"
-            element={
-              <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
-                <RecruiterOperationsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute allowedRoles={["admin"]}>
-                <AdminCommandCenterPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/rbac"
-            element={
-              <ProtectedRoute allowedRoles={["admin"]}>
-                <RbacAccessControlPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/analytics"
-            element={
-              <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
-                <AnalyticsIntelligencePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/candidates"
-            element={
-              <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
-                <RecruiterCandidatesPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/interviews"
-            element={
-              <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
-                <RecruiterInterviewsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/audit-logs"
-            element={
-              <ProtectedRoute allowedRoles={["admin"]}>
-                <AdminAuditLogsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/experiments"
-            element={
-              <ProtectedRoute allowedRoles={["admin"]}>
-                <AdminExperimentsPage />
-              </ProtectedRoute>
-            }
-          />
+          {/* Candidate Routes */}
+          <Route path="/candidate" element={<CandidateIntelligencePage />} />
           <Route path="/profile" element={<CandidateProfile />} />
           <Route path="/mock-interview" element={<MockInterview />} />
           <Route path="/interview-history" element={<InterviewHistory />} />
           <Route path="/notifications" element={<CandidateNotifications />} />
+          
+          {/* Recruiter Routes */}
+          <Route path="/recruiter" element={<RecruiterOperationsPage />} />
+          <Route path="/candidates" element={<RecruiterCandidatesPage />} />
+          <Route path="/interviews" element={<RecruiterInterviewsPage />} />
+          <Route path="/analytics" element={<AnalyticsIntelligencePage />} />
+          
+          {/* Admin Routes */}
+          <Route path="/admin" element={<AdminCommandCenterPage />} />
+          <Route path="/rbac" element={<RbacAccessControlPage />} />
+          <Route path="/audit-logs" element={<AdminAuditLogsPage />} />
+          <Route path="/experiments" element={<AdminExperimentsPage />} />
         </Route>
 
         <Route

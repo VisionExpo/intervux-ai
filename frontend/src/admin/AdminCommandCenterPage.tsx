@@ -11,9 +11,11 @@ import {
 import { SurfaceCard } from "../components/ui/SurfaceCard";
 import { StatCard } from "../components/ui/StatCard";
 import { DashboardSkeleton } from "../components/ui/DashboardSkeleton";
+import { DashboardError, EmptyState } from "../components/ui/FeedbackStates";
 import { useAdminDashboard } from "../hooks/useDashboard";
 import { usePageMeta } from "../hooks/usePageMeta";
 import sharedStyles from "../dashboard/DashboardShared.module.css";
+import { AlertCircle, Activity } from "lucide-react";
 
 const confidenceTrend = [
   { day: "Mon", confidence: 91, drift: 4.2 },
@@ -25,11 +27,30 @@ const confidenceTrend = [
 ];
 
 export default function AdminCommandCenterPage() {
-  const { loading, error } = useAdminDashboard();
+  const { data, loading, error } = useAdminDashboard();
   usePageMeta("Admin Dashboard | Intervux AI", "Enterprise admin command center with KPI cards, model confidence, system health, and experiment tracking.");
 
   if (loading) return <DashboardSkeleton />;
-  if (error) return <div style={{ padding: '2rem', color: 'red' }}>Error loading dashboard: {error}</div>;
+  if (error && !data) {
+    return (
+      <div className="p-8">
+        <DashboardError 
+          message={error} 
+          onRetry={() => window.location.reload()} 
+        />
+      </div>
+    );
+  }
+
+  const stats = data?.stats || { 
+    hiringDecisions: "4,812", 
+    modelConfidence: "95.1%", 
+    scoringDrift: "2.1%", 
+    uptime: "99.98%" 
+  };
+  const logs = data?.audit_logs || [];
+  const health = data?.health || [];
+  const chartData = data?.confidence_trend || confidenceTrend;
 
   return (
     <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
@@ -44,10 +65,10 @@ export default function AdminCommandCenterPage() {
       </section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        <StatCard label="Hiring Decisions" value="4,812" change="+8.4% this month" />
-        <StatCard label="Model Confidence" value="95.1%" change="+1.2pts stability" />
-        <StatCard label="Scoring Drift" value="2.1%" change="Within guardrail" />
-        <StatCard label="System Uptime" value="99.98%" change="No major incidents" />
+        <StatCard label="Hiring Decisions" value={stats.hiringDecisions} change="+8.4% this month" />
+        <StatCard label="Model Confidence" value={stats.modelConfidence} change="+1.2pts stability" />
+        <StatCard label="Scoring Drift" value={stats.scoringDrift} change="Within guardrail" trend="down" />
+        <StatCard label="System Uptime" value={stats.uptime} change="No major incidents" />
       </div>
 
       <div className={sharedStyles.bentoGrid}>
@@ -102,11 +123,19 @@ export default function AdminCommandCenterPage() {
         </SurfaceCard>
 
         <SurfaceCard title="Audit logs" subtitle="Recent governance events" className={sharedStyles.bentoColSpan2}>
-          <ul className="list-none p-0 m-0 flex flex-col gap-2 text-sm text-[var(--text-secondary)]">
-            {["09:12 - RBAC policy update approved by admin.singh", "09:04 - Confidence threshold changed from 0.88 to 0.9", "08:43 - Recruiter role provisioning for Team Delta", "08:20 - Experiment Exp-204 promoted to staged rollout"].map((item) => (
-              <li key={item} className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] px-4 py-3 border border-[var(--border-glass)]">{item}</li>
-            ))}
-          </ul>
+          {logs.length > 0 ? (
+            <ul className="list-none p-0 m-0 flex flex-col gap-2 text-sm text-[var(--text-secondary)]">
+              {logs.map((item, idx) => (
+                <li key={idx} className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] px-4 py-3 border border-[var(--border-glass)]">{item}</li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState 
+              title="Clean ledger" 
+              description="No audit events recorded in the last 24 hours." 
+              icon={Activity} 
+            />
+          )}
         </SurfaceCard>
       </div>
     </motion.div>

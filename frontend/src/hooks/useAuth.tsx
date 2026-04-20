@@ -35,6 +35,19 @@ interface LoginResponse {
   expires_in: number;
 }
 
+function parseJwt(token: string) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(() => {
@@ -53,7 +66,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const expiry = localStorage.getItem("auth_token_expires");
 
       if (storedToken) {
-        if (expiry && Date.now() > parseInt(expiry, 10)) {
+        // Double check exp from JWT payload
+        const decoded = parseJwt(storedToken);
+        const now = Date.now();
+        const isExpValid = decoded && decoded.exp ? (decoded.exp * 1000 > now) : true;
+        const isStorageValid = expiry ? (parseInt(expiry, 10) > now) : true;
+
+        if (!isExpValid || !isStorageValid) {
           localStorage.removeItem("auth_token");
           localStorage.removeItem("auth_token_expires");
           resetAuthState();
@@ -77,14 +96,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             });
             setToken(storedToken);
           } else {
-            // Token invalid, clear it
-            localStorage.removeItem("auth_token_expires");
-          localStorage.removeItem("auth_token");
-            resetAuthState();
+            if (response.status === 401) {
+              localStorage.removeItem("auth_token");
+              localStorage.removeItem("auth_token_expires");
+              resetAuthState();
+            }
           }
         } catch {
-          localStorage.removeItem("auth_token_expires");
-          localStorage.removeItem("auth_token");
           resetAuthState();
         }
       }
