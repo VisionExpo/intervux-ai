@@ -11,6 +11,7 @@ import styles from "./Auth.module.css";
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 export default function Signup() {
+  const navigate = useNavigate();
   const location = useLocation();
   const inviteState = location.state as { inviteToken?: string; email?: string } | null;
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Filter, Search, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Filter, Search, Sparkles, Bell, UserRound } from "lucide-react";
 import { SurfaceCard } from "../components/ui/SurfaceCard";
 import { StatCard } from "../components/ui/StatCard";
 import { DashboardSkeleton } from "../components/ui/DashboardSkeleton";
@@ -9,8 +9,8 @@ import { DashboardError, EmptyState } from "../components/ui/FeedbackStates";
 import { usePageMeta } from "../hooks/usePageMeta";
 import sharedStyles from "./DashboardShared.module.css";
 import { useRecruiterDashboard } from "../hooks/useDashboard";
-import { UserRound } from "lucide-react";
 
+export default function RecruiterOperationsPage() {
   const { data, loading, error } = useRecruiterDashboard();
   const [query, setQuery] = useState("");
   const [stageFilter, setStageFilter] = useState("All");

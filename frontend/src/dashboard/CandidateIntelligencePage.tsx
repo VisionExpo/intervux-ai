@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { BrainCircuit, CalendarClock, CheckCircle2, Circle, FilePenLine, Sparkles, Target } from "lucide-react";
+import { BrainCircuit, CalendarClock, CheckCircle2, FilePenLine, Sparkles } from "lucide-react";
 import { SurfaceCard } from "../components/ui/SurfaceCard";
 import { StatCard } from "../components/ui/StatCard";
 import { ProgressBar } from "../components/ui/ProgressBar";
@@ -12,23 +11,7 @@ import { useCandidateDashboard } from "../hooks/useDashboard";
 
 export default function CandidateIntelligencePage() {
   const { data, loading, error } = useCandidateDashboard();
-  const [checklist, setChecklist] = useState<{ task: string; done: boolean }[]>([]);
-
   usePageMeta("Candidate Intelligence Dashboard | Intervux AI", "AI-powered candidate command center with next actions, interview countdown, and intelligence recommendations.");
-
-  useEffect(() => {
-    if (data?.checklist) {
-      setChecklist(data.checklist);
-    } else {
-      // Temporary fallback until backend is fully wired for this endpoint
-      setChecklist([
-        { task: "Review distributing systems notes", done: true },
-        { task: "Practice STAR format responses", done: false },
-        { task: "Submit final availability preference", done: false },
-        { task: "Upload portfolio examples", done: true },
-      ]);
-    }
-  }, [data]);
 
   if (loading) return <DashboardSkeleton />;
   if (error && !data) return <div className="p-8 text-red-500 bg-red-50/50 rounded-lg border border-red-200 glass">Error loading dashboard: {error}</div>;

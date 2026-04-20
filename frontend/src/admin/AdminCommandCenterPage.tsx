@@ -49,7 +49,6 @@ export default function AdminCommandCenterPage() {
     uptime: "99.98%" 
   };
   const logs = data?.audit_logs || [];
-  const logs = data?.audit_logs || [];
 
   return (
     <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
@@ -74,7 +73,7 @@ export default function AdminCommandCenterPage() {
         <SurfaceCard title="Model confidence and drift" subtitle="Real-time confidence quality" className={sharedStyles.bentoColSpan2}>
           <div className="h-72 w-full mt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
+              <LineChart data={data?.confidence_trend || confidenceTrend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                 <XAxis dataKey="day" stroke="var(--text-secondary)" />
                 <YAxis yAxisId="left" stroke="var(--text-secondary)" />
@@ -90,14 +89,14 @@ export default function AdminCommandCenterPage() {
         <SurfaceCard title="System health" subtitle="Infrastructure and service checks">
           <ul className="list-none p-0 m-0 flex flex-col gap-3 text-sm">
             {(data?.health || [
-              ["Realtime interview gateway", "Healthy"],
-              ["Evaluation workers", "Healthy"],
-              ["Queue latency", "Normal"],
-              ["Storage replication", "Healthy"],
-            ]).map(([label, status]) => (
-              <li key={label} className="flex items-center justify-between bg-[var(--surface-glass-light)] px-4 py-3 rounded-[var(--radius-md)] border border-[var(--border-glass)]">
-                <span className="text-[var(--text-primary)]">{label}</span>
-                <span className={sharedStyles.badgePrimary}>{status}</span>
+              { label: "Realtime interview gateway", status: "Healthy" },
+              { label: "Evaluation workers", status: "Healthy" },
+              { label: "Queue latency", status: "Normal" },
+              { label: "Storage replication", status: "Healthy" },
+            ]).map((item) => (
+              <li key={item.label} className="flex items-center justify-between bg-[var(--surface-glass-light)] px-4 py-3 rounded-[var(--radius-md)] border border-[var(--border-glass)]">
+                <span className="text-[var(--text-primary)]">{item.label}</span>
+                <span className={sharedStyles.badgePrimary}>{item.status}</span>
               </li>
             ))}
           </ul>

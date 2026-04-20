@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, type ReactNode } from "react";
 import { HashRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+
 import { useAuth } from "./hooks/useAuth";
 import { EnterpriseAppLayout } from "./layouts/EnterpriseAppLayout";
 import { ErrorBoundary } from "./components/ErrorBoundary";

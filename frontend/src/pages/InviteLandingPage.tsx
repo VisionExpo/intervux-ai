@@ -27,9 +27,7 @@ export default function InviteLandingPage() {
   useEffect(() => {
     async function validate() {
       try {
-        const response = await authFetch(`${import.meta.env.VITE_API_URL}/api/candidate/invite/validate/${token}`);
-        if (!response.ok) throw new Error("Invalid or expired invitation token.");
-        const json = await response.json();
+        const json = await authFetch<InviteData>(`/api/candidate/invite/validate/${token}`);
         setData(json);
       } catch (err: any) {
         setError(err.message);

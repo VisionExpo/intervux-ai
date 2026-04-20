@@ -1,4 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
+declare global {
+  interface Window {
+    _authExpiryInterval?: any;
+  }
+}
 import {
   createContext,
   useCallback,
@@ -167,9 +172,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resetAuthState();
     };
 
-    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized); window._authExpiryInterval = setInterval(() => { const exp = localStorage.getItem("auth_token_expires"); if (exp && Date.now() > parseInt(exp)) logout(); }, 30000);
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+    
+    window._authExpiryInterval = setInterval(() => {
+      const exp = localStorage.getItem("auth_token_expires");
+      if (exp && Date.now() > parseInt(exp, 10)) {
+        logout();
+      }
+    }, 30000);
+
     return () => {
-      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized); clearInterval(window._authExpiryInterval);
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+      if (window._authExpiryInterval) {
+        clearInterval(window._authExpiryInterval);
+      }
     };
   }, [resetAuthState]);
 
