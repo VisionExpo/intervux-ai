@@ -10,7 +10,11 @@ const Signup = lazy(() => import("./pages/Signup"));
 
 const CandidateIntelligencePage = lazy(() => import("./dashboard/CandidateIntelligencePage"));
 const RecruiterOperationsPage = lazy(() => import("./dashboard/RecruiterOperationsPage"));
+const RecruiterCandidatesPage = lazy(() => import("./recruiter/RecruiterCandidatesPage"));
+const RecruiterInterviewsPage = lazy(() => import("./recruiter/RecruiterInterviewsPage"));
 const AdminCommandCenterPage = lazy(() => import("./admin/AdminCommandCenterPage"));
+const AdminAuditLogsPage = lazy(() => import("./admin/AdminAuditLogsPage"));
+const AdminExperimentsPage = lazy(() => import("./admin/AdminExperimentsPage"));
 const RbacAccessControlPage = lazy(() => import("./admin/RbacAccessControlPage"));
 const AnalyticsIntelligencePage = lazy(() => import("./analytics/AnalyticsIntelligencePage"));
 
@@ -118,6 +122,46 @@ function AppContent() {
             <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
               <EnterpriseAppLayout>
                 <AnalyticsIntelligencePage />
+              </EnterpriseAppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/candidates"
+          element={
+            <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
+              <EnterpriseAppLayout>
+                <RecruiterCandidatesPage />
+              </EnterpriseAppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/interviews"
+          element={
+            <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
+              <EnterpriseAppLayout>
+                <RecruiterInterviewsPage />
+              </EnterpriseAppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/audit-logs"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <EnterpriseAppLayout>
+                <AdminAuditLogsPage />
+              </EnterpriseAppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/experiments"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <EnterpriseAppLayout>
+                <AdminExperimentsPage />
               </EnterpriseAppLayout>
             </ProtectedRoute>
           }
