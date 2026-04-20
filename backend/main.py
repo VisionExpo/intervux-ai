@@ -106,10 +106,14 @@ def _validate_cors_origins(origins: list[str]) -> None:
     """
     db_url = os.getenv("DATABASE_URL", "")
     is_postgres = "postgres" in db_url or "postgresql" in db_url
+    
+    # Check if the DB host is definitely local or a docker service neighbor
+    local_hosts = ["localhost", "127.0.0.1", "0.0.0.0", "postgres", "db"]
+    is_local_db = any(host in db_url for host in local_hosts)
 
     localhost_origins = [o for o in origins if "localhost" in o or "127.0.0.1" in o]
 
-    if is_postgres and localhost_origins:
+    if is_postgres and localhost_origins and not is_local_db:
         logger.warning(
             "CORS is configured with localhost origins but DATABASE_URL points to a "
             "remote PostgreSQL instance. This will block all browser clients not on "
@@ -306,5 +310,3 @@ os.makedirs(uploads_dir, exist_ok=True)
 
 # Mount static files for uploaded resumes
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
-
-
