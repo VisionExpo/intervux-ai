@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { memo } from "react";
 import { motion } from "framer-motion";
 import styles from "../../dashboard/DashboardShared.module.css";
 
@@ -10,7 +11,7 @@ interface SurfaceCardProps {
   className?: string;
 }
 
-export function SurfaceCard({ title, subtitle, action, children, className = "" }: SurfaceCardProps) {
+export const SurfaceCard = memo(function SurfaceCard({ title, subtitle, action, children, className = "" }: SurfaceCardProps) {
   return (
     <motion.section
       className={`${styles.cardGlass} ${className}`}

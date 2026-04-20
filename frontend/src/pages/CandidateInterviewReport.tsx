@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { authFetch } from "../hooks/authFetch";
 
 interface InterviewRecord {
   id: number;
@@ -122,15 +123,7 @@ export default function CandidateInterviewReport() {
       }
 
       try {
-        const response = await fetch("http://localhost:8000/api/candidate/mock-interview/history", {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-          },
-        });
-
-        if (!response.ok) throw new Error("Failed to fetch interview history");
-
-        const interviews: InterviewRecord[] = await response.json();
+        const interviews = await authFetch<InterviewRecord[]>("/api/candidate/mock-interview/history");
         const completedInterview = interviews.find((i) => i.status === "completed" && i.score !== null);
 
         if (!completedInterview) {
@@ -248,9 +241,9 @@ export default function CandidateInterviewReport() {
         )}
 
         {(recommendation || summary) && (
-          <div style={{ background: "#f4f8fc", border: "1px solid #b8cce3", borderRadius: 12, padding: "1rem 1.25rem", marginBottom: "1.5rem" }}>
-            {recommendation && <p style={{ margin: "0 0 0.5rem", fontWeight: 600, color: "#1a2940" }}>Recommendation: <span style={{ textTransform: "capitalize" }}>{recommendation.replace(/_/g, " ")}</span></p>}
-            {summary && <p style={{ margin: 0, color: "#3c4b60" }}>{summary}</p>}
+          <div className="bg-[#f4f8fc] border border-[#b8cce3] rounded-xl py-4 px-5 mb-6">
+            {recommendation && <p className="m-0 mb-2 font-semibold text-[#1a2940]">Recommendation: <span className="capitalize">{recommendation.replace(/_/g, " ")}</span></p>}
+            {summary && <p className="m-0 text-[#3c4b60]">{summary}</p>}
           </div>
         )}
 
@@ -281,20 +274,20 @@ export default function CandidateInterviewReport() {
         </div>
 
         {perQuestion.length > 0 && (
-          <div style={{ marginBottom: "1.5rem" }}>
-            <h3 style={{ color: "#1a2940", marginBottom: "0.75rem" }}>Question Breakdown</h3>
-            <div style={{ display: "grid", gap: "0.75rem" }}>
+          <div className="mb-6">
+            <h3 className="text-[#1a2940] mb-3">Question Breakdown</h3>
+            <div className="grid gap-3">
               {perQuestion.map((q, i) => {
                 const vals = q.scores ? Object.values(q.scores).filter((v): v is number => typeof v === "number") : [];
                 const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
                 return (
-                  <div key={i} style={{ background: "#fff", border: "1px solid #d2dde9", borderRadius: 10, padding: "0.85rem 1rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem" }}>
-                      <strong style={{ color: "#1a2940", fontSize: "0.9rem" }}>Q{i + 1}{q.skill ? ` - ${q.skill}` : ""}</strong>
-                      {avg !== null && <span style={{ color: avg >= 7 ? "#2d8a4e" : avg >= 5 ? "#856404" : "#c84630", fontWeight: 600, fontSize: "0.85rem" }}>{avg.toFixed(1)} / 10</span>}
+                  <div key={i} className="bg-white border border-[#d2dde9] rounded-[10px] py-[0.85rem] px-4">
+                    <div className="flex justify-between mb-[0.4rem]">
+                      <strong className="text-[#1a2940] text-sm">Q{i + 1}{q.skill ? ` - ${q.skill}` : ""}</strong>
+                      {avg !== null && <span className={`font-semibold text-[0.85rem] ${avg >= 7 ? "text-[#2d8a4e]" : avg >= 5 ? "text-[#856404]" : "text-[#c84630]"}`}>{avg.toFixed(1)} / 10</span>}
                     </div>
-                    <p style={{ margin: "0 0 0.35rem", color: "#334155", fontSize: "0.85rem" }}>{q.question}</p>
-                    {q.summary && <p style={{ margin: 0, color: "#556174", fontSize: "0.8rem", fontStyle: "italic" }}>{q.summary}</p>}
+                    <p className="m-0 mb-[0.35rem] text-[#334155] text-[0.85rem]">{q.question}</p>
+                    {q.summary && <p className="m-0 text-[#556174] text-xs italic">{q.summary}</p>}
                   </div>
                 );
               })}

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import styles from "../../dashboard/DashboardShared.module.css";
 
@@ -8,7 +9,7 @@ interface StatCardProps {
   trend?: "up" | "down";
 }
 
-export function StatCard({ label, value, change, trend = "up" }: StatCardProps) {
+export const StatCard = memo(function StatCard({ label, value, change, trend = "up" }: StatCardProps) {
   const positive = trend === "up";
 
   return (

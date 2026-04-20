@@ -1,0 +1,81 @@
+.errorContainer {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--background);
+  padding: 1.5rem;
+}
+
+.errorCard {
+  display: flex;
+  max-width: 400px;
+  flex-direction: column;
+  border-radius: 1rem;
+  border: 1px solid var(--border-glass);
+  background: var(--surface-glass);
+  padding: 2rem;
+  text-align: center;
+  box-shadow: 0 10px 40px -10px rgba(0,0,0,0.3);
+  backdrop-filter: blur(12px);
+}
+
+.iconWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 4rem;
+  width: 4rem;
+  margin: 0 auto 1.5rem;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.1);
+  color: rgb(239, 68, 68);
+}
+
+.title {
+  margin-bottom: 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.description {
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.errorMessage {
+  margin-bottom: 1.5rem;
+  border-radius: 0.5rem;
+  background: var(--surface-glass-heavy);
+  padding: 1rem;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: #fb7185;
+  text-align: left;
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.reloadButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-overlay);
+  background: var(--surface-glass-heavy);
+  padding: 0.75rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reloadButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}

@@ -8,10 +8,9 @@ import { Button } from "../components/ui/Button/Button";
 import { GlassCard } from "../components/ui/GlassCard/GlassCard";
 import styles from "./Auth.module.css";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 export default function Signup() {
-  const { login } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");

@@ -1,8 +1,9 @@
-﻿import { Suspense, lazy, useEffect, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, type ReactNode } from "react";
 import { HashRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { useAuth } from "./hooks/useAuth";
 import { EnterpriseAppLayout } from "./layouts/EnterpriseAppLayout";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const Login = lazy(() => import("./pages/Login"));
@@ -77,136 +78,89 @@ function AppContent() {
         <Route path="/signup" element={isAuthenticated ? <RoleHomeRedirect /> : <Signup />} />
 
         <Route
-          path="/candidate"
           element={
-            <ProtectedRoute allowedRoles={["candidate"]}>
-              <EnterpriseAppLayout>
+            <ProtectedRoute>
+              <EnterpriseAppLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route
+            path="/candidate"
+            element={
+              <ProtectedRoute allowedRoles={["candidate"]}>
                 <CandidateIntelligencePage />
-              </EnterpriseAppLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/recruiter"
-          element={
-            <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
-              <EnterpriseAppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/recruiter"
+            element={
+              <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
                 <RecruiterOperationsPage />
-              </EnterpriseAppLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute allowedRoles={["admin"]}>
-              <EnterpriseAppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <AdminCommandCenterPage />
-              </EnterpriseAppLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/rbac"
-          element={
-            <ProtectedRoute allowedRoles={["admin"]}>
-              <EnterpriseAppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/rbac"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <RbacAccessControlPage />
-              </EnterpriseAppLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/analytics"
-          element={
-            <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
-              <EnterpriseAppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
                 <AnalyticsIntelligencePage />
-              </EnterpriseAppLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/candidates"
-          element={
-            <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
-              <EnterpriseAppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/candidates"
+            element={
+              <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
                 <RecruiterCandidatesPage />
-              </EnterpriseAppLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/interviews"
-          element={
-            <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
-              <EnterpriseAppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/interviews"
+            element={
+              <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
                 <RecruiterInterviewsPage />
-              </EnterpriseAppLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/audit-logs"
-          element={
-            <ProtectedRoute allowedRoles={["admin"]}>
-              <EnterpriseAppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/audit-logs"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <AdminAuditLogsPage />
-              </EnterpriseAppLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/experiments"
-          element={
-            <ProtectedRoute allowedRoles={["admin"]}>
-              <EnterpriseAppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/experiments"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <AdminExperimentsPage />
-              </EnterpriseAppLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute>
-              <EnterpriseAppLayout>
-                <CandidateProfile />
-              </EnterpriseAppLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/mock-interview"
-          element={
-            <ProtectedRoute>
-              <EnterpriseAppLayout>
-                <MockInterview />
-              </EnterpriseAppLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/interview-history"
-          element={
-            <ProtectedRoute>
-              <EnterpriseAppLayout>
-                <InterviewHistory />
-              </EnterpriseAppLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/notifications"
-          element={
-            <ProtectedRoute>
-              <EnterpriseAppLayout>
-                <CandidateNotifications />
-              </EnterpriseAppLayout>
-            </ProtectedRoute>
-          }
-        />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/profile" element={<CandidateProfile />} />
+          <Route path="/mock-interview" element={<MockInterview />} />
+          <Route path="/interview-history" element={<InterviewHistory />} />
+          <Route path="/notifications" element={<CandidateNotifications />} />
+        </Route>
 
         <Route
           path="/interview-session"
@@ -235,9 +189,11 @@ function AppContent() {
 
 export default function App() {
   return (
-    <HashRouter>
-      <AppContent />
-    </HashRouter>
+    <ErrorBoundary>
+      <HashRouter>
+        <AppContent />
+      </HashRouter>
+    </ErrorBoundary>
   );
 }
 

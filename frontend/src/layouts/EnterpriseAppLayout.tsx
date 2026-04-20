@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Bell,
@@ -74,7 +74,7 @@ const iconMap = {
 } as const;
 
 interface EnterpriseAppLayoutProps {
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 export function EnterpriseAppLayout({ children }: EnterpriseAppLayoutProps) {
@@ -214,7 +214,7 @@ export function EnterpriseAppLayout({ children }: EnterpriseAppLayoutProps) {
           </div>
         </header>
 
-        <main className={styles.contentArea}>{children}</main>
+        <main className={styles.contentArea}>{children || <Outlet />}</main>
       </div>
     </div>
   );

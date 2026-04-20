@@ -1,4 +1,4 @@
-import { useState, useMemo, type ReactNode } from 'react';
+import { useState, useMemo, type ReactNode, memo } from 'react';
 import { Inbox } from 'lucide-react';
 import styles from './DataTable.module.css';
 
@@ -57,7 +57,7 @@ function compare(a: unknown, b: unknown, dir: SortDirection): number {
 
 // ───────────────── Component ─────────────────
 
-export function DataTable<T>({
+function DataTableComponent<T>({
   columns,
   data,
   rowKey,
@@ -159,3 +159,5 @@ export function DataTable<T>({
     </div>
   );
 }
+
+export const DataTable = memo(DataTableComponent) as typeof DataTableComponent;

@@ -50,7 +50,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initAuth = async () => {
       const storedToken = localStorage.getItem("auth_token");
+      const expiry = localStorage.getItem("auth_token_expires");
+
       if (storedToken) {
+        if (expiry && Date.now() > parseInt(expiry, 10)) {
+          localStorage.removeItem("auth_token");
+          localStorage.removeItem("auth_token_expires");
+          resetAuthState();
+          setIsLoading(false);
+          return;
+        }
+
         try {
           const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
             headers: {
@@ -68,10 +78,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setToken(storedToken);
           } else {
             // Token invalid, clear it
-            localStorage.removeItem("auth_token");
+            localStorage.removeItem("auth_token_expires");
+          localStorage.removeItem("auth_token");
             resetAuthState();
           }
         } catch {
+          localStorage.removeItem("auth_token_expires");
           localStorage.removeItem("auth_token");
           resetAuthState();
         }
@@ -103,7 +115,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const accessToken = data.access_token;
 
     // Store token
+    const expiresAt = Date.now() + (data.expires_in || 3600) * 1000;
     localStorage.setItem("auth_token", accessToken);
+    localStorage.setItem("auth_token_expires", expiresAt.toString());
     setToken(accessToken);
 
     // Fetch user profile
@@ -126,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_token_expires");
     resetAuthState();
   }, [resetAuthState]);
 

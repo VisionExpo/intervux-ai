@@ -10,6 +10,8 @@ import {
 } from "recharts";
 import { SurfaceCard } from "../components/ui/SurfaceCard";
 import { StatCard } from "../components/ui/StatCard";
+import { DashboardSkeleton } from "../components/ui/DashboardSkeleton";
+import { useAdminDashboard } from "../hooks/useDashboard";
 import { usePageMeta } from "../hooks/usePageMeta";
 import sharedStyles from "../dashboard/DashboardShared.module.css";
 
@@ -23,27 +25,26 @@ const confidenceTrend = [
 ];
 
 export default function AdminCommandCenterPage() {
+  const { loading, error } = useAdminDashboard();
   usePageMeta("Admin Dashboard | Intervux AI", "Enterprise admin command center with KPI cards, model confidence, system health, and experiment tracking.");
 
+  if (loading) return <DashboardSkeleton />;
+  if (error) return <div style={{ padding: '2rem', color: 'red' }}>Error loading dashboard: {error}</div>;
+
   return (
-    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      <section style={{
-        background: 'var(--surface-glass-heavy)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '2rem',
-        border: '1px solid var(--border-glass)',
-        boxShadow: 'var(--shadow-sm)'
-      }}>
-        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Admin Command Center</p>
-        <h1 style={{ marginTop: '0.25rem', fontFamily: 'var(--font-heading)', fontSize: '2.5rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+  return (
+    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+      <section className="bg-[var(--surface-glass-heavy)] rounded-[var(--radius-lg)] p-8 border border-[var(--border-glass)] shadow-[var(--shadow-sm)]">
+        <p className="text-sm text-[var(--text-secondary)]">Admin Command Center</p>
+        <h1 className="mt-1 font-heading text-4xl font-bold text-[var(--text-primary)] tracking-tight leading-tight">
           Global intelligence & governance
         </h1>
-        <p style={{ marginTop: '0.75rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+        <p className="mt-3 text-sm text-[var(--text-secondary)]">
           Track model confidence, scoring drift, alignment analytics, audit behavior, and experiment impact from one enterprise workspace.
         </p>
       </section>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard label="Hiring Decisions" value="4,812" change="+8.4% this month" />
         <StatCard label="Model Confidence" value="95.1%" change="+1.2pts stability" />
         <StatCard label="Scoring Drift" value="2.1%" change="Within guardrail" />
@@ -52,7 +53,7 @@ export default function AdminCommandCenterPage() {
 
       <div className={sharedStyles.bentoGrid}>
         <SurfaceCard title="Model confidence and drift" subtitle="Real-time confidence quality" className={sharedStyles.bentoColSpan2}>
-          <div style={{ height: '18rem', width: '100%', marginTop: '1rem' }}>
+          <div className="h-72 w-full mt-4">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={confidenceTrend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -68,15 +69,15 @@ export default function AdminCommandCenterPage() {
         </SurfaceCard>
 
         <SurfaceCard title="System health" subtitle="Infrastructure and service checks">
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem' }}>
+          <ul className="list-none p-0 m-0 flex flex-col gap-3 text-sm">
             {[
               ["Realtime interview gateway", "Healthy"],
               ["Evaluation workers", "Healthy"],
               ["Queue latency", "Normal"],
               ["Storage replication", "Healthy"],
             ].map(([label, status]) => (
-              <li key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-glass-light)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-glass)' }}>
-                <span style={{ color: 'var(--text-primary)' }}>{label}</span>
+              <li key={label} className="flex items-center justify-between bg-[var(--surface-glass-light)] px-4 py-3 rounded-[var(--radius-md)] border border-[var(--border-glass)]">
+                <span className="text-[var(--text-primary)]">{label}</span>
                 <span className={sharedStyles.badgePrimary}>{status}</span>
               </li>
             ))}
@@ -86,25 +87,25 @@ export default function AdminCommandCenterPage() {
 
       <div className={sharedStyles.bentoGrid}>
         <SurfaceCard title="Experiment tracking" subtitle="Active model and rubric experiments">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem' }}>
-            <div style={{ background: 'var(--surface-glass-light)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid var(--border-glass)' }}>
-              <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Exp-204: Calibration weighting</p>
-              <p style={{ marginTop: '0.25rem', color: 'var(--text-secondary)' }}>Impact: +3.1 alignment score</p>
+          <div className="flex flex-col gap-3 text-sm">
+            <div className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] p-4 border border-[var(--border-glass)]">
+              <p className="font-semibold text-[var(--text-primary)]">Exp-204: Calibration weighting</p>
+              <p className="mt-1 text-[var(--text-secondary)]">Impact: +3.1 alignment score</p>
             </div>
-            <div style={{ background: 'var(--surface-glass-light)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid var(--border-glass)' }}>
-              <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Exp-197: Prompt guardrails</p>
-              <p style={{ marginTop: '0.25rem', color: 'var(--text-secondary)' }}>Impact: -1.4 bias variance</p>
+            <div className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] p-4 border border-[var(--border-glass)]">
+              <p className="font-semibold text-[var(--text-primary)]">Exp-197: Prompt guardrails</p>
+              <p className="mt-1 text-[var(--text-secondary)]">Impact: -1.4 bias variance</p>
             </div>
-            <div style={{ background: 'var(--accent-ocean-glow)', borderRadius: 'var(--radius-md)', padding: '1rem', color: '#7dd3fc', fontWeight: 600, border: '1px solid rgba(14, 165, 233, 0.3)' }}>
+            <div className="bg-[var(--accent-ocean-glow)] rounded-[var(--radius-md)] p-4 text-[#7dd3fc] font-semibold border border-sky-500/30">
               2 experiments ready for rollout approval.
             </div>
           </div>
         </SurfaceCard>
 
         <SurfaceCard title="Audit logs" subtitle="Recent governance events" className={sharedStyles.bentoColSpan2}>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+          <ul className="list-none p-0 m-0 flex flex-col gap-2 text-sm text-[var(--text-secondary)]">
             {["09:12 - RBAC policy update approved by admin.singh", "09:04 - Confidence threshold changed from 0.88 to 0.9", "08:43 - Recruiter role provisioning for Team Delta", "08:20 - Experiment Exp-204 promoted to staged rollout"].map((item) => (
-              <li key={item} style={{ background: 'var(--surface-glass-light)', borderRadius: 'var(--radius-md)', padding: '0.75rem 1rem', border: '1px solid var(--border-glass)' }}>{item}</li>
+              <li key={item} className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] px-4 py-3 border border-[var(--border-glass)]">{item}</li>
             ))}
           </ul>
         </SurfaceCard>

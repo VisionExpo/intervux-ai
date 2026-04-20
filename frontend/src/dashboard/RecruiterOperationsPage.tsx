@@ -15,12 +15,7 @@ interface Candidate {
   stage: string;
 }
 
-const candidates: Candidate[] = [
-  { name: "Aisha Rao", role: "Senior Frontend Engineer", score: 95, stage: "Panel" },
-  { name: "Mohan Patel", role: "Platform Engineer", score: 92, stage: "System Design" },
-  { name: "Elena Cruz", role: "Data Engineer", score: 88, stage: "Recruiter Screen" },
-  { name: "Noah Wright", role: "AI Product Manager", score: 84, stage: "Offer Review" },
-];
+import { useRecruiterDashboard } from "../hooks/useDashboard";
 
 const candidateColumns: Column<Candidate>[] = [
   { key: "name", label: "Candidate", sortable: true, render: (row) => <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{row.name}</span> },
@@ -30,65 +25,63 @@ const candidateColumns: Column<Candidate>[] = [
 ];
 
 export default function RecruiterOperationsPage() {
-  const [loading, setLoading] = useState(true);
+  const { data, loading, error } = useRecruiterDashboard();
   const [query, setQuery] = useState("");
   const [stageFilter, setStageFilter] = useState("All");
 
   usePageMeta("Recruiter Dashboard | Intervux AI", "ATS intelligence dashboard with AI candidate ranking, scorecards, and activity stream.");
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setLoading(false), 700);
-    return () => window.clearTimeout(timer);
-  }, []);
+  const activeCandidates = data?.candidates || [
+    { name: "Aisha Rao", role: "Senior Frontend Engineer", score: 95, stage: "Panel" },
+    { name: "Mohan Patel", role: "Platform Engineer", score: 92, stage: "System Design" },
+    { name: "Elena Cruz", role: "Data Engineer", score: 88, stage: "Recruiter Screen" },
+    { name: "Noah Wright", role: "AI Product Manager", score: 84, stage: "Offer Review" },
+  ];
 
   const filteredCandidates = useMemo(
     () =>
-      candidates.filter((candidate) => {
+      activeCandidates.filter((candidate) => {
         const byQuery = candidate.name.toLowerCase().includes(query.toLowerCase()) || candidate.role.toLowerCase().includes(query.toLowerCase());
         const byStage = stageFilter === "All" || candidate.stage === stageFilter;
         return byQuery && byStage;
       }),
-    [query, stageFilter]
+    [query, stageFilter, activeCandidates]
   );
 
   if (loading) return <DashboardSkeleton />;
+  if (error && !data) return <div style={{ padding: '2rem', color: 'red' }}>Error loading dashboard: {error}</div>;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      <section style={{
-        background: 'var(--surface-glass-heavy)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '2rem',
-        border: '1px solid var(--border-glass)',
-        boxShadow: 'var(--shadow-sm)'
-      }}>
-        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Recruiter Intelligence Workspace</p>
-        <h1 style={{ marginTop: '0.25rem', fontFamily: 'var(--font-heading)', fontSize: '2.5rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+  return (
+    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+      <section className="bg-[var(--surface-glass-heavy)] rounded-[var(--radius-lg)] p-8 border border-[var(--border-glass)] shadow-[var(--shadow-sm)]">
+        <p className="text-sm text-[var(--text-secondary)]">Recruiter Intelligence Workspace</p>
+        <h1 className="mt-1 font-heading text-4xl font-bold text-[var(--text-primary)] tracking-tight leading-tight">
           Modern ATS workflow command center
         </h1>
-        <div style={{ marginTop: '1.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', borderRadius: 'var(--radius-md)', background: 'rgba(0, 0, 0, 0.2)', padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', border: '1px solid var(--border-glass)' }}>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <label className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-black/20 px-4 py-2 text-sm font-medium text-[var(--text-secondary)] border border-[var(--border-glass)]">
             <Search size={16} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search candidate" style={{ width: '12rem', background: 'transparent', color: 'var(--text-primary)', border: 'none', outline: 'none' }} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search candidate" className="w-48 bg-transparent text-[var(--text-primary)] border-none outline-none placeholder:text-[var(--text-secondary)]" />
           </label>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', borderRadius: 'var(--radius-md)', background: 'rgba(0, 0, 0, 0.2)', padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', border: '1px solid var(--border-glass)' }}>
+          <label className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-black/20 px-4 py-2 text-sm font-medium text-[var(--text-secondary)] border border-[var(--border-glass)]">
             <Filter size={16} />
-            <select value={stageFilter} onChange={(event) => setStageFilter(event.target.value)} style={{ background: 'transparent', color: 'var(--text-primary)', border: 'none', outline: 'none' }}>
-              <option value="All" style={{ color: 'black' }}>All Stages</option>
-              <option value="Recruiter Screen" style={{ color: 'black' }}>Recruiter Screen</option>
-              <option value="System Design" style={{ color: 'black' }}>System Design</option>
-              <option value="Panel" style={{ color: 'black' }}>Panel</option>
-              <option value="Offer Review" style={{ color: 'black' }}>Offer Review</option>
+            <select value={stageFilter} onChange={(event) => setStageFilter(event.target.value)} className="bg-transparent text-[var(--text-primary)] border-none outline-none">
+              <option value="All" className="text-black">All Stages</option>
+              <option value="Recruiter Screen" className="text-black">Recruiter Screen</option>
+              <option value="System Design" className="text-black">System Design</option>
+              <option value="Panel" className="text-black">Panel</option>
+              <option value="Offer Review" className="text-black">Offer Review</option>
             </select>
           </label>
-          <button style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', borderRadius: 'var(--radius-md)', background: 'var(--accent-ocean-glow)', padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-ocean)', border: '1px solid rgba(14, 165, 233, 0.3)', cursor: 'pointer' }}>
+          <button className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--accent-ocean-glow)] px-4 py-2 text-sm font-semibold text-[var(--accent-ocean)] border border-sky-500/30 cursor-pointer transition-colors hover:bg-sky-500/20">
             <Bell size={16} />
             7 notifications
           </button>
         </div>
       </section>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard label="Open Roles" value="18" change="4 critical roles" />
         <StatCard label="Active Candidates" value="246" change="+12% WoW" />
         <StatCard label="Avg Time-to-Decision" value="2.4d" change="-14% faster" />
@@ -97,30 +90,30 @@ export default function RecruiterOperationsPage() {
 
       <div className={sharedStyles.bentoGrid}>
         <SurfaceCard title="Pipeline overview" subtitle="Role-based candidate scoring by stage" className={sharedStyles.bentoColSpan2}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '1rem', fontSize: '0.875rem' }}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             {[
               ["Sourced", "72"],
               ["Screening", "49"],
               ["Panel", "31"],
               ["Offer", "11"],
             ].map(([label, value]) => (
-              <div key={label} style={{ background: 'var(--surface-glass-light)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid var(--border-glass)' }}>
-                <p style={{ color: 'var(--text-secondary)' }}>{label}</p>
-                <p style={{ marginTop: '0.5rem', fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{value}</p>
+              <div key={label} className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] p-4 border border-[var(--border-glass)]">
+                <p className="text-[var(--text-secondary)]">{label}</p>
+                <p className="mt-2 font-heading text-3xl font-bold text-[var(--text-primary)]">{value}</p>
               </div>
             ))}
           </div>
         </SurfaceCard>
 
         <SurfaceCard title="AI ranking system" subtitle="Top candidates by weighted fit">
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <ul className="list-none p-0 m-0 flex flex-col gap-3">
             {filteredCandidates.slice(0, 3).map((candidate) => (
-              <li key={candidate.name} style={{ background: 'var(--surface-glass-light)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid var(--border-glass)' }}>
-                <p style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{candidate.name}</p>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{candidate.role}</p>
-                <p style={{ marginTop: '0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', borderRadius: '999px', background: 'var(--accent-indigo-glow)', padding: '0.25rem 0.5rem', fontSize: '0.75rem', fontWeight: 600, color: '#cedaff', border: '1px solid rgba(79, 70, 229, 0.4)' }}>
+              <li key={candidate.name} className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] p-4 border border-[var(--border-glass)]">
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{candidate.name}</p>
+                <p className="text-xs text-[var(--text-secondary)]">{candidate.role}</p>
+                <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-[var(--accent-indigo-glow)] px-2 py-1 text-xs font-semibold text-[#cedaff] border border-indigo-500/40">
                   <Sparkles size={14} />{candidate.score} fit score
-                </p>
+                </span>
               </li>
             ))}
           </ul>
@@ -140,13 +133,13 @@ export default function RecruiterOperationsPage() {
         </div>
 
         <SurfaceCard title="Activity stream" subtitle="Live recruiter and system events">
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+          <ul className="list-none p-0 m-0 flex flex-col gap-3 text-sm text-[var(--text-secondary)]">
             {["Priya moved Aisha Rao to final panel.", "Model v4.2 recalibrated backend weightage.", "2 candidates flagged for low confidence delta.", "Interview report synced to hiring manager workspace."].map((item) => (
-              <li key={item} style={{ background: 'var(--surface-glass-light)', borderRadius: 'var(--radius-md)', padding: '0.75rem', border: '1px solid var(--border-glass)' }}>{item}</li>
+              <li key={item} className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] p-3 border border-[var(--border-glass)]">{item}</li>
             ))}
           </ul>
-          <div style={{ marginTop: '1rem', background: 'var(--accent-danger-glow)', borderRadius: 'var(--radius-md)', padding: '0.75rem', fontSize: '0.75rem', fontWeight: 600, color: '#fca5a5', border: '1px solid rgba(225, 29, 72, 0.3)' }}>
-            <Star style={{ display: 'inline', marginRight: '0.25rem' }} size={14} />Review two low-confidence scorecards before final shortlist.
+          <div className="mt-4 bg-[var(--accent-danger-glow)] rounded-[var(--radius-md)] p-3 text-xs font-semibold text-[#fca5a5] border border-rose-600/30 flex items-center gap-1">
+            <Star size={14} className="shrink-0" /> Review two low-confidence scorecards before final shortlist.
           </div>
         </SurfaceCard>
       </div>

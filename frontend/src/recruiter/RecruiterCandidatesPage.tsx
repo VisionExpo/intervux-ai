@@ -10,34 +10,16 @@ export default function RecruiterCandidatesPage() {
   );
 
   return (
-    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} style={{ display: "grid", gap: "1.5rem" }}>
-      <section
-        style={{
-          background: "var(--surface-glass-heavy)",
-          borderRadius: "var(--radius-lg)",
-          padding: "2rem",
-          border: "1px solid var(--border-glass)",
-          boxShadow: "var(--shadow-sm)",
-        }}
-      >
-        <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>Recruiter Workspace</p>
-        <h1
-          style={{
-            marginTop: "0.25rem",
-            fontFamily: "var(--font-heading)",
-            fontSize: "2rem",
-            fontWeight: 700,
-            color: "var(--text-primary)",
-            letterSpacing: "-0.02em",
-            lineHeight: 1.1,
-          }}
-        >
+    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+      <section className="bg-[var(--surface-glass-heavy)] rounded-[var(--radius-lg)] p-8 border border-[var(--border-glass)] shadow-[var(--shadow-sm)]">
+        <p className="text-sm text-[var(--text-secondary)]">Recruiter Workspace</p>
+        <h1 className="mt-1 font-heading text-3xl font-bold text-[var(--text-primary)] tracking-tight leading-tight">
           Candidate roster
         </h1>
       </section>
 
       <SurfaceCard title="Candidate management" subtitle="This route is now active and ready for candidate list integration.">
-        <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.95rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <p className="m-0 text-[15px] text-[var(--text-secondary)] flex items-center gap-2">
           <Users size={16} />
           This screen is live to prevent dead navigation. We can now connect it to recruiter candidate APIs.
         </p>
