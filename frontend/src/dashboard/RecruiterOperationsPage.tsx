@@ -49,9 +49,19 @@ export default function RecruiterOperationsPage() {
   );
 
   if (loading) return <DashboardSkeleton />;
-  if (error && !data) return <div style={{ padding: '2rem', color: 'red' }}>Error loading dashboard: {error}</div>;
+  if (error && !data) return <div className="p-8 text-red-500 bg-red-50/50 rounded-lg border border-red-200 glass">Error loading dashboard: {error}</div>;
 
-  return (
+  const activeCandidates = data?.candidates || [];
+  const stats = data?.stats || { openRoles: "0", activeCandidates: "0", avgTime: "0", alignmentScore: "0%" };
+  const pipeline = data?.pipeline || [];
+  const activityStream = data?.activity_stream || [];
+
+  const filteredCandidates = activeCandidates.filter((candidate) => {
+    const byQuery = candidate.name.toLowerCase().includes(query.toLowerCase()) || (candidate.role?.toLowerCase() || "").includes(query.toLowerCase());
+    const byStage = stageFilter === "All" || candidate.status === stageFilter;
+    return byQuery && byStage;
+  });
+
   return (
     <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
       <section className="bg-[var(--surface-glass-heavy)] rounded-[var(--radius-lg)] p-8 border border-[var(--border-glass)] shadow-[var(--shadow-sm)]">
@@ -68,51 +78,41 @@ export default function RecruiterOperationsPage() {
             <Filter size={16} />
             <select value={stageFilter} onChange={(event) => setStageFilter(event.target.value)} className="bg-transparent text-[var(--text-primary)] border-none outline-none">
               <option value="All" className="text-black">All Stages</option>
-              <option value="Recruiter Screen" className="text-black">Recruiter Screen</option>
-              <option value="System Design" className="text-black">System Design</option>
-              <option value="Panel" className="text-black">Panel</option>
-              <option value="Offer Review" className="text-black">Offer Review</option>
+              <option value="invited" className="text-black">Invited</option>
+              <option value="in_progress" className="text-black">In Progress</option>
+              <option value="completed" className="text-black">Completed</option>
             </select>
           </label>
-          <button className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--accent-ocean-glow)] px-4 py-2 text-sm font-semibold text-[var(--accent-ocean)] border border-sky-500/30 cursor-pointer transition-colors hover:bg-sky-500/20">
-            <Bell size={16} />
-            7 notifications
-          </button>
         </div>
       </section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        <StatCard label="Open Roles" value="18" change="4 critical roles" />
-        <StatCard label="Active Candidates" value="246" change="+12% WoW" />
-        <StatCard label="Avg Time-to-Decision" value="2.4d" change="-14% faster" />
-        <StatCard label="Alignment Score" value="94%" change="Across hiring pods" />
+        <StatCard label="Open Roles" value={stats.openRoles} change="Live postings" />
+        <StatCard label="Active Candidates" value={stats.activeCandidates} change="In pipeline" />
+        <StatCard label="Avg Time-to-Decision" value={stats.avgTime} change="Historical average" />
+        <StatCard label="Alignment Score" value={stats.alignmentScore} change="Calibration delta" />
       </div>
 
       <div className={sharedStyles.bentoGrid}>
-        <SurfaceCard title="Pipeline overview" subtitle="Role-based candidate scoring by stage" className={sharedStyles.bentoColSpan2}>
+        <SurfaceCard title="Pipeline overview" subtitle="Candidate distribution by current state" className={sharedStyles.bentoColSpan2}>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            {[
-              ["Sourced", "72"],
-              ["Screening", "49"],
-              ["Panel", "31"],
-              ["Offer", "11"],
-            ].map(([label, value]) => (
-              <div key={label} className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] p-4 border border-[var(--border-glass)]">
-                <p className="text-[var(--text-secondary)]">{label}</p>
-                <p className="mt-2 font-heading text-3xl font-bold text-[var(--text-primary)]">{value}</p>
+            {pipeline.map((item) => (
+              <div key={item.stage} className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] p-4 border border-[var(--border-glass)]">
+                <p className="text-[var(--text-secondary)]">{item.stage}</p>
+                <p className="mt-2 font-heading text-3xl font-bold text-[var(--text-primary)]">{item.count}</p>
               </div>
             ))}
           </div>
         </SurfaceCard>
 
-        <SurfaceCard title="AI ranking system" subtitle="Top candidates by weighted fit">
+        <SurfaceCard title="Quick ranking" subtitle="Recently added candidates">
           <ul className="list-none p-0 m-0 flex flex-col gap-3">
             {filteredCandidates.slice(0, 3).map((candidate) => (
-              <li key={candidate.name} className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] p-4 border border-[var(--border-glass)]">
+              <li key={candidate.id} className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] p-4 border border-[var(--border-glass)]">
                 <p className="text-sm font-semibold text-[var(--text-primary)]">{candidate.name}</p>
                 <p className="text-xs text-[var(--text-secondary)]">{candidate.role}</p>
                 <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-[var(--accent-indigo-glow)] px-2 py-1 text-xs font-semibold text-[#cedaff] border border-indigo-500/40">
-                  <Sparkles size={14} />{candidate.score} fit score
+                  <Sparkles size={14} />{candidate.status}
                 </span>
               </li>
             ))}
@@ -122,25 +122,27 @@ export default function RecruiterOperationsPage() {
 
       <div className={sharedStyles.bentoGrid}>
         <div className={sharedStyles.bentoColSpan2}>
-          <DataTable<Candidate>
-            columns={candidateColumns}
+          <DataTable<any>
+            columns={[
+              { key: "name", label: "Candidate", sortable: true, render: (row) => <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{row.name}</span> },
+              { key: "role", label: "Role", sortable: true },
+              { key: "status", label: "Status", sortable: true, render: (row) => <span className={sharedStyles.badgePrimary}>{row.status}</span> },
+            ]}
             data={filteredCandidates}
-            rowKey={(row) => row.name}
+            rowKey={(row) => row.id}
             title="Candidate list"
-            subtitle="Ranked for current role selection"
+            subtitle="Live feed from unified database"
             emptyText="No candidates match your filters."
           />
         </div>
 
-        <SurfaceCard title="Activity stream" subtitle="Live recruiter and system events">
+        <SurfaceCard title="Activity stream" subtitle="Live system events">
           <ul className="list-none p-0 m-0 flex flex-col gap-3 text-sm text-[var(--text-secondary)]">
-            {["Priya moved Aisha Rao to final panel.", "Model v4.2 recalibrated backend weightage.", "2 candidates flagged for low confidence delta.", "Interview report synced to hiring manager workspace."].map((item) => (
-              <li key={item} className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] p-3 border border-[var(--border-glass)]">{item}</li>
+            {activityStream.map((item, idx) => (
+              <li key={idx} className="bg-[var(--surface-glass-light)] rounded-[var(--radius-md)] p-3 border border-[var(--border-glass)]">{item}</li>
             ))}
+            {activityStream.length === 0 && <p className="italic opacity-50">No recent activity detected.</p>}
           </ul>
-          <div className="mt-4 bg-[var(--accent-danger-glow)] rounded-[var(--radius-md)] p-3 text-xs font-semibold text-[#fca5a5] border border-rose-600/30 flex items-center gap-1">
-            <Star size={14} className="shrink-0" /> Review two low-confidence scorecards before final shortlist.
-          </div>
         </SurfaceCard>
       </div>
     </motion.div>

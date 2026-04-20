@@ -8,6 +8,7 @@ class CandidateSignup(BaseModel):
     email: str
     password: str
     name: str
+    invite_token: Optional[str] = None
 
 
 class CandidateProfileResponse(BaseModel):

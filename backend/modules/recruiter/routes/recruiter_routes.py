@@ -11,6 +11,7 @@ from backend.models.recruiter_dashboard import (
     JobPostCreate,
     JobPostUpdate,
     SkillAnalytics,
+    RecruiterDashboardData,
 )
 from backend.services.decision_support_service import generate_full_report
 
@@ -30,6 +31,50 @@ from backend.services.recruiter_dashboard_store import (
 )
 
 router = APIRouter(tags=["recruiter-dashboard"])
+
+@router.get("/dashboard", response_model=RecruiterDashboardData)
+async def get_recruiter_dashboard(
+    user=Depends(require_recruiter),
+    db: Session = Depends(get_db),
+):
+    """Aggregate recruiter dashboard data."""
+    # This is a complex query to get stats
+    from backend.models.recruiter_dashboard_models import JobPost as JobPostModel, Candidate as CandidateModel, Interview as InterviewModel, JobPostStatus, CandidateStatus
+    from sqlalchemy import func
+
+    # Jobs count
+    jobs_count = db.query(func.count(JobPostModel.id)).filter(JobPostModel.status == JobPostStatus.ACTIVE.value).scalar()
+    
+    # Candidates count
+    candidates_count = db.query(func.count(CandidateModel.id)).scalar()
+
+    # Pipeline stats
+    pipeline_stats = []
+    for status in [CandidateStatus.INVITED, CandidateStatus.IN_PROGRESS, CandidateStatus.COMPLETED]:
+        count = db.query(func.count(CandidateModel.id)).filter(CandidateModel.status == status.value).scalar()
+        pipeline_stats.append({"stage": status.value.capitalize(), "count": str(count)})
+
+    # Recent candidates
+    candidates_list = await list_candidates(db, limit=5)
+    
+    # Activity stream (mock for now as there is no activity table, but pulling from latest completions)
+    recent_interviews = db.query(InterviewModel).order_by(InterviewModel.completed_at.desc()).limit(5).all()
+    activity = []
+    for interview in recent_interviews:
+        if interview.completed_at:
+            activity.append(f"Interview for {interview.role} completed with score {interview.overall_score or 0:.0f}")
+
+    return {
+        "candidates": candidates_list,
+        "stats": {
+            "openRoles": str(jobs_count),
+            "activeCandidates": str(candidates_count),
+            "avgTime": "2.4d", # Mocked for now, need historical tracking
+            "alignmentScore": "94%", # Mocked
+        },
+        "pipeline": pipeline_stats,
+        "activity_stream": activity if activity else ["No recent activity"],
+    }
 
 
 

@@ -1,0 +1,204 @@
+.page {
+  padding: 2rem;
+  min-height: 100vh;
+  background: var(--bg-ocean-base);
+  color: var(--text-primary);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 3rem;
+}
+
+.title {
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  background: linear-gradient(to right, var(--text-primary), var(--text-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.scoreGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.overallScoreCard {
+  background: linear-gradient(135deg, var(--accent-indigo), var(--accent-ocean));
+  padding: 2.5rem;
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 20px 40px rgba(79, 70, 229, 0.2);
+}
+
+.overallLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.9;
+  margin-bottom: 0.5rem;
+}
+
+.overallValue {
+  font-size: 4rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.dimensionCard {
+  background: var(--surface-glass-heavy);
+  border: 1px solid var(--border-glass);
+  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  backdrop-filter: var(--blur-md);
+}
+
+.dimensionLabel {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+.dimensionValue {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.feedbackGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+@media (max-width: 768px) {
+  .feedbackGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.feedbackColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.feedbackHeader {
+  display: flex;
+  items-center: center;
+  gap: 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.feedbackList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.feedbackItem {
+  background: var(--surface-glass-light);
+  border: 1px solid var(--border-glass);
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.strengthItem {
+  border-left: 4px solid var(--accent-success);
+}
+
+.weaknessItem {
+  border-left: 4px solid var(--accent-danger);
+}
+
+.summaryCard {
+  background: var(--surface-glass-heavy);
+  border: 1px solid var(--border-glass);
+  padding: 2rem;
+  border-radius: var(--radius-lg);
+  margin-bottom: 3rem;
+}
+
+.recommendation {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--accent-ocean);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.summaryText {
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.questionGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.questionCard {
+  background: var(--surface-glass-light);
+  border: 1px solid var(--border-glass);
+  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.questionCard:hover {
+  background: var(--surface-glass-heavy);
+  border-color: var(--border-glass-glow);
+}
+
+.qHeader {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.qTitle {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.qScore {
+  font-weight: 800;
+  font-size: 0.875rem;
+}
+
+.qText {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.qSummary {
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--text-tertiary);
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 4rem;
+  justify-content: center;
+}

@@ -84,12 +84,6 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className={styles.demoBox}>
-            <p className={styles.demoBoxTitle}>Demo Credentials</p>
-            <p>Admin: admin@intervux.ai / admin123</p>
-            <p>Recruiter: recruiter@intervux.ai / recruiter123</p>
-          </div>
-
           <div className={styles.authFooter}>
             No account yet? <Link to="/signup" className={styles.authLink}>Create candidate account</Link>
           </div>

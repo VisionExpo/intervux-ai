@@ -149,9 +149,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resetAuthState();
     };
 
-    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized); window._authExpiryInterval = setInterval(() => { const exp = localStorage.getItem("auth_token_expires"); if (exp && Date.now() > parseInt(exp)) logout(); }, 30000);
     return () => {
-      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized); clearInterval(window._authExpiryInterval);
     };
   }, [resetAuthState]);
 

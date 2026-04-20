@@ -32,7 +32,6 @@ export default function AdminCommandCenterPage() {
   if (error) return <div style={{ padding: '2rem', color: 'red' }}>Error loading dashboard: {error}</div>;
 
   return (
-  return (
     <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
       <section className="bg-[var(--surface-glass-heavy)] rounded-[var(--radius-lg)] p-8 border border-[var(--border-glass)] shadow-[var(--shadow-sm)]">
         <p className="text-sm text-[var(--text-secondary)]">Admin Command Center</p>

@@ -10,12 +10,11 @@ type DashboardState<T> = {
 
 // Candidate Dashboard Hook
 export interface CandidateDashboardData {
-  checklist: { task: string; done: boolean }[];
-  nextInterviewTime: string;
-  readinessScore: number;
-  confidence: number;
-  recommendations: string[];
-  recruiterNotes: string[];
+  profile_score: number;
+  resume_score: number;
+  mock_interview_score: number;
+  mock_interviews_remaining: number;
+  recent_activity: string[];
 }
 
 export function useCandidateDashboard() {
@@ -29,8 +28,7 @@ export function useCandidateDashboard() {
     let mounted = true;
     const fetchDashboard = async () => {
       try {
-        // Fallback default API if api.ts isn't fully defined yet
-        const url = "/api/candidate/dashboard";
+        const url = `${API.candidates}/dashboard`;
         const data = await authFetch<CandidateDashboardData>(url);
         if (mounted) setState({ data, loading: false, error: null });
       } catch (err) {
@@ -53,15 +51,15 @@ export interface CandidateSummary {
 }
 
 export interface RecruiterDashboardData {
-  candidates: CandidateSummary[];
+  candidates: any[];
   stats: {
-    openRoles: number;
-    activeCandidates: number;
+    openRoles: string;
+    activeCandidates: string;
     avgTime: string;
     alignmentScore: string;
   };
-  pipeline: { stage: string; count: number }[];
-  activityStream: string[];
+  pipeline: { stage: string; count: string }[];
+  activity_stream: string[];
 }
 
 export function useRecruiterDashboard() {
@@ -75,7 +73,7 @@ export function useRecruiterDashboard() {
     let mounted = true;
     const fetchDashboard = async () => {
       try {
-        const url = "/api/recruiter/dashboard";
+        const url = API.recruiter.dashboard;
         const data = await authFetch<RecruiterDashboardData>(url);
         if (mounted) setState({ data, loading: false, error: null });
       } catch (err) {
@@ -101,7 +99,7 @@ export function useAdminDashboard() {
     let mounted = true;
     const fetchDashboard = async () => {
       try {
-        const url = "/api/admin/dashboard";
+        const url = API.admin.dashboard;
         const data = await authFetch<any>(url);
         if (mounted) setState({ data, loading: false, error: null });
       } catch (err) {

@@ -155,6 +155,17 @@ async def complete_mock_interview(
             except Exception:
                 logger.warning("Could not serialize evaluation payload; skipping")
 
+            # Decrement credits ONLY upon successful completion
+            from backend.models.candidate_portal import CandidateProfile
+            result_profile = await db.execute(select(CandidateProfile).filter(CandidateProfile.id == interview.candidate_id))
+            profile = result_profile.scalar_one_or_none()
+            if profile:
+                if profile.mock_interviews_remaining > 0:
+                    profile.mock_interviews_remaining -= 1
+                    logger.info(f"Deducted 1 credit from user_id={profile.user_id}. Remaining: {profile.mock_interviews_remaining}")
+                else:
+                    logger.warning(f"User {profile.user_id} completed interview but has 0 credits?")
+            
             await db.commit()
 
             logger.info(

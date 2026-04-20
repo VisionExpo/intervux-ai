@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { usePageMeta } from "../hooks/usePageMeta";
@@ -11,13 +11,17 @@ import styles from "./Auth.module.css";
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 export default function Signup() {
-  const navigate = useNavigate();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const location = useLocation();
+  const inviteState = location.state as { inviteToken?: string; email?: string } | null;
+
+  const [name, setName] = useState(inviteState?.email || "");
+  const [email, setEmail] = useState(inviteState?.email || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const { login } = useAuth();
 
   usePageMeta("Create Account | Intervux AI", "Create your Intervux AI candidate account and access your intelligence dashboard.");
 
@@ -43,7 +47,12 @@ export default function Signup() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ 
+          name, 
+          email, 
+          password,
+          invite_token: inviteState?.inviteToken 
+        }),
       });
 
       if (!response.ok) {

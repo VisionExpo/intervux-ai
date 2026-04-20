@@ -450,7 +450,7 @@ async def generate_interview_link(db: AsyncSession, candidate_id: str, expires_i
     token = secrets.token_urlsafe(32)
     expires_at = datetime.utcnow() + timedelta(days=expires_in_days)
 
-    interview_link = f"/interview/{token}"
+    interview_link = f"/invite/{token}" # Tokenized landing page
     candidate.interview_link = interview_link
     candidate.interview_link_expires_at = expires_at
 

@@ -128,3 +128,9 @@ class CandidateComparisonRow(BaseModel):
     technical: float
     communication: float
     overall: float
+
+class RecruiterDashboardData(BaseModel):
+    candidates: List[Candidate]
+    stats: Dict[str, str]
+    pipeline: List[Dict[str, str]]
+    activity_stream: List[str]

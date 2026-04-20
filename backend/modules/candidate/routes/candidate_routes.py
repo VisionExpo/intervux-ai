@@ -92,6 +92,16 @@ async def candidate_signup(candidate_data: CandidateSignup, request: Request):
 
             user_id = f"candidate-{db_user.id}"
 
+            # Link invitation if token present
+            if candidate_data.invite_token:
+                from backend.models.recruiter_dashboard_models import Candidate as RecruiterCandidate
+                link_pattern = f"%/invite/{candidate_data.invite_token}%"
+                inv_res = await db.execute(select(RecruiterCandidate).filter(RecruiterCandidate.interview_link.like(link_pattern)))
+                recruiter_candidate = inv_res.scalar_one_or_none()
+                if recruiter_candidate:
+                    recruiter_candidate.status = "scheduled" # Mark as ready for interview
+                    logger.info(f"Linked new user to invitation for {recruiter_candidate.name}")
+
             profile = CandidateProfile(
                 user_id=user_id,
                 name=candidate_data.name,
@@ -344,7 +354,7 @@ async def start_mock_interview(current_user: TokenData = Depends(get_current_use
         )
         db.add(mock_interview)
 
-        profile.mock_interviews_remaining -= 1
+# Credit deducted on completion
 
         await db.commit()
         await db.refresh(mock_interview)

@@ -4,6 +4,7 @@ import { GlassCard } from "../components/ui/GlassCard/GlassCard";
 import { Button } from "../components/ui/Button/Button";
 import { Play, Video, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 import styles from "./MockInterview.module.css";
+import { CreditUpgradeModal } from "../components/ui/CreditUpgradeModal";
 
 interface DashboardData {
   mock_interviews_remaining: number;
@@ -28,6 +29,7 @@ export default function MockInterview() {
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState("");
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -127,11 +129,13 @@ export default function MockInterview() {
               <div className={styles.limitBox}>
                 <p className={styles.limitTitle}>Limit Reached</p>
                 <p className={styles.limitText}>You have completed your free mock interviews.</p>
-                <Button variant="secondary" fullWidth>Upgrade Plan</Button>
+                <Button variant="secondary" fullWidth onClick={() => setIsUpgradeModalOpen(true)}>Upgrade Plan</Button>
               </div>
             )}
           </GlassCard>
         </div>
+
+        <CreditUpgradeModal isOpen={isUpgradeModalOpen} onClose={() => setIsUpgradeModalOpen(false)} />
 
         {/* Right Column: History */}
         <div className={styles.historyColumn}>

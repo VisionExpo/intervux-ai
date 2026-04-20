@@ -8,6 +8,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
+const InviteLandingPage = lazy(() => import("./pages/InviteLandingPage"));
 
 const CandidateIntelligencePage = lazy(() => import("./dashboard/CandidateIntelligencePage"));
 const RecruiterOperationsPage = lazy(() => import("./dashboard/RecruiterOperationsPage"));
@@ -76,6 +77,7 @@ function AppContent() {
         <Route path="/" element={isAuthenticated ? <RoleHomeRedirect /> : <LandingPage />} />
         <Route path="/login" element={isAuthenticated ? <RoleHomeRedirect /> : <Login />} />
         <Route path="/signup" element={isAuthenticated ? <RoleHomeRedirect /> : <Signup />} />
+        <Route path="/invite/:token" element={<InviteLandingPage />} />
 
         <Route
           element={
