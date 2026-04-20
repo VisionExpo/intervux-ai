@@ -36,12 +36,12 @@ const MOCK_DATA: Record<string, any> = {
     profile_score: 82,
     created_at: new Date().toISOString(),
   },
-  '/api/recruiter/candidates': [
+  '/api/candidates': [
     { id: '1', name: 'Alice Smith', email: 'alice@example.com', role: 'Frontend Developer', created_at: new Date().toISOString() },
     { id: '2', name: 'Bob Johnson', email: 'bob@example.com', role: 'Backend Engineer', created_at: new Date().toISOString(), interview_id: 'int-1' },
     { id: '3', name: 'Charlie Brown', email: 'charlie@example.com', role: 'Fullstack Dev', created_at: new Date().toISOString() },
   ],
-  '/api/recruiter/job-posts': [
+  '/api/job-posts': [
     { id: 'j1', title: 'Senior React Developer', status: 'active', experience_level: 'Senior', created_at: new Date().toISOString() },
     { id: 'j2', title: 'Python Backend Engineer', status: 'active', experience_level: 'Mid', created_at: new Date().toISOString() },
     { id: 'j3', title: 'UX Designer', status: 'paused', experience_level: 'Lead', created_at: new Date().toISOString() },
@@ -220,11 +220,11 @@ export interface RecruiterJobPost {
 }
 
 export function useRecruiterCandidates() {
-  return useApiFetch<RecruiterCandidate[]>('/api/recruiter/candidates');
+  return useApiFetch<RecruiterCandidate[]>('/api/candidates');
 }
 
 export function useRecruiterJobPosts() {
-  return useApiFetch<RecruiterJobPost[]>('/api/recruiter/job-posts');
+  return useApiFetch<RecruiterJobPost[]>('/api/job-posts');
 }
 
 // ──────────────────────────────────────────
