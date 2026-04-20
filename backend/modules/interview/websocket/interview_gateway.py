@@ -72,19 +72,21 @@ class InterviewGateway:
         key = f"rl:ws:{ip}"
         now = int(time.time())
         window_start = now - 60
-        
-        pipeline = self.redis.pipeline()
-        pipeline.zremrangebyscore(key, 0, window_start)
-        pipeline.zcard(key)
-        pipeline.zadd(key, {str(now): now})
-        pipeline.expire(key, 60)
-        
-        results = await pipeline.execute()
-        req_count = results[1]
-        
-        if req_count >= self.rate_limit_per_minute:
-            return False
-        return True
+
+        try:
+            pipeline = self.redis.pipeline()
+            pipeline.zremrangebyscore(key, 0, window_start)
+            pipeline.zcard(key)
+            pipeline.zadd(key, {str(now): now})
+            pipeline.expire(key, 60)
+
+            # Keep auth handshake responsive even when Redis is down/unreachable.
+            results = await asyncio.wait_for(pipeline.execute(), timeout=1.0)
+            req_count = results[1]
+            return req_count < self.rate_limit_per_minute
+        except Exception:
+            logger.warning("WS rate limiter unavailable; allowing connection")
+            return True
 
     async def handle(self, ws: WebSocket) -> None:
         token = ws.query_params.get("token")

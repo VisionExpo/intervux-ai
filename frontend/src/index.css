@@ -2,6 +2,10 @@
 @import './styles/globals.css';
 @import './styles/motion.css';
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Interview layout classes used by InterviewPage and CandidateInterviewReport */
 
 .interview-layout {

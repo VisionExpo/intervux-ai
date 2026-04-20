@@ -48,6 +48,7 @@ from backend.modules.candidate.routes.candidate_routes import router as candidat
 from backend.modules.candidate.routes.resume_routes import router as resume_router
 from backend.modules.recruiter.routes.recruiter_routes import router as recruiter_router
 from backend.modules.admin.routes.admin_routes import router as admin_router
+from backend.modules.admin.routes.admin_compat_routes import router as admin_compat_router
 from backend.modules.analytics.routes.metrics_routes import router as metrics_router
 
 logger = get_logger(__name__)
@@ -202,6 +203,7 @@ app.include_router(candidate_router, prefix="/api/candidate", tags=["candidate"]
 app.include_router(resume_router, prefix="/api/resume", tags=["resume"])
 app.include_router(recruiter_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
+app.include_router(admin_compat_router, prefix="/api")
 app.include_router(metrics_router, prefix="/api")
 
 

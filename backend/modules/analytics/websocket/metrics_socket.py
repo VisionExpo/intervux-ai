@@ -71,7 +71,7 @@ class MetricsSocket:
             return
         
         try:
-            user_data: TokenData = verify_token(token)
+            user_data: TokenData = await verify_token(token)
             # Store user data in connection state for later use
             websocket.state.user = user_data
         except Exception:
