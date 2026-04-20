@@ -135,7 +135,7 @@ function useApiFetch<T>(path: string): UseFetchResult<T> {
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    const isMock = window.location.hash.includes('mock=true') || window.location.hash.includes('demo=true');
+    const isMock = window.location.hash.includes('mock=true');
     setIsLoading(true);
     setError(null);
     try {

@@ -6,7 +6,6 @@ export async function authFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const isDemo = window.location.hash.includes('demo=true');
   const token = localStorage.getItem("auth_token");
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -22,7 +21,7 @@ export async function authFetch<T>(
   });
 
   if (!response.ok) {
-    if (response.status === 401 && !isDemo) {
+    if (response.status === 401) {
       // Token expired or invalid
       localStorage.removeItem("auth_token");
       window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
