@@ -3,7 +3,19 @@ import { authFetch } from "../hooks/authFetch";
 import { GlassCard } from "../components/ui/GlassCard/GlassCard";
 import { Button } from "../components/ui/Button/Button";
 import { Input } from "../components/ui/Input/Input";
-import { Sparkles, UserRound, FileText, CheckCircle2 } from "lucide-react";
+import { 
+  Sparkles, 
+  UserRound, 
+  FileText, 
+  CheckCircle2, 
+  Mail, 
+  Github, 
+  Linkedin, 
+  Briefcase, 
+  GraduationCap,
+  ExternalLink,
+  ShieldCheck
+} from "lucide-react";
 import styles from "./CandidateProfile.module.css";
 import { API } from "../config/api";
 import type { CandidateProfileResponse, ResumeUploadResponse } from "../types/api";
@@ -23,6 +35,7 @@ export default function CandidateProfile() {
     education: "",
     github_url: "",
     linkedin_url: "",
+    email: "", 
   });
 
   useEffect(() => {
@@ -37,6 +50,7 @@ export default function CandidateProfile() {
           education: data.education || "",
           github_url: data.github_url || "",
           linkedin_url: data.linkedin_url || "",
+          email: data.user_id || "", 
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load profile");
@@ -86,7 +100,7 @@ export default function CandidateProfile() {
       const uploadFormData = new FormData();
       uploadFormData.append("file", file);
 
-      const API_BASE = import.meta.env.VITE_API_URL;
+      const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
       const response = await fetch(`${API_BASE}/api/candidate/resume`, {
         method: "POST",
         headers: {
@@ -104,10 +118,9 @@ export default function CandidateProfile() {
       
       setUploadMessage({
         type: "success",
-        text: `Resume uploaded! Score: ${result.resume_score.toFixed(0)}% - Skills detected: ${result.skills.join(", ")}`,
+        text: `Resume analyzed! Score: ${result.resume_score.toFixed(0)}%`,
       });
 
-      // Refresh profile to get updated data
       const updatedProfile = await authFetch<CandidateProfileResponse>(API.profile.candidate);
       setProfile(updatedProfile);
       setFormData((prev) => ({
@@ -133,18 +146,8 @@ export default function CandidateProfile() {
         <GlassCard padding="lg">
           <div className={styles.loadingRow}>
             <Sparkles className={styles.loadingIcon} />
-            <p className={styles.loadingText}>Loading profile...</p>
+            <p className={styles.loadingText}>Loading identity...</p>
           </div>
-        </GlassCard>
-      </div>
-    );
-  }
-
-  if (error && !profile) {
-    return (
-      <div className={styles.loadingState}>
-        <GlassCard padding="lg">
-          <div className={styles.errorState}>{error}</div>
         </GlassCard>
       </div>
     );
@@ -153,8 +156,15 @@ export default function CandidateProfile() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>My Profile</h1>
-        <p className={styles.subtitle}>Manage your skills, experience, and resume.</p>
+        <div className={styles.headerLeft}>
+          <h1 className={styles.title}>Candidate Profile</h1>
+          <p className={styles.subtitle}>Your career identity, verified by Intervux AI.</p>
+        </div>
+        {!isEditing && (
+          <Button onClick={() => setIsEditing(true)} className={styles.editBtn}>
+            Edit Profile
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -163,96 +173,61 @@ export default function CandidateProfile() {
         </GlassCard>
       )}
 
-      {/* Score Cards */}
-      <div className={styles.scoreGrid}>
-        <GlassCard className={styles.scoreCard}>
-          <div className={`${styles.scoreOverlay} ${styles.scoreOverlayIndigo}`} />
-          <h3 className={styles.scoreLabel}>Profile Score</h3>
-          <p className={styles.scoreValue}>{profile?.profile_score?.toFixed(0) || 0}</p>
-        </GlassCard>
-        
-        <GlassCard className={styles.scoreCard}>
-          <div className={`${styles.scoreOverlay} ${styles.scoreOverlayBlue}`} />
-          <h3 className={styles.scoreLabel}>Resume Score</h3>
-          <p className={styles.scoreValue}>{profile?.resume_score?.toFixed(0) || "N/A"}</p>
-        </GlassCard>
-        
-        <GlassCard className={styles.scoreCard}>
-          <div className={`${styles.scoreOverlay} ${styles.scoreOverlayGreen}`} />
-          <h3 className={styles.scoreLabel}>Interview Score</h3>
-          <p className={styles.scoreValue}>{profile?.interview_score?.toFixed(0) || "N/A"}</p>
-        </GlassCard>
-        
-        <GlassCard className={styles.scoreCard}>
-          <div className={`${styles.scoreOverlay} ${styles.scoreOverlayPurple}`} />
-          <h3 className={styles.scoreLabel}>Interviews Left</h3>
-          <p className={styles.scoreValue}>{profile?.mock_interviews_remaining || 0}</p>
-        </GlassCard>
-      </div>
-
-      <GlassCard padding="lg">
+      <div className={styles.bentoGrid}>
         {!isEditing ? (
-          <div className={styles.viewLayout}>
-            <div className={styles.viewGrid}>
-              {/* Basic Info */}
-              <div className={styles.section}>
-                <h3 className={styles.sectionTitle}>
-                  <UserRound size={20} /> Basic Information
-                </h3>
-                <div className={styles.fieldList}>
-                  <p><strong className={styles.fieldLabel}>Name:</strong> {profile?.name}</p>
-                  <p><strong className={styles.fieldLabel}>Email:</strong> {profile?.user_id}</p>
-                  <p><strong className={styles.fieldLabel}>Experience:</strong> {profile?.experience_years || 0} years</p>
-                  <p><strong className={styles.fieldLabel}>Education:</strong> {profile?.education || "Not specified"}</p>
+          <>
+            {/* 1. Profile Header Card */}
+            <GlassCard className={`${styles.bentoCard} ${styles.headerCard}`}>
+              <div className={styles.avatarContainer}>
+                <UserRound size={64} />
+              </div>
+              <div className={styles.profileInfo}>
+                <h2>{profile?.name}</h2>
+                <div className={styles.profileEmail}>
+                  <Mail size={16} /> {profile?.user_id}
+                </div>
+                <div className={styles.profileSocials}>
+                  {profile?.github_url && <Github size={20} className={styles.socialIcon} />}
+                  {profile?.linkedin_url && <Linkedin size={20} className={styles.socialIcon} />}
                 </div>
               </div>
+            </GlassCard>
 
-              {/* Links & Resume */}
-              <div className={styles.section}>
-                <h3 className={`${styles.sectionTitle} ${styles.sectionTitleGreen}`}>
-                  <FileText size={20} /> Documents & Links
-                </h3>
-                <div className={styles.fieldList}>
-                  <p><strong className={styles.fieldLabel}>GitHub:</strong> {profile?.github_url ? <a href={profile.github_url} className={styles.link} target="_blank" rel="noreferrer">View Profile</a> : "Not provided"}</p>
-                  <p><strong className={styles.fieldLabel}>LinkedIn:</strong> {profile?.linkedin_url ? <a href={profile.linkedin_url} className={styles.link} target="_blank" rel="noreferrer">View Profile</a> : "Not provided"}</p>
-                  <div className={styles.uploadArea}>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      id="resume-upload"
-                      aria-label="Upload resume"
-                      accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"
-                      onChange={handleResumeUpload}
-                      className={styles.hiddenInput}
-                    />
-                    <div className={styles.uploadActions}>
-                      {profile?.resume_url && (
-                        <Button variant="secondary" onClick={() => window.open(profile.resume_url!, '_blank')}>
-                          View Current Resume
-                        </Button>
-                      )}
-                      <Button 
-                        variant="secondary" 
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading}
-                      >
-                        {isUploading ? "Uploading..." : "Upload New Resume"}
-                      </Button>
-                    </div>
-                  </div>
-                  {uploadMessage && (
-                    <div className={`${styles.uploadMessage} ${uploadMessage.type === 'success' ? styles.uploadSuccess : styles.uploadError}`}>
-                      {uploadMessage.type === 'success' && <CheckCircle2 style={{ display: 'inline', marginRight: '0.5rem' }} size={16} />}
-                      {uploadMessage.text}
-                    </div>
-                  )}
-                </div>
+            {/* 2. Benchmarks Card */}
+            <GlassCard className={`${styles.bentoCard} ${styles.scoresCard}`}>
+              <h3 className={styles.cardTitle}><Sparkles size={16} /> AI Benchmarks</h3>
+              <div className={styles.scoreRow}>
+                <span className={styles.scoreName}>Profile Strength</span>
+                <span className={styles.scoreVal}>{profile?.profile_score?.toFixed(0) || 0}%</span>
               </div>
-            </div>
+              <div className={styles.scoreRow}>
+                <span className={styles.scoreName}>Resume Score</span>
+                <span className={styles.scoreVal}>{profile?.resume_score?.toFixed(0) || 0}%</span>
+              </div>
+              <div className={styles.scoreRow}>
+                <span className={styles.scoreName}>Interview Performance</span>
+                <span className={styles.scoreVal}>{profile?.interview_score?.toFixed(0) || "N/A"}%</span>
+              </div>
+              <div className={styles.scoreRow}>
+                <span className={styles.scoreName}>Credits Left</span>
+                <span className={styles.scoreVal}>{profile?.mock_interviews_remaining || 0}</span>
+              </div>
+            </GlassCard>
 
-            {/* Skills */}
-            <div className={styles.skillsSection}>
-              <h3 className={styles.skillsSectionTitle}>Skills Set</h3>
+            {/* 3. Summary Card */}
+            <GlassCard className={`${styles.bentoCard} ${styles.summaryCard}`}>
+              <h3 className={styles.cardTitle}><ShieldCheck size={16} /> Professional Summary</h3>
+              <p className={styles.summaryText}>
+                {profile?.experience_years ? `Experienced professional with ${profile.experience_years} years in the field. ` : "Eager professional starting their career journey. "}
+                {profile?.education ? `Graduated from ${profile.education}. ` : ""}
+                Currently focused on mastering {profile?.skills?.slice(0, 3).join(", ") || "new technical domains"}.
+                Intervux AI has calculated a profile strength of {profile?.profile_score?.toFixed(0)}% based on your recent activity.
+              </p>
+            </GlassCard>
+
+            {/* 4. Skills Card */}
+            <GlassCard className={`${styles.bentoCard} ${styles.skillsCard}`}>
+              <h3 className={styles.cardTitle}><Sparkles size={16} /> Skills Cloud</h3>
               <div className={styles.skillsList}>
                 {profile?.skills && profile.skills.length > 0 ? (
                   profile.skills.map((skill, index) => (
@@ -261,66 +236,152 @@ export default function CandidateProfile() {
                     </span>
                   ))
                 ) : (
-                  <p className={styles.noSkills}>No skills added yet.</p>
+                  <p className={styles.noSkills}>Upload your resume to detect skills automatically.</p>
                 )}
               </div>
-            </div>
+            </GlassCard>
 
-            <div className={styles.editActions}>
-              <Button onClick={() => setIsEditing(true)}>Edit Profile</Button>
-            </div>
-          </div>
+            {/* 5. Portfolio & Links Card */}
+            <GlassCard className={`${styles.bentoCard} ${styles.linksCard}`}>
+              <h3 className={styles.cardTitle}><FileText size={16} /> Artifacts & Links</h3>
+              <div className={styles.linksList}>
+                <div className={styles.linkItem}>
+                  <div className={styles.linkInfo}><Github size={18} /> GitHub</div>
+                  {profile?.github_url ? (
+                    <a href={profile.github_url} target="_blank" rel="noreferrer"><ExternalLink size={16} /></a>
+                  ) : <span className={styles.linkPlaceholder}>Not Linked</span>}
+                </div>
+                <div className={styles.linkItem}>
+                  <div className={styles.linkInfo}><Linkedin size={18} /> LinkedIn</div>
+                  {profile?.linkedin_url ? (
+                    <a href={profile.linkedin_url} target="_blank" rel="noreferrer"><ExternalLink size={16} /></a>
+                  ) : <span className={styles.linkPlaceholder}>Not Linked</span>}
+                </div>
+                
+                <div className={styles.resumeCardSection}>
+                  <div className={styles.uploadArea}>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      id="resume-upload"
+                      accept=".pdf,.docx"
+                      onChange={handleResumeUpload}
+                      className={styles.hiddenInput}
+                    />
+                    <div className={styles.resumeStatus}>
+                      <FileText className={styles.resumeIcon} />
+                      <p className={styles.resumeStatusText}>
+                        {profile?.resume_url ? "Resume Loaded" : "No Resume"}
+                      </p>
+                    </div>
+                    <div className={styles.resumeActions}>
+                      {profile?.resume_url && (
+                        <Button 
+                          variant="secondary" 
+                          size="sm"
+                          onClick={() => {
+                            const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+                            const fullUrl = profile.resume_url!.startsWith('http') 
+                              ? profile.resume_url 
+                              : `${API_BASE}${profile.resume_url}`;
+                            window.open(fullUrl, '_blank');
+                          }}
+                        >
+                          View
+                        </Button>
+                      )}
+                      <Button 
+                        variant="primary" 
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                      >
+                        {isUploading ? "..." : "Upload"}
+                      </Button>
+                    </div>
+                  </div>
+                  {uploadMessage && (
+                    <div className={`${styles.uploadMessage} ${uploadMessage.type === 'success' ? styles.uploadSuccess : styles.uploadError}`}>
+                      {uploadMessage.text}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* 6. Experience & Education */}
+            <GlassCard className={`${styles.bentoCard} ${styles.experienceCard}`}>
+              <h3 className={styles.cardTitle}><Briefcase size={16} /> Experience</h3>
+              <div className={styles.eduExpContent}>
+                <p className={styles.primaryText}>{profile?.experience_years || 0} Years Experience</p>
+                <p className={styles.secondaryText}>Professional trajectory analyzed via AI models.</p>
+              </div>
+            </GlassCard>
+
+            <GlassCard className={`${styles.bentoCard} ${styles.educationCard}`}>
+              <h3 className={styles.cardTitle}><GraduationCap size={16} /> Education</h3>
+              <div className={styles.eduExpContent}>
+                <p className={styles.primaryText}>{profile?.education || "Degrees Not Specified"}</p>
+                <p className={styles.secondaryText}>Academic background verification.</p>
+              </div>
+            </GlassCard>
+          </>
         ) : (
-          <form onSubmit={handleSubmit}>
-            <div className={styles.editGrid}>
-              <Input
-                label="Name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-              <Input
-                label="Skills (comma-separated)"
-                value={formData.skills}
-                onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
-                placeholder="Python, JavaScript, Machine Learning"
-              />
-              <Input
-                label="Experience (years)"
-                type="number"
-                value={formData.experience_years}
-                onChange={(e) => setFormData({ ...formData, experience_years: e.target.value })}
-              />
-              <Input
-                label="Education"
-                value={formData.education}
-                onChange={(e) => setFormData({ ...formData, education: e.target.value })}
-                placeholder="B.S. Computer Science"
-              />
-              <Input
-                label="GitHub URL"
-                type="url"
-                value={formData.github_url}
-                onChange={(e) => setFormData({ ...formData, github_url: e.target.value })}
-                placeholder="https://github.com/username"
-              />
-              <Input
-                label="LinkedIn URL"
-                type="url"
-                value={formData.linkedin_url}
-                onChange={(e) => setFormData({ ...formData, linkedin_url: e.target.value })}
-                placeholder="https://linkedin.com/in/username"
-              />
-            </div>
-
-            <div className={styles.editActions}>
-              <Button type="submit">Save Changes</Button>
-              <Button variant="secondary" type="button" onClick={() => setIsEditing(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
+          <GlassCard className={styles.summaryCard}>
+            <form onSubmit={handleSubmit} className={styles.formContent}>
+              <div className={styles.editGrid}>
+                <div className={styles.inputWrap}>
+                  <Input
+                    label="Full Name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
+                </div>
+                <div className={styles.inputWrap}>
+                  <Input
+                    label="Education"
+                    value={formData.education}
+                    onChange={(e) => setFormData({ ...formData, education: e.target.value })}
+                  />
+                </div>
+                <div className={styles.inputWrap}>
+                  <Input
+                    label="Experience (Years)"
+                    type="number"
+                    value={formData.experience_years}
+                    onChange={(e) => setFormData({ ...formData, experience_years: e.target.value })}
+                  />
+                </div>
+                <div className={styles.inputWrap}>
+                  <Input
+                    label="GitHub URL"
+                    value={formData.github_url}
+                    onChange={(e) => setFormData({ ...formData, github_url: e.target.value })}
+                  />
+                </div>
+                <div className={styles.inputWrap}>
+                  <Input
+                    label="LinkedIn URL"
+                    value={formData.linkedin_url}
+                    onChange={(e) => setFormData({ ...formData, linkedin_url: e.target.value })}
+                  />
+                </div>
+                <div className={styles.fullWidth}>
+                  <Input
+                    label="Skills (Comma Separated)"
+                    value={formData.skills}
+                    onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className={styles.editActions}>
+                <Button type="submit">Save Identity</Button>
+                <Button variant="secondary" outline onClick={() => setIsEditing(false)}>Cancel</Button>
+              </div>
+            </form>
+          </GlassCard>
         )}
-      </GlassCard>
+      </div>
     </div>
   );
 }

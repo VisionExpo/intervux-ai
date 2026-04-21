@@ -43,8 +43,7 @@ export const iconMap = {
 export const roleNavigation: Record<AppRole, NavItem[]> = {
   candidate: [
     { label: "Intelligence", path: "/candidate", icon: "sparkles" },
-    { label: "Interviews", path: "/mock-interview", icon: "mic-2" },
-    { label: "Reports", path: "/interview-history", icon: "file-chart-column" },
+    { label: "Interviews", path: "/interviews", icon: "mic-2" },
     { label: "Profile", path: "/profile", icon: "user-round" },
     { label: "Notifications", path: "/notifications", icon: "bell" },
   ],

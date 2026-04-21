@@ -22,8 +22,7 @@ const RbacAccessControlPage = lazy(() => import("./admin/RbacAccessControlPage")
 const AnalyticsIntelligencePage = lazy(() => import("./analytics/AnalyticsIntelligencePage"));
 
 const CandidateProfile = lazy(() => import("./pages/CandidateProfile"));
-const MockInterview = lazy(() => import("./pages/MockInterview"));
-const InterviewHistory = lazy(() => import("./pages/InterviewHistory"));
+const Interviews = lazy(() => import("./pages/Interviews"));
 const CandidateNotifications = lazy(() => import("./pages/CandidateNotifications"));
 const InterviewPage = lazy(() => import("./pages/InterviewPage"));
 const CandidateInterviewReport = lazy(() => import("./pages/CandidateInterviewReport"));
@@ -77,10 +76,11 @@ function AppContent() {
         >
           {/* Candidate Routes */}
           <Route path="/candidate" element={<CandidateIntelligencePage />} />
-          <Route path="/profile" element={<CandidateProfile />} />
-          <Route path="/mock-interview" element={<MockInterview />} />
-          <Route path="/interview-history" element={<InterviewHistory />} />
-          <Route path="/notifications" element={<CandidateNotifications />} />
+            <Route path="/profile" element={<ProtectedRoute allowedRoles={["candidate"]}><CandidateProfile /></ProtectedRoute>} />
+            <Route path="/interviews" element={<ProtectedRoute allowedRoles={["candidate"]}><Interviews /></ProtectedRoute>} />
+            <Route path="/mock-interview" element={<Navigate to="/interviews" replace />} />
+            <Route path="/interview-history" element={<Navigate to="/interviews" replace />} />
+            <Route path="/notifications" element={<ProtectedRoute allowedRoles={["candidate"]}><CandidateNotifications /></ProtectedRoute>} />
           
           {/* Recruiter Routes */}
           <Route path="/recruiter" element={<RecruiterOperationsPage />} />

@@ -1,293 +1,237 @@
-/* CandidateProfile Page — Vanilla CSS Module */
-
 .page {
-  padding: var(--space-8);
-  max-width: 72rem;
+  max-width: 1200px;
   margin: 0 auto;
+  padding: 2rem;
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .header {
-  margin-bottom: var(--space-8);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2.5rem;
 }
 
 .title {
-  font-family: var(--font-heading);
-  font-size: 1.875rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: var(--space-2);
+  font-size: 2.5rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0;
 }
 
 .subtitle {
-  color: var(--text-tertiary);
-  font-size: 0.875rem;
+  color: #94a3b8;
+  font-size: 1.1rem;
+  margin-top: 0.5rem;
 }
 
-.errorCard {
-  border-color: rgba(225, 29, 72, 0.3);
-  background: rgba(225, 29, 72, 0.1);
-  margin-bottom: var(--space-6);
+.editBtn {
+  height: fit-content;
 }
 
-.errorText {
-  color: #fb7185;
-  padding: 0 var(--space-4);
-}
-
-/* Score metrics grid */
-.scoreGrid {
+/* Bento Grid System */
+.bentoGrid {
   display: grid;
-  grid-template-columns: repeat(1, 1fr);
-  gap: var(--space-4);
-  margin-bottom: var(--space-6);
+  grid-template-columns: repeat(12, 1fr);
+  grid-template-rows: auto;
+  gap: 1.5rem;
 }
 
-@media (min-width: 768px) {
-  .scoreGrid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-.scoreCard {
+.bentoCard {
   position: relative;
   overflow: hidden;
+  height: 100%;
 }
 
-.scoreOverlay {
-  position: absolute;
-  inset: 0;
-  transition: background var(--transition-fast);
-}
-
-.scoreOverlayIndigo {
-  background: rgba(79, 70, 229, 0.05);
-}
-.scoreCard:hover .scoreOverlayIndigo {
-  background: rgba(79, 70, 229, 0.1);
-}
-
-.scoreOverlayBlue {
-  background: rgba(59, 130, 246, 0.05);
-}
-.scoreCard:hover .scoreOverlayBlue {
-  background: rgba(59, 130, 246, 0.1);
-}
-
-.scoreOverlayGreen {
-  background: rgba(16, 185, 129, 0.05);
-}
-.scoreCard:hover .scoreOverlayGreen {
-  background: rgba(16, 185, 129, 0.1);
-}
-
-.scoreOverlayPurple {
-  background: rgba(139, 92, 246, 0.05);
-}
-.scoreCard:hover .scoreOverlayPurple {
-  background: rgba(139, 92, 246, 0.1);
-}
-
-.scoreLabel {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-tertiary);
-  margin-bottom: var(--space-1);
-}
-
-.scoreValue {
-  font-size: 1.875rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-/* View mode */
-.viewLayout {
+/* Specific Card Layouts */
+.headerCard {
+  grid-column: span 8;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
+  gap: 2rem;
+  align-items: center;
 }
 
-.viewGrid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-8);
+.scoresCard {
+  grid-column: span 4;
 }
 
-@media (min-width: 1024px) {
-  .viewGrid {
-    grid-template-columns: 1fr 1fr;
-  }
+.summaryCard {
+  grid-column: span 12;
 }
 
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+.skillsCard {
+  grid-column: span 7;
 }
 
-.sectionTitle {
-  font-family: var(--font-heading);
-  font-size: 1.25rem;
-  font-weight: 500;
+.linksCard {
+  grid-column: span 5;
+}
+
+.experienceCard {
+  grid-column: span 6;
+}
+
+.educationCard {
+  grid-column: span 6;
+}
+
+/* Card Content Styles */
+.avatarContainer {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 24px;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2));
+  border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  color: var(--text-primary);
-  margin-bottom: 0;
+  justify-content: center;
+  color: var(--accent-primary);
 }
 
-.sectionTitle svg {
-  color: var(--accent-indigo);
+.profileInfo h2 {
+  font-size: 1.8rem;
+  margin-bottom: 0.25rem;
+  color: white;
 }
 
-.sectionTitleGreen svg {
-  color: var(--accent-success);
-}
-
-.fieldList {
+.profileEmail {
+  color: #64748b;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  color: var(--text-secondary);
-}
-
-.fieldLabel {
-  color: var(--text-tertiary);
-}
-
-.link {
-  color: #60a5fa;
-  transition: color var(--transition-fast);
-}
-
-.link:hover {
-  color: #93c5fd;
-}
-
-/* Resume upload area */
-.uploadArea {
-  padding-top: var(--space-2);
-}
-
-.hiddenInput {
-  display: none;
-}
-
-.uploadActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
   align-items: center;
-  margin-top: var(--space-2);
+  gap: 0.5rem;
+  font-size: 0.95rem;
 }
 
-.uploadMessage {
-  margin-top: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--radius-sm);
+.cardTitle {
   font-size: 0.875rem;
-  border: 1px solid;
-}
-
-.uploadSuccess {
-  background: rgba(16, 185, 129, 0.1);
-  border-color: rgba(16, 185, 129, 0.2);
-  color: #34d399;
-}
-
-.uploadError {
-  background: rgba(225, 29, 72, 0.1);
-  border-color: rgba(225, 29, 72, 0.2);
-  color: #fb7185;
-}
-
-/* Skills */
-.skillsSection {
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 1.25rem;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.skillsSectionTitle {
-  font-family: var(--font-heading);
-  font-size: 1.25rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: var(--space-6);
-  margin-bottom: 0;
+/* Indicators */
+.scoreRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+.scoreRow:last-child { border-bottom: none; }
+
+.scoreName { color: #cbd5e1; }
+.scoreVal { 
+  font-weight: 700; 
+  color: white;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Skills Cloud */
 .skillsList {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: 0.75rem;
 }
 
 .skillTag {
-  padding: 0.25rem 0.75rem;
-  background: rgba(79, 70, 229, 0.1);
-  border: 1px solid rgba(79, 70, 229, 0.2);
-  border-radius: var(--radius-full);
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 100px;
+  color: #e2e8f0;
   font-size: 0.875rem;
-  color: #a5b4fc;
+  transition: all 0.2s;
 }
 
-.noSkills {
-  color: var(--text-tertiary);
+.skillTag:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
 }
 
-.editActions {
-  padding-top: var(--space-4);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+/* Links & Resume */
+.linkItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: border-color 0.2s;
 }
 
-/* Edit mode */
-.editGrid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-6);
+.linkItem:hover {
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
-@media (min-width: 768px) {
-  .editGrid {
-    grid-template-columns: 1fr 1fr;
+.linkInfo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: #cbd5e1;
+}
+
+.uploadArea {
+  margin-top: 1rem;
+  padding: 1.5rem;
+  border: 2px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.uploadArea:hover {
+  border-color: var(--accent-primary);
+  background: rgba(99, 102, 241, 0.03);
+}
+
+.hiddenInput { display: none; }
+
+/* Responsive Bento */
+@media (max-width: 1024px) {
+  .headerCard { grid-column: span 12; }
+  .scoresCard { grid-column: span 12; }
+  .skillsCard { grid-column: span 12; }
+  .linksCard { grid-column: span 12; }
+}
+
+@media (max-width: 768px) {
+  .experienceCard, .educationCard {
+    grid-column: span 12;
   }
 }
 
+/* Edit Mode Styles */
+.editGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.fullWidth {
+  grid-column: span 2;
+}
+
 .editActions {
   display: flex;
-  gap: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.errorState {
-  color: #fb7185;
-  font-weight: 600;
-}
-
-/* Loading */
-.loadingState {
-  padding: var(--space-8);
-}
-
-.loadingRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.loadingIcon {
-  color: var(--accent-indigo);
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-.loadingText {
-  color: var(--text-secondary);
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 2rem;
 }

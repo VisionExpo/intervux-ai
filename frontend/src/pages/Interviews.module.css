@@ -1,0 +1,232 @@
+.page {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.header {
+  margin-bottom: 2.5rem;
+}
+
+.title {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.section {
+  margin-bottom: 3rem;
+}
+
+.sectionTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Start Practice Card */
+.practiceCard {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s ease;
+}
+
+.practiceCard:hover {
+  transform: translateY(-4px);
+}
+
+.practiceLayout {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2rem;
+}
+
+.practiceInfo {
+  flex: 1;
+}
+
+.practiceTitle {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.practiceDesc {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  max-width: 500px;
+}
+
+.practiceMeta {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.metaItem {
+  display: flex;
+  flex-direction: column;
+}
+
+.metaLabel {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.metaValue {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.resumeLink {
+  font-size: 0.85rem;
+  color: var(--accent-primary);
+  text-decoration: underline;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 0.5rem;
+}
+
+.startButton {
+  min-width: 200px;
+}
+
+/* History Table */
+.tableWrap {
+  overflow-x: auto;
+  border-radius: 12px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.th {
+  text-align: left;
+  padding: 1rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.td {
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.95rem;
+}
+
+.tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Badges */
+.badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badgePractice {
+  background: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
+}
+
+.badgeInvited {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.statusCompleted {
+  color: #10b981;
+}
+
+.statusInProgress {
+  color: #f59e0b;
+}
+
+.statusFailed {
+  color: #ef4444;
+}
+
+/* Empty States */
+.emptyState {
+  padding: 4rem 2rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.emptyIcon {
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.emptyText {
+  color: var(--text-secondary);
+  max-width: 300px;
+}
+
+.scoreValue {
+  font-weight: 700;
+  color: var(--accent-primary);
+}
+
+.actionBtn {
+  font-size: 0.85rem;
+  color: var(--accent-primary);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.actionBtn:hover {
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .practiceLayout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .practiceMeta {
+    flex-direction: column;
+    gap: 1rem;
+  }
+}

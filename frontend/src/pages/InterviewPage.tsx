@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useInterview } from "../hooks/useInterview";
 import { audioFeedback } from "../utils/audioFeedback";
 import {
@@ -8,6 +8,12 @@ import {
   CandidateCamera,
   TranscriptPanel,
 } from "../components/interview";
+import { GlassCard } from "../components/ui/GlassCard/GlassCard";
+import { Button } from "../components/ui/Button/Button";
+import { CheckCircle2, ChevronRight, Play, LayoutDashboard } from "lucide-react";
+import styles from "./InterviewOverlay.module.css";
+import { authFetch } from "../hooks/authFetch";
+import { useNavigate } from "react-router-dom";
 
 export default function InterviewPage() {
   const {
@@ -86,14 +92,21 @@ export default function InterviewPage() {
   }, []);
 
   useEffect(() => {
-    if (stage === "INTERVIEW_COMPLETE" && finalReport) {
-      sessionStorage.setItem("interview_report", JSON.stringify(finalReport));
-      window.location.hash = "#/report";
+    if (stage === "INTERVIEW_COMPLETE") {
+      // Logic for storing report is already handled in useInterview or useEffect above
     }
-  }, [stage, finalReport]);
+  }, [stage]);
 
-  if (stage === "INTERVIEW_COMPLETE" && finalReport) {
-    return null;
+  const [overlayVisible, setOverlayVisible] = useState(false);
+
+  useEffect(() => {
+    if (stage === "INTERVIEW_COMPLETE" && !overlayVisible) {
+      setOverlayVisible(true);
+    }
+  }, [stage, overlayVisible]);
+
+  if (overlayVisible || stage === "INTERVIEW_COMPLETE") {
+    return <InterviewOverlay finalReport={finalReport} />;
   }
 
   if (stage === "CONNECTING") {
@@ -189,5 +202,111 @@ export default function InterviewPage() {
         />
       }
     />
+  );
+}
+
+function InterviewOverlay({ finalReport }: { finalReport: any }) {
+  const navigate = useNavigate();
+  const [timeLeft, setTimeLeft] = useState(10);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isStartingAnother, setIsStartingAnother] = useState(false);
+
+  useEffect(() => {
+    if (isPaused || timeLeft <= 0) return;
+
+    const timer = setTimeout(() => {
+      setTimeLeft(timeLeft - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [timeLeft, isPaused]);
+
+  useEffect(() => {
+    if (timeLeft === 0 && !isPaused) {
+      navigate("/interviews");
+    }
+  }, [timeLeft, isPaused, navigate]);
+
+  const handleStartAnother = async () => {
+    setIsStartingAnother(true);
+    setIsPaused(true); // Stop the countdown
+    try {
+      const response = await authFetch<{
+        session_id: string;
+      }>("/api/candidate/mock-interview/start", { method: "POST" });
+
+      sessionStorage.setItem("mock_session_id", response.session_id);
+      // Fresh navigation to re-initialize useInterview hook
+      window.location.href = `#/interview-session?mock_session_id=${encodeURIComponent(response.session_id)}`;
+      window.location.reload(); // Force full re-init for fresh socket & state
+    } catch (err) {
+      console.error("Failed to start another interview:", err);
+      navigate("/interviews");
+    }
+  };
+
+  const score = (finalReport?.overall_score || finalReport?.score || 0).toFixed(0);
+
+  return (
+    <div className={styles.overlayBackdrop}>
+      <div 
+        className={styles.overlayCard}
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => timeLeft > 0 && setIsPaused(false)}
+      >
+        <div className={styles.iconWrap}>
+          <CheckCircle2 size={40} />
+        </div>
+        
+        <h2 className={styles.title}>Interview Complete!</h2>
+        <p className={styles.subtitle}>Our AI has finished gathering evaluation data.</p>
+
+        <div className={styles.scoreContainer}>
+          <p className={styles.scoreLabel}>Overall Score</p>
+          <div className={styles.scoreValue}>{score}<span>%</span></div>
+        </div>
+
+        <div className={styles.actions}>
+          <Button 
+            onClick={() => navigate(`/report/${sessionStorage.getItem("mock_session_id")}`)}
+            fullWidth
+          >
+            View Full Report <ChevronRight size={18} />
+          </Button>
+          
+          <Button 
+            variant="secondary" 
+            onClick={handleStartAnother}
+            disabled={isStartingAnother}
+            fullWidth
+          >
+            {isStartingAnother ? "Preparing..." : <><Play size={16} /> Start Another</>}
+          </Button>
+
+          <Button 
+            variant="secondary" 
+            outline
+            onClick={() => navigate("/interviews")}
+            fullWidth
+          >
+            <LayoutDashboard size={16} /> Back to Hub
+          </Button>
+        </div>
+
+        {!isPaused && timeLeft > 0 && (
+          <div 
+            className={styles.timerBar} 
+            style={{ 
+              transform: `scaleX(${timeLeft / 10})`,
+              transition: 'transform 1s linear'
+            }} 
+          />
+        )}
+        
+        <p className={styles.timerText}>
+          {isPaused ? "Timer paused" : `Redirecting to hub in ${timeLeft}s...`}
+        </p>
+      </div>
+    </div>
   );
 }

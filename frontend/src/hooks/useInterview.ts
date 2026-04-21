@@ -179,6 +179,11 @@ export function useInterview() {
     const connectId = connectIdRef.current;
     dispatch({ type: "WS_CONNECTING" });
 
+    if (socketRef.current) {
+      console.log("Cleaning up existing WebSocket before new connection...");
+      socketRef.current.close();
+    }
+
     const ws = new WebSocket(getWebSocketUrl());
     ws.binaryType = "arraybuffer";
     socketRef.current = ws;
