@@ -47,7 +47,8 @@ COPY backend/requirements.txt .
 # -----------------------------------------------------------------------------
 # Install Python Dependencies
 # -----------------------------------------------------------------------------
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --default-timeout=1000 -r requirements.txt
 
 # -----------------------------------------------------------------------------
 # Copy Application Code
@@ -86,4 +87,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # -----------------------------------------------------------------------------
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
-
