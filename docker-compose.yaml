@@ -1,15 +1,15 @@
 services:
-  postgres:
+  db:
     image: postgres:15
     container_name: intervux-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Vishal}
       POSTGRES_DB: ${POSTGRES_DB:-intervux}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-intervux} -d ${POSTGRES_DB:-intervux}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-intervux}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -27,23 +27,38 @@ services:
       retries: 10
       start_period: 10s
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: intervux-frontend
+    ports:
+      - "5173:5173"
+    env_file:
+      - frontend/.env.docker
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   backend:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: intervux-backend
-    # FIX: entrypoint runs `alembic upgrade head` before uvicorn starts.
-    # Previously create_all ran inside lifespan and silently skipped column additions.
     entrypoint: ["/app/entrypoint.sh"]
     command: ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
     env_file:
-      - .env.docker
+      - backend/.env
     environment:
       RUN_DB_MIGRATIONS: "true"
     ports:
       - "8000:8000"
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -65,15 +80,14 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: intervux-worker
-    # FIX: worker also runs migrations so it is never ahead/behind the API server.
     entrypoint: ["/app/entrypoint.sh"]
     command: celery -A backend.core.celery_app:celery_app worker -l info --concurrency=2
     env_file:
-      - .env.docker
+      - backend/.env
     environment:
       RUN_DB_MIGRATIONS: "false"
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -97,7 +111,7 @@ services:
     container_name: intervux-beat
     command: celery -A backend.core.celery_app:celery_app beat -l info
     env_file:
-      - .env.docker
+      - backend/.env
     environment:
       RUN_DB_MIGRATIONS: "false"
     depends_on:
@@ -118,7 +132,7 @@ services:
       { echo 'FLOWER_BASIC_AUTH must be set'; exit 1; };
       celery -A backend.core.celery_app:celery_app flower --port=5555 --basic_auth=$$FLOWER_BASIC_AUTH"
     env_file:
-      - .env.docker
+      - backend/.env
     environment:
       RUN_DB_MIGRATIONS: "false"
     ports:
@@ -136,5 +150,5 @@ services:
       start_period: 30s
 
 volumes:
-  postgres_data:
+  db_data:
   redis_data:
