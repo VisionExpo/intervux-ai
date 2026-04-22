@@ -40,6 +40,19 @@ class InterviewGateway:
         self._connections: Set[WebSocket] = set()
         self._active_celery_tasks: Dict[str, Set[Any]] = {}
 
+    def safe_create_task(self, coro, session_id: str = "unknown"):
+        """Create a task with an error handler to prevent silent failures."""
+        task = asyncio.create_task(coro)
+        
+        def handle_done(t):
+            try:
+                t.result()
+            except Exception as e:
+                logger.error(f"Background task failed for session {session_id}: {e}")
+        
+        task.add_done_callback(handle_done)
+        return task
+
     async def _ping_loop(self, ws: WebSocket, session_id: str):
         """Keep LoadBalancers happy with 20s pings."""
         try:
@@ -141,8 +154,8 @@ class InterviewGateway:
         self._connections.add(ws)
         self._active_celery_tasks[session_id] = set()
         
-        ping_task = asyncio.create_task(self._ping_loop(ws, session_id))
-        pubsub_task = asyncio.create_task(self._pubsub_listener(ws, session_id, session))
+        ping_task = self.safe_create_task(self._ping_loop(ws, session_id), session_id)
+        pubsub_task = self.safe_create_task(self._pubsub_listener(ws, session_id, session), session_id)
 
         try:
             if not session.state.greeting_sent:
@@ -159,14 +172,22 @@ class InterviewGateway:
                 session.state.greeting_sent = True
 
             session.state.transition_to(InterviewPhase.WAITING_RESUME)
+            # Broadcast initial phase to sync UI
+            await self._broadcast_phase(ws, session, InterviewPhase.WAITING_RESUME)
 
             while True:
                 message = await self._recv_with_timeout(ws)
+                
+                # CRITICAL: Validate session still exists in registry before processing
+                if not await self._registry.get_metadata(session_id):
+                    logger.warning(f"Session {session_id} not found in registry during message handling.")
+                    await self._send_error(ws, "SESSION_EXPIRED", "Session has timed out or been closed.", recoverable=False)
+                    break
 
                 if message.get("bytes"):
                     response = await session.handle_message(message)
                     if response:
-                        await self._send_json(ws, response)
+                        await self._send_json(ws, response, session=session)
                         if response.get("type") == "error" and not response.get("recoverable", True):
                             await self._close_ws(ws, code=1011)
                             return
@@ -188,20 +209,20 @@ class InterviewGateway:
 
                 if response:
                     if response.get("type") == "question":
-                        await self._send_evaluation_response(ws, response)
+                        await self._send_evaluation_response(ws, response, session=session)
                         await self._send_question_with_audio(ws, session, response)
                     elif response.get("type") == "next_question":
                         eval_data = response.get("question", {}).get("data", {})
                         next_q = response.get("next_question", {})
-                        await self._send_json(ws, {"type": "evaluation", "data": eval_data})
+                        await self._send_json(ws, {"type": "evaluation", "data": eval_data}, session=session)
                         await self._send_question_with_audio(ws, session, next_q)
                     elif response.get("type") == "complete":
                         eval_data = response.get("evaluation", {}).get("data", {})
                         final = response.get("final", {})
-                        await self._send_json(ws, {"type": "evaluation", "data": eval_data})
-                        await self._send_json(ws, final)
+                        await self._send_json(ws, {"type": "evaluation", "data": eval_data}, session=session)
+                        await self._send_json(ws, final, session=session)
                     else:
-                        await self._send_json(ws, response)
+                        await self._send_json(ws, response, session=session)
                         if response.get("type") == "error" and not response.get("recoverable", True):
                             await self._close_ws(ws, code=1011)
                             return
@@ -243,34 +264,37 @@ class InterviewGateway:
         text = question_data.get("text", "")
         question_index = question_data.get("question_index", 1)
         total_questions = question_data.get("total_questions", 2)
-        await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions})
+        await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions}, session=session)
         audio_chunks = await self._synthesize_tts_chunks(session.session_id, text)
         for chunk in audio_chunks:
             visemes = chunk.get("visemes", [])
             audio_bytes = chunk.get("audio_bytes", b"")
             if not audio_bytes:
                 continue
-            await self._send_json(ws, {"type": "avatar_visemes", "visemes": visemes})
+            await self._send_json(ws, {"type": "avatar_visemes", "visemes": visemes}, session=session)
             await self._send_bytes(ws, bytes(audio_bytes))
-        await self._send_json(ws, {"type": "phase", "value": "LISTENING"})
+        
+        session.state.transition_to(InterviewPhase.LISTENING)
+        await self._broadcast_phase(ws, session, InterviewPhase.LISTENING)
 
     async def _send_avatar_with_audio(self, ws: WebSocket, session: InterviewSession, text: str, question_index: int, total_questions: int) -> None:
-        await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions})
+        await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions}, session=session)
         audio_chunks = await self._synthesize_tts_chunks(session.session_id, text)
         for chunk in audio_chunks:
             visemes = chunk.get("visemes", [])
             audio_bytes = chunk.get("audio_bytes", b"")
             if not audio_bytes:
                 continue
-            await self._send_json(ws, {"type": "avatar_visemes", "visemes": visemes})
+            await self._send_json(ws, {"type": "avatar_visemes", "visemes": visemes}, session=session)
             await self._send_bytes(ws, bytes(audio_bytes))
         if question_index > 0:
-            await self._send_json(ws, {"type": "phase", "value": "LISTENING"})
+            session.state.transition_to(InterviewPhase.LISTENING)
+            await self._broadcast_phase(ws, session, InterviewPhase.LISTENING)
 
-    async def _send_evaluation_response(self, ws: WebSocket, response: Dict[str, Any]) -> None:
+    async def _send_evaluation_response(self, ws: WebSocket, response: Dict[str, Any], session: InterviewSession) -> None:
         eval_payload = response.get("data")
         if isinstance(eval_payload, dict):
-            await self._send_json(ws, {"type": "evaluation", "data": eval_payload})
+            await self._send_json(ws, {"type": "evaluation", "data": eval_payload}, session=session)
 
     # Network helpers
     async def _recv_with_timeout(self, ws: WebSocket) -> Dict[str, Any]:
@@ -282,11 +306,19 @@ class InterviewGateway:
             raise WebSocketDisconnect(message.get("code", 1001))
         return message
 
-    async def _send_json(self, ws: WebSocket, payload: Dict[str, Any]) -> None:
+    async def _send_json(self, ws: WebSocket, payload: Dict[str, Any], session: Optional[InterviewSession] = None) -> None:
+        """Tag payload with sequence ID if session is provided and send."""
+        if session:
+            payload["seq"] = session.get_next_seq()
+        
         try:
             await asyncio.wait_for(ws.send_json(payload), timeout=self.send_timeout_s)
         except asyncio.TimeoutError as exc:
             raise TimeoutError("Timed out sending JSON response") from exc
+
+    async def _broadcast_phase(self, ws: WebSocket, session: InterviewSession, phase: InterviewPhase) -> None:
+        """Helper to broadcast phase change to frontend."""
+        await self._send_json(ws, {"type": "PHASE_CHANGE", "phase": phase.value}, session=session)
 
     async def _send_bytes(self, ws: WebSocket, data: bytes) -> None:
         try:

@@ -89,6 +89,15 @@ class InterviewSession:
         # and user abandonment.
         self._internal_error: bool = False
 
+        # Monotonic sequence counter for backend -> frontend messages
+        self._next_seq: int = 1
+
+    def get_next_seq(self) -> int:
+        """Increment and return the next sequence ID."""
+        seq = self._next_seq
+        self._next_seq += 1
+        return seq
+
     # ------------------------------------------------------------------
 
     async def handle_message(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:

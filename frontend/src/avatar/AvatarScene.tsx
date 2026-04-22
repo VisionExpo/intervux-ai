@@ -45,8 +45,8 @@ export default function AvatarScene({
 
   return (
     <Canvas
-      camera={{ position: [0, 1.4, 1.8], fov: 30 }}
-      style={{ width: "100%", height: "420px" }}
+      camera={{ position: [0, 1.45, 1.2], fov: 35 }}
+      style={{ width: "100%", height: "500px" }}
     >
       <ambientLight intensity={0.8} />
       <directionalLight position={[0, 5, 5]} intensity={1} />

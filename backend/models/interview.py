@@ -100,10 +100,11 @@ class InterviewState:
     """
 
     def __init__(self):
+        self._phase: InterviewPhase = InterviewPhase.CONNECTING
         self.reset()
 
     def reset(self):
-        self.phase: InterviewPhase = InterviewPhase.CONNECTING
+        self._phase = InterviewPhase.CONNECTING
         self.greeting_sent: bool = False
         self.resume_text: Optional[str] = None
         self.profile: Optional[ResumeData] = None
@@ -125,19 +126,31 @@ class InterviewState:
         self.memory = InterviewMemory()
         self.final_report: Optional[Dict] = None
 
+    @property
+    def phase(self) -> InterviewPhase:
+        return self._phase
+
+    @phase.setter
+    def phase(self, value: InterviewPhase):
+        """Prevent direct mutation of phase."""
+        raise RuntimeError("Direct phase mutation is not allowed. Use transition_to instead.")
+
     def transition_to(self, new_phase: InterviewPhase) -> None:
         """Safely transition to a new phase with logging and validation."""
         if not isinstance(new_phase, InterviewPhase):
             logger.error(f"Invalid phase transition: {type(new_phase)}")
             raise ValueError(f"Invalid phase transition: {new_phase}")
             
-        old_phase = self.phase
-        self.phase = new_phase
+        if self._phase == new_phase:
+            return
+
+        old_phase = self._phase
+        self._phase = new_phase
         logger.info(f"[PHASE] {old_phase.value} → {new_phase.value}")
 
     def can_proceed(self, message_type: str) -> bool:
         """Check if current phase can handle this message."""
-        return self.phase.can_receive(message_type)
+        return self._phase.can_receive(message_type)
 
 
 # =========================================================

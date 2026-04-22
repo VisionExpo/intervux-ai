@@ -19,6 +19,7 @@ export type InterviewAction =
   | { type: "ANSWER_PROCESSING_START" }
   | { type: "EVALUATION_COMPLETE" }
   | { type: "INTERVIEW_COMPLETE" }
+  | { type: "SET_PHASE"; phase: InterviewState }
   | { type: "ERROR_OCCURRED" }
   | { type: "RESET" };
 
@@ -36,6 +37,10 @@ export function interviewReducer(
   }
   if (action.type === "ERROR_OCCURRED") {
     return "ERROR";
+  }
+  if (action.type === "SET_PHASE") {
+    if (state === action.phase) return state;
+    return action.phase;
   }
 
   switch (state) {
@@ -56,55 +61,12 @@ export function interviewReducer(
       }
 
     case "PROCESSING_RESUME":
-      switch (action.type) {
-        case "RESUME_PROCESS_SUCCESS":
-          return "ASKING_QUESTION"; // Go directly to asking question
-        default:
-          return state;
-      }
-    
     case "ASKING_QUESTION":
-      switch (action.type) {
-        case "PHASE_LISTENING":
-          return "LISTENING";
-        default:
-          return state;
-      }
-
     case "LISTENING":
-      switch (action.type) {
-        case "ANSWER_PROCESSING_START":
-          return "PROCESSING_ANSWER";
-        default:
-          return state;
-      }
-
     case "PROCESSING_ANSWER":
-      switch (action.type) {
-        case "EVALUATION_COMPLETE":
-          return "NEXT_QUESTION";
-        case "INTERVIEW_COMPLETE":
-          return "INTERVIEW_COMPLETE";
-        default:
-          return state;
-      }
-
     case "NEXT_QUESTION":
-      switch (action.type) {
-        case "QUESTION_RECEIVED":
-          return "ASKING_QUESTION";
-        case "INTERVIEW_COMPLETE":
-          return "INTERVIEW_COMPLETE";
-        default:
-          return state;
-      }
-    
     case "INTERVIEW_COMPLETE":
-      // Terminal state, only RESET can change it
-      return state;
-
     case "ERROR":
-      // Terminal state, only RESET can change it
       return state;
 
     default:

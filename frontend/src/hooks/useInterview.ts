@@ -74,6 +74,9 @@ export function useInterview() {
   const audioQueueRef = useRef<QueuedAudioChunk[]>([]);
   const pendingVisemesRef = useRef<VisemeCue[] | null>(null);
   const isPlayingQueueRef = useRef(false);
+  const nextExpectedSeqRef = useRef(1);
+  const incomingBufferRef = useRef<Map<number, any>>(new Map());
+  const bufferTimeoutRef = useRef<number | null>(null);
 
   const [avatarText, setAvatarText] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -120,6 +123,17 @@ export function useInterview() {
 
   useEffect(() => {
     stageRef.current = stage;
+
+    // Stuck stage watchdog
+    const stuckStages: InterviewState[] = ["PROCESSING_RESUME", "PROCESSING_ANSWER"];
+    if (stuckStages.includes(stage)) {
+      const timer = window.setTimeout(() => {
+        console.warn(`Watchdog: Stuck in ${stage} for too long. Reconnecting...`);
+        setLastError("Still processing? Reconnecting to sync state...");
+        connectSocket();
+      }, 15000);
+      return () => window.clearTimeout(timer);
+    }
   }, [stage]);
 
   // Initialization of continuous media stream
@@ -207,7 +221,7 @@ export function useInterview() {
 
       if (typeof event.data !== "string") return;
 
-      let msg: Record<string, unknown>;
+      let msg: any;
       try {
         msg = JSON.parse(event.data);
       } catch {
@@ -216,7 +230,77 @@ export function useInterview() {
         return;
       }
 
+      // Handle sequence buffering
+      if (typeof msg.seq === "number") {
+        if (msg.seq === nextExpectedSeqRef.current) {
+          processMessage(msg);
+          nextExpectedSeqRef.current++;
+          
+          // Check buffer for subsequent messages
+          while (incomingBufferRef.current.has(nextExpectedSeqRef.current)) {
+            const bufferedMsg = incomingBufferRef.current.get(nextExpectedSeqRef.current);
+            incomingBufferRef.current.delete(nextExpectedSeqRef.current);
+            processMessage(bufferedMsg);
+            nextExpectedSeqRef.current++;
+          }
+          
+          // Clear any pending timeout if we're back on track
+          if (bufferTimeoutRef.current) {
+            window.clearTimeout(bufferTimeoutRef.current);
+            bufferTimeoutRef.current = null;
+          }
+        } else if (msg.seq > nextExpectedSeqRef.current) {
+          console.warn(`Out of order: expected ${nextExpectedSeqRef.current}, got ${msg.seq}`);
+          incomingBufferRef.current.set(msg.seq, msg);
+          
+          // Set a timeout to skip missing sequence if it doesn't arrive
+          if (!bufferTimeoutRef.current) {
+            bufferTimeoutRef.current = window.setTimeout(() => {
+              console.warn(`Sequence timeout for ${nextExpectedSeqRef.current}, skipping...`);
+              nextExpectedSeqRef.current++;
+              // Trigger a "virtual" message check
+              ws.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({ type: "_buffer_check", seq: nextExpectedSeqRef.current }) }));
+            }, 2000);
+          }
+        }
+        return;
+      }
+
+      // Internal check to flush buffer after timeout
+      if (msg.type === "_buffer_check") {
+        while (incomingBufferRef.current.has(nextExpectedSeqRef.current)) {
+          const bufferedMsg = incomingBufferRef.current.get(nextExpectedSeqRef.current);
+          incomingBufferRef.current.delete(nextExpectedSeqRef.current);
+          processMessage(bufferedMsg);
+          nextExpectedSeqRef.current++;
+        }
+        bufferTimeoutRef.current = null;
+        return;
+      }
+
+      // Fallback for messages without sequence (if any)
+      processMessage(msg);
+    };
+
+    function processMessage(msg: any) {
       const type = typeof msg.type === "string" ? msg.type : "";
+
+      if (type === "PHASE_CHANGE") {
+        const phase = msg.phase as InterviewState;
+        // Map backend names to frontend stage names if they differ
+        let mappedPhase = phase;
+        if (phase as any === "QUESTION") mappedPhase = "ASKING_QUESTION";
+        if (phase as any === "PROCESSING") mappedPhase = "PROCESSING_ANSWER";
+        if (phase as any === "COMPLETE") mappedPhase = "INTERVIEW_COMPLETE";
+        
+        dispatch({ type: "SET_PHASE", phase: mappedPhase });
+        
+        // Interrupt audio if transitioning to listening or complete
+        if (mappedPhase === "LISTENING" || mappedPhase === "INTERVIEW_COMPLETE") {
+          interruptAudio();
+        }
+        return;
+      }
 
       if (type === "avatar_sync" || type === "question" || type === "next_question") {
         const text = typeof msg.text === "string" ? msg.text : "";
@@ -228,12 +312,6 @@ export function useInterview() {
 
         if (text && qIndex > 0) {
           addTranscriptMessage("ai", text);
-        }
-
-        if (qIndex === 1 && stageRef.current === "PROCESSING_RESUME") {
-          dispatch({ type: "RESUME_PROCESS_SUCCESS" });
-        } else if (qIndex > 0) {
-          dispatch({ type: "QUESTION_RECEIVED" });
         }
         return;
       }
@@ -255,15 +333,13 @@ export function useInterview() {
           addTranscriptMessage("candidate", data.transcript);
         }
         setPartialTranscript("");
-        dispatch({ type: "EVALUATION_COMPLETE" });
         return;
       }
 
-      if (type === "interview_complete") {
+      if (type === "complete") {
         setFinalReport((msg.report ?? null) as Record<string, unknown> | null);
-        dispatch({ type: "INTERVIEW_COMPLETE" });
+        dispatch({ type: "SET_PHASE", phase: "INTERVIEW_COMPLETE" });
         shouldReconnectRef.current = false;
-        // Clear the stored session id - interview is done
         sessionStorage.removeItem("mock_session_id");
         return;
       }
@@ -272,14 +348,6 @@ export function useInterview() {
         const message = typeof msg.message === "string" ? msg.message : "Server error.";
         setLastError(message);
         dispatch({ type: "ERROR_OCCURRED" });
-        return;
-      }
-
-      if (type === "server_shutdown") {
-        const message =
-          typeof msg.message === "string" ? msg.message : "Server is restarting. Reconnecting...";
-        setLastError(message);
-        dispatch({ type: "RESET" });
         return;
       }
 
@@ -297,17 +365,7 @@ export function useInterview() {
         });
         return;
       }
-
-      if (type === "phase") {
-        const value = typeof msg.value === "string" ? msg.value : "";
-        if (value === "LISTENING") {
-          dispatch({ type: "PHASE_LISTENING" });
-        } else if (value === "PROCESSING") {
-          dispatch({ type: "ANSWER_PROCESSING_START" });
-        }
-        return;
-      }
-    };
+    }
 
     ws.onerror = (error) => {
       console.error("WebSocket error:", error);
@@ -503,6 +561,34 @@ export function useInterview() {
     } catch {
       continueQueue();
     }
+  }
+
+  function interruptAudio() {
+    audioQueueRef.current = [];
+    pendingVisemesRef.current = null;
+
+    const audioEl = audioRef.current;
+    if (audioEl && !audioEl.paused) {
+      fadeOutAudio(audioEl);
+    }
+
+    isPlayingQueueRef.current = false;
+    setIsSpeaking(false);
+    setVisemes([]);
+  }
+
+  function fadeOutAudio(audio: HTMLAudioElement) {
+    let vol = audio.volume;
+    const interval = setInterval(() => {
+      if (vol > 0.1) {
+        vol -= 0.1;
+        audio.volume = vol;
+      } else {
+        audio.pause();
+        audio.volume = 1.0; // Reset for next play
+        clearInterval(interval);
+      }
+    }, 20);
   }
 
   function clearAudioQueue() {
