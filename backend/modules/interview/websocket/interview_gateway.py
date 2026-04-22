@@ -59,7 +59,7 @@ class InterviewGateway:
             while True:
                 await asyncio.sleep(20)
                 if ws.client_state.name == "CONNECTED":
-                    await self._send_json(ws, {"type": "ping", "message": "heartbeat"})
+                    await self._send_json(ws, {"type": "ping", "message": "heartbeat"}, session=session)
                 else:
                     break
         except Exception:
@@ -76,7 +76,7 @@ class InterviewGateway:
                         session._partial_transcript = text
                         session._partial_count += 1
                         metrics.increment_counter("partial_transcript_count")
-                        await self._send_json(ws, {"type": "partial_transcript", "text": text})
+                        await self._send_json(ws, {"type": "partial_transcript", "text": text}, session=session)
         except Exception as e:
             logger.warning(f"PubSub listener closed for {session_id}: {e}")
 
@@ -148,8 +148,10 @@ class InterviewGateway:
         # Centralized broadcast handler: whenever state.transition_to is called, 
         # this callback fires and sends the PHASE_CHANGE event over WebSocket.
         def broadcast_phase_change(new_phase):
+            # Capture sequence ID synchronously to guarantee order
+            seq = session.state.get_next_seq()
             self.safe_create_task(
-                self._send_json(ws, {"type": "PHASE_CHANGE", "phase": new_phase.value}, session=session),
+                self._send_json(ws, {"type": "PHASE_CHANGE", "phase": new_phase.value, "seq": seq}),
                 session_id=session_id
             )
         
@@ -190,7 +192,7 @@ class InterviewGateway:
                 # CRITICAL: Validate session still exists in registry before processing
                 if not await self._registry.get_metadata(session_id):
                     logger.warning(f"Session {session_id} not found in registry during message handling.")
-                    await self._send_error(ws, "SESSION_EXPIRED", "Session has timed out or been closed.", recoverable=False)
+                    await self._send_error(ws, "SESSION_EXPIRED", "Session has timed out or been closed.", recoverable=False, session=session)
                     break
 
                 if message.get("bytes"):
@@ -204,13 +206,13 @@ class InterviewGateway:
 
                 text = message.get("text")
                 if not text:
-                    await self._send_error(ws, "EXPECTED_JSON", "Expected text message with JSON payload.", recoverable=True)
+                    await self._send_error(ws, "EXPECTED_JSON", "Expected text message with JSON payload.", recoverable=True, session=session)
                     continue
 
                 try:
                     data = json.loads(text)
                 except json.JSONDecodeError:
-                    await self._send_error(ws, "INVALID_JSON", "Invalid JSON payload.", recoverable=True)
+                    await self._send_error(ws, "INVALID_JSON", "Invalid JSON payload.", recoverable=True, session=session)
                     continue
 
                 wrapped_message = {"data": data, "text": text}
@@ -239,11 +241,11 @@ class InterviewGateway:
         except WebSocketDisconnect:
             logger.info("WebSocket disconnected", extra={"extra_data": {"session_id": session_id}})
         except TimeoutError as exc:
-            await self._send_error(ws, "TIMEOUT", str(exc), recoverable=False)
+            await self._send_error(ws, "TIMEOUT", str(exc), recoverable=False, session=session)
             await self._close_ws(ws, code=1001)
         except Exception:
             metrics.record_error()
-            await self._send_error(ws, "INTERNAL_ERROR", "Interview session failed.", recoverable=False)
+            await self._send_error(ws, "INTERNAL_ERROR", "Interview session failed.", recoverable=False, session=session)
             await self._close_ws(ws, code=1011)
         finally:
             ping_task.cancel()
@@ -315,7 +317,7 @@ class InterviewGateway:
 
     async def _send_json(self, ws: WebSocket, payload: Dict[str, Any], session: Optional[InterviewSession] = None) -> None:
         """Tag payload with sequence ID if session is provided and send."""
-        if session:
+        if session and "seq" not in payload:
             payload["seq"] = session.state.get_next_seq()
         
         try:
@@ -333,8 +335,8 @@ class InterviewGateway:
         except asyncio.TimeoutError as exc:
             raise TimeoutError("Timed out sending binary data") from exc
 
-    async def _send_error(self, ws: WebSocket, code: str, message: str, recoverable: bool) -> None:
-        await self._send_json(ws, {"type": "error", "code": code, "message": message, "recoverable": recoverable})
+    async def _send_error(self, ws: WebSocket, code: str, message: str, recoverable: bool, session: Optional[InterviewSession] = None) -> None:
+        await self._send_json(ws, {"type": "error", "code": code, "message": message, "recoverable": recoverable}, session=session)
 
     async def _close_ws(self, ws: WebSocket, code: int) -> None:
         try:
