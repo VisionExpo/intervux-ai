@@ -1,6 +1,9 @@
 from typing import List, Optional, Dict
 from enum import Enum
 from pydantic import BaseModel, Field
+from backend.core.logging.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 # =========================================================
@@ -123,9 +126,14 @@ class InterviewState:
         self.final_report: Optional[Dict] = None
 
     def transition_to(self, new_phase: InterviewPhase) -> None:
-        """Safely transition to a new phase."""
-        # Add validation logic here if needed
+        """Safely transition to a new phase with logging and validation."""
+        if not isinstance(new_phase, InterviewPhase):
+            logger.error(f"Invalid phase transition: {type(new_phase)}")
+            raise ValueError(f"Invalid phase transition: {new_phase}")
+            
+        old_phase = self.phase
         self.phase = new_phase
+        logger.info(f"[PHASE] {old_phase.value} → {new_phase.value}")
 
     def can_proceed(self, message_type: str) -> bool:
         """Check if current phase can handle this message."""

@@ -30,7 +30,7 @@ from backend.core.memory_engine import (
     seed_memory_projects,
     update_memory,
 )
-from backend.models.interview import InterviewState, ResumeData
+from backend.models.interview import InterviewPhase, InterviewState, ResumeData
 from backend.services.resume_parser_service import ParsedResume, parse_resume_from_b64
 from backend.services.audio_buffer import AudioBuffer
 from backend.services.evaluation_service import get_evaluation_service
@@ -71,7 +71,7 @@ class InterviewEngine:
     ) -> Dict[str, Any]:
         logger.info("Resume received")
         logger.info(f"Resume size: {len(file_bytes_b64)}")
-        state.transition_to(InterviewState.phase.__class__.WAITING_RESUME)
+        state.transition_to(InterviewPhase.WAITING_RESUME)
         
         logger.info("Starting resume parsing")
         resume_start = time.time()
@@ -136,7 +136,7 @@ class InterviewEngine:
         state.current_index = 0
         
         metrics.record_latency("question_generation", time.time() - question_start)
-        state.transition_to(InterviewState.phase.__class__.QUESTION)
+        state.transition_to(InterviewPhase.QUESTION)
         
         return {
             "type": "question",
@@ -187,7 +187,7 @@ class InterviewEngine:
         draft_transcript: str = "",
         early_eval_task: Any = None,
     ) -> Dict[str, Any]:
-        state.transition_to(InterviewState.phase.__class__.PROCESSING)
+        state.transition_to(InterviewPhase.PROCESSING)
         
         current_index = state.current_index
         skill = state.question_skills[current_index] if current_index < len(state.question_skills) else "Machine Learning"
@@ -273,7 +273,7 @@ class InterviewEngine:
         if not self._should_continue(state):
             return None
             
-        state.transition_to(InterviewState.phase.__class__.NEXT_QUESTION)
+        state.transition_to(InterviewPhase.NEXT_QUESTION)
         
         last_answer = state.answers[-1] if state.answers else {}
         topic = last_answer.get("topic", "general")
@@ -323,7 +323,7 @@ class InterviewEngine:
         state.concept_difficulties.append(next_concept_difficulty)
         state.current_difficulty = next_difficulty
         
-        state.transition_to(InterviewState.phase.__class__.QUESTION)
+        state.transition_to(InterviewPhase.QUESTION)
         
         return {
             "type": "next_question",
@@ -336,7 +336,7 @@ class InterviewEngine:
         self,
         state: InterviewState,
     ) -> Dict[str, Any]:
-        state.transition_to(InterviewState.phase.__class__.COMPLETE)
+        state.transition_to(InterviewPhase.COMPLETE)
         report_start = time.time()
         report = await self._generate_report(
             profile=state.profile.model_dump(),

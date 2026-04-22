@@ -84,6 +84,10 @@ class InterviewSession:
         self._partial_transcript: str = ""
         self._partial_count: int = 0
         self._early_eval_task: Optional[asyncio.Task] = None
+        
+        # Internal error flag to distinguish between engine failures 
+        # and user abandonment.
+        self._internal_error: bool = False
 
     # ------------------------------------------------------------------
 
@@ -166,9 +170,10 @@ class InterviewSession:
                 await self._early_eval_task
             self._early_eval_task = None
 
-        # Mark abandoned if we have a DB row and didn't complete normally
+        # Mark abandoned if we have a DB row and didn't complete normally OR crash
         if self.mock_interview_session_id and not self._completed_normally:
-            await fail_mock_interview(self.mock_interview_session_id, "session_cleanup")
+            reason = "internal_error" if self._internal_error else "session_cleanup"
+            await fail_mock_interview(self.mock_interview_session_id, reason)
 
         # ── Redis zombie state cleanup ──
         # Delete all session-scoped keys so they don't linger until TTL expiry.
@@ -225,12 +230,14 @@ class InterviewSession:
                 session_policy=self.session_policy,
             )
             logger.info("Interview engine returned initial question.")
-        except Exception:
+        except Exception as e:
             logger.exception("Bootstrap interview failed in session handler")
+            self._internal_error = True
             return {
                 "type": "error",
-                "message": "Failed to process resume",
-                "recoverable": True,
+                "code": "ENGINE_CRASH",
+                "message": f"Interview engine failed: {str(e)}",
+                "recoverable": False,
             }
 
         return result
@@ -319,6 +326,15 @@ class InterviewSession:
             return {
                 "type": "system_message",
                 "text": "I didn't quite catch the logic in that response. Could you explain it one more time?",
+            }
+        except Exception as e:
+            logger.exception("Evaluation failed in session handler")
+            self._internal_error = True
+            return {
+                "type": "error",
+                "code": "ENGINE_CRASH",
+                "message": "Interview processing failed",
+                "recoverable": False,
             }
 
 

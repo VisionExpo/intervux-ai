@@ -242,3 +242,21 @@ def health_check() -> Dict[str, Any]:
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
     }
+
+
+# =============================================================================
+# Background / Scheduled Tasks
+# =============================================================================
+
+@celery_app.task(name="backend.core.celery_tasks.aggregate_analytics")
+def aggregate_analytics() -> Dict[str, Any]:
+    """Placeholder for analytics aggregation."""
+    logger.info("Aggregating analytics data...")
+    return {"status": "skipped", "reason": "not_implemented"}
+
+
+@celery_app.task(name="backend.core.celery_tasks.cleanup_old_logs")
+def cleanup_old_logs() -> Dict[str, Any]:
+    """Placeholder for log cleanup."""
+    logger.info("Cleaning up old logs...")
+    return {"status": "skipped", "reason": "not_implemented"}

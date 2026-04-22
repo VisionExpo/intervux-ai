@@ -167,6 +167,9 @@ class InterviewGateway:
                     response = await session.handle_message(message)
                     if response:
                         await self._send_json(ws, response)
+                        if response.get("type") == "error" and not response.get("recoverable", True):
+                            await self._close_ws(ws, code=1011)
+                            return
                     continue
 
                 text = message.get("text")
@@ -199,6 +202,9 @@ class InterviewGateway:
                         await self._send_json(ws, final)
                     else:
                         await self._send_json(ws, response)
+                        if response.get("type") == "error" and not response.get("recoverable", True):
+                            await self._close_ws(ws, code=1011)
+                            return
 
         except WebSocketDisconnect:
             logger.info("WebSocket disconnected", extra={"extra_data": {"session_id": session_id}})
