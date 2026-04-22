@@ -71,7 +71,7 @@ class InterviewEngine:
     ) -> Dict[str, Any]:
         logger.info("Resume received")
         logger.info(f"Resume size: {len(file_bytes_b64)}")
-        state.transition_to(InterviewPhase.WAITING_RESUME)
+        # state.transition_to(InterviewPhase.WAITING_RESUME) // REMOVED: Redundant/Incorrect
         
         logger.info("Starting resume parsing")
         resume_start = time.time()

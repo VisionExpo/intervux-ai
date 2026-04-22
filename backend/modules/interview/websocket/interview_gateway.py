@@ -145,6 +145,17 @@ class InterviewGateway:
             mock_interview_session_id=mock_interview_session_id,
         )
 
+        # Centralized broadcast handler: whenever state.transition_to is called, 
+        # this callback fires and sends the PHASE_CHANGE event over WebSocket.
+        def broadcast_phase_change(new_phase):
+            self.safe_create_task(
+                self._send_json(ws, {"type": "PHASE_CHANGE", "phase": new_phase.value}, session=session),
+                session_id=session_id
+            )
+        
+        session.broadcast_callback = broadcast_phase_change
+        session.state.subscribe_to_phase_changes(broadcast_phase_change)
+
         metadata = {
             "user_id": user_data.user_id,
             "mock_id": mock_interview_session_id,
@@ -172,8 +183,6 @@ class InterviewGateway:
                 session.state.greeting_sent = True
 
             session.state.transition_to(InterviewPhase.WAITING_RESUME)
-            # Broadcast initial phase to sync UI
-            await self._broadcast_phase(ws, session, InterviewPhase.WAITING_RESUME)
 
             while True:
                 message = await self._recv_with_timeout(ws)
@@ -275,7 +284,6 @@ class InterviewGateway:
             await self._send_bytes(ws, bytes(audio_bytes))
         
         session.state.transition_to(InterviewPhase.LISTENING)
-        await self._broadcast_phase(ws, session, InterviewPhase.LISTENING)
 
     async def _send_avatar_with_audio(self, ws: WebSocket, session: InterviewSession, text: str, question_index: int, total_questions: int) -> None:
         await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions}, session=session)
@@ -289,7 +297,6 @@ class InterviewGateway:
             await self._send_bytes(ws, bytes(audio_bytes))
         if question_index > 0:
             session.state.transition_to(InterviewPhase.LISTENING)
-            await self._broadcast_phase(ws, session, InterviewPhase.LISTENING)
 
     async def _send_evaluation_response(self, ws: WebSocket, response: Dict[str, Any], session: InterviewSession) -> None:
         eval_payload = response.get("data")
@@ -309,7 +316,7 @@ class InterviewGateway:
     async def _send_json(self, ws: WebSocket, payload: Dict[str, Any], session: Optional[InterviewSession] = None) -> None:
         """Tag payload with sequence ID if session is provided and send."""
         if session:
-            payload["seq"] = session.get_next_seq()
+            payload["seq"] = session.state.get_next_seq()
         
         try:
             await asyncio.wait_for(ws.send_json(payload), timeout=self.send_timeout_s)

@@ -50,6 +50,7 @@ class InterviewSession:
         user_id: str,
         session_policy: Dict[str, Any],
         mock_interview_session_id: Optional[str] = None,
+        broadcast_callback: Optional[callable] = None,
     ):
         """
         Args:
@@ -58,17 +59,19 @@ class InterviewSession:
             session_policy: Session load policy from the gateway.
             mock_interview_session_id: The session_id stored on the
                 MockInterview DB row (returned by /mock-interview/start).
-                When provided, results are persisted on completion.
-                When None, the session runs without DB write-back
-                (e.g. direct WebSocket connections without going through
-                the candidate portal flow).
+            broadcast_callback: A function that will be called when the phase changes
+                to broadcast the event to the frontend.
         """
         self.session_id = session_id
         self.user_id = user_id
         self.session_policy = session_policy
         self.mock_interview_session_id = mock_interview_session_id
+        self.broadcast_callback = broadcast_callback
 
         self.state = InterviewState()
+        if self.broadcast_callback:
+            self.state.subscribe_to_phase_changes(self.broadcast_callback)
+
         self.engine = InterviewEngine()
         self.audio_buffer = AudioBuffer(session_id=self.session_id)
         self.eval_context_cache: Dict[int, dict] = {}
@@ -112,6 +115,9 @@ class InterviewSession:
             persisted = await redis_client.get_session_state_obj(self.session_id)
             if persisted:
                 self.state, self.eval_context_cache = persisted
+                # Re-attach broadcast callback after hydration
+                if self.broadcast_callback:
+                    self.state.subscribe_to_phase_changes(self.broadcast_callback)
         except Exception as e:
             logger.warning(f"Could not load state from redis: {e}")
 

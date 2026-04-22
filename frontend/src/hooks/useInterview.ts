@@ -268,6 +268,17 @@ export function useInterview() {
 
       // Internal check to flush buffer after timeout
       if (msg.type === "_buffer_check") {
+        // Fast-forward recovery: skip all missing sequences if a higher one exists in buffer
+        const hasHigherSeqAvailable = () => {
+          const keys = Array.from(incomingBufferRef.current.keys());
+          return keys.some(k => k > nextExpectedSeqRef.current);
+        };
+
+        while (!incomingBufferRef.current.has(nextExpectedSeqRef.current) && hasHigherSeqAvailable()) {
+          console.warn(`Skipping missing seq during recovery: ${nextExpectedSeqRef.current}`);
+          nextExpectedSeqRef.current++;
+        }
+
         while (incomingBufferRef.current.has(nextExpectedSeqRef.current)) {
           const bufferedMsg = incomingBufferRef.current.get(nextExpectedSeqRef.current);
           incomingBufferRef.current.delete(nextExpectedSeqRef.current);
@@ -391,8 +402,10 @@ export function useInterview() {
     reconnectAttemptRef.current = attempt;
 
     if (attempt > MAX_RECONNECT_ATTEMPTS) {
-      setLastError("Connection lost. Max reconnect attempts reached.");
+      console.error("Max reconnect attempts reached. Stopping.");
+      setLastError("Connection lost. Please refresh the page or check your internet.");
       dispatch({ type: "ERROR_OCCURRED" });
+      shouldReconnectRef.current = false;
       return;
     }
 
@@ -429,7 +442,7 @@ export function useInterview() {
 
     inFlightSendRef.current = true;
     try {
-      dispatch({ type: "RESUME_UPLOAD_START" });
+      // dispatch({ type: "RESUME_UPLOAD_START" }); // REMOVED: Now driven by backend PHASE_CHANGE
       const fileBytes = await fileToBase64(file);
       socketRef.current.send(
         JSON.stringify({
@@ -481,7 +494,7 @@ export function useInterview() {
     recorder.onstop = () => {
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(JSON.stringify({ type: "stream_end" }));
-        dispatch({ type: "ANSWER_PROCESSING_START" });
+        // dispatch({ type: "ANSWER_PROCESSING_START" }); // REMOVED: Now driven by backend PHASE_CHANGE
       }
       // DO NOT stop the tracks or nullify mediaStreamRef here!
       // This allows the continuous camera feed to persist.
@@ -501,9 +514,11 @@ export function useInterview() {
     }
   }
 
-  function enqueueAudioChunk(audio: ArrayBuffer) {
-    const nextVisemes = pendingVisemesRef.current ?? [];
-    pendingVisemesRef.current = null;
+    // Safety limit: drop oldest if queue grows too large (prevents memory leaks/lag)
+    if (audioQueueRef.current.length > 10) {
+      console.warn("Audio queue overflow, dropping oldest chunk.");
+      audioQueueRef.current.shift();
+    }
 
     audioQueueRef.current.push({ audio, visemes: nextVisemes });
     void playNextQueuedAudio();
@@ -580,8 +595,8 @@ export function useInterview() {
   function fadeOutAudio(audio: HTMLAudioElement) {
     let vol = audio.volume;
     const interval = setInterval(() => {
-      if (vol > 0.1) {
-        vol -= 0.1;
+      if (vol > 0.05) {
+        vol -= 0.05;
         audio.volume = vol;
       } else {
         audio.pause();

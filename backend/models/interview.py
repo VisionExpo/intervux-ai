@@ -101,10 +101,12 @@ class InterviewState:
 
     def __init__(self):
         self._phase: InterviewPhase = InterviewPhase.CONNECTING
+        self._on_phase_change_callbacks: List[callable] = []
         self.reset()
 
     def reset(self):
         self._phase = InterviewPhase.CONNECTING
+        self._next_seq: int = 1
         self.greeting_sent: bool = False
         self.resume_text: Optional[str] = None
         self.profile: Optional[ResumeData] = None
@@ -132,13 +134,22 @@ class InterviewState:
 
     @phase.setter
     def phase(self, value: InterviewPhase):
-        """Prevent direct mutation of phase."""
-        raise RuntimeError("Direct phase mutation is not allowed. Use transition_to instead.")
+        """Strictly forbid direct mutation of phase."""
+        raise RuntimeError(
+            "CRITICAL: Direct phase mutation is forbidden. "
+            "You MUST use state.transition_to(new_phase) to ensure "
+            "system-wide synchronization and broadcasting."
+        )
+
+    def subscribe_to_phase_changes(self, callback: callable) -> None:
+        """Register a callback to be notified when the phase changes."""
+        if callback not in self._on_phase_change_callbacks:
+            self._on_phase_change_callbacks.append(callback)
 
     def transition_to(self, new_phase: InterviewPhase) -> None:
-        """Safely transition to a new phase with logging and validation."""
+        """Safely transition to a new phase with logging, validation, and broadcasting."""
         if not isinstance(new_phase, InterviewPhase):
-            logger.error(f"Invalid phase transition: {type(new_phase)}")
+            logger.error(f"Invalid phase transition type: {type(new_phase)}")
             raise ValueError(f"Invalid phase transition: {new_phase}")
             
         if self._phase == new_phase:
@@ -147,6 +158,24 @@ class InterviewState:
         old_phase = self._phase
         self._phase = new_phase
         logger.info(f"[PHASE] {old_phase.value} → {new_phase.value}")
+
+        # SINGLE SOURCE OF TRUTH BROADCAST
+        self._notify_phase_change(new_phase)
+
+    def _notify_phase_change(self, new_phase: InterviewPhase) -> None:
+        """Notify all listeners about the phase change."""
+        for callback in self._on_phase_change_callbacks:
+            try:
+                # We expect the callback to handle the broadcast (likely async)
+                callback(new_phase)
+            except Exception as e:
+                logger.error(f"Failed to notify phase change listener: {e}")
+
+    def get_next_seq(self) -> int:
+        """Get and increment the next monotonic sequence ID."""
+        seq = self._next_seq
+        self._next_seq += 1
+        return seq
 
     def can_proceed(self, message_type: str) -> bool:
         """Check if current phase can handle this message."""

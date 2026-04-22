@@ -10,18 +10,11 @@ export type InterviewState =
   | "ERROR";
 
 export type InterviewAction =
-  | { type: "WS_CONNECTING" }
-  | { type: "WS_CONNECTED" }
-  | { type: "RESUME_UPLOAD_START" }
-  | { type: "RESUME_PROCESS_SUCCESS" }
-  | { type: "QUESTION_RECEIVED" }
-  | { type: "PHASE_LISTENING" }
-  | { type: "ANSWER_PROCESSING_START" }
-  | { type: "EVALUATION_COMPLETE" }
-  | { type: "INTERVIEW_COMPLETE" }
   | { type: "SET_PHASE"; phase: InterviewState }
   | { type: "ERROR_OCCURRED" }
-  | { type: "RESET" };
+  | { type: "RESET" }
+  | { type: "WS_CONNECTING" }
+  | { type: "WS_CONNECTED" };
 
 export const initialState: InterviewState = "CONNECTING";
 
@@ -29,46 +22,26 @@ export function interviewReducer(
   state: InterviewState,
   action: InterviewAction
 ): InterviewState {
-  console.log(`STATE: ${state} → ACTION: ${action.type}`);
+  console.log(`[STATE] ${state} → [ACTION] ${action.type}`, action);
 
-  // Handle global actions first
-  if (action.type === "RESET") {
-    return "CONNECTING";
-  }
-  if (action.type === "ERROR_OCCURRED") {
-    return "ERROR";
-  }
-  if (action.type === "SET_PHASE") {
-    if (state === action.phase) return state;
-    return action.phase;
-  }
-
-  switch (state) {
-    case "CONNECTING":
-      switch (action.type) {
-        case "WS_CONNECTED":
-          return "WAITING_RESUME";
-        default:
-          return state;
-      }
-
-    case "WAITING_RESUME":
-      switch (action.type) {
-        case "RESUME_UPLOAD_START":
-          return "PROCESSING_RESUME";
-        default:
-          return state;
-      }
-
-    case "PROCESSING_RESUME":
-    case "ASKING_QUESTION":
-    case "LISTENING":
-    case "PROCESSING_ANSWER":
-    case "NEXT_QUESTION":
-    case "INTERVIEW_COMPLETE":
-    case "ERROR":
+  switch (action.type) {
+    case "SET_PHASE":
+      if (state === action.phase) return state;
+      return action.phase;
+    
+    case "RESET":
+      return "CONNECTING";
+      
+    case "ERROR_OCCURRED":
+      return "ERROR";
+      
+    case "WS_CONNECTING":
+      return "CONNECTING";
+      
+    case "WS_CONNECTED":
+      // We stay in CONNECTING until the backend sends the first PHASE_CHANGE
       return state;
-
+      
     default:
       return state;
   }
