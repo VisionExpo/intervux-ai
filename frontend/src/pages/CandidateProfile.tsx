@@ -9,7 +9,7 @@ import {
   FileText, 
   CheckCircle2, 
   Mail, 
-  GitHub, 
+  Github, 
   Linkedin, 
   Briefcase, 
   GraduationCap,
@@ -187,7 +187,7 @@ export default function CandidateProfile() {
                   <Mail size={16} /> {profile?.user_id}
                 </div>
                 <div className={styles.profileSocials}>
-                  {profile?.github_url && <GitHub size={20} className={styles.socialIcon} />}
+                  {profile?.github_url && <Github size={20} className={styles.socialIcon} />}
                   {profile?.linkedin_url && <Linkedin size={20} className={styles.socialIcon} />}
                 </div>
               </div>
@@ -246,7 +246,7 @@ export default function CandidateProfile() {
               <h3 className={styles.cardTitle}><FileText size={16} /> Artifacts & Links</h3>
               <div className={styles.linksList}>
                 <div className={styles.linkItem}>
-                  <div className={styles.linkInfo}><GitHub size={18} /> GitHub</div>
+                  <div className={styles.linkInfo}><Github size={18} /> GitHub</div>
                   {profile?.github_url ? (
                     <a href={profile.github_url} target="_blank" rel="noreferrer"><ExternalLink size={16} /></a>
                   ) : <span className={styles.linkPlaceholder}>Not Linked</span>}
