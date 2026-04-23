@@ -279,7 +279,7 @@ class InterviewGateway:
         question_index = question_data.get("question_index", 1)
         total_questions = question_data.get("total_questions", 2)
         await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions}, session=session)
-        audio_chunks = await self._synthesize_tts_chunks(session.session_id, text)
+        audio_chunks = await tts_service.synthesize_chunks(session.session_id, text)
         for chunk in audio_chunks:
             visemes = chunk.get("visemes", [])
             audio_bytes = chunk.get("audio_bytes", b"")
@@ -292,7 +292,7 @@ class InterviewGateway:
 
     async def _send_avatar_with_audio(self, ws: WebSocket, session: InterviewSession, text: str, question_index: int, total_questions: int) -> None:
         await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions}, session=session)
-        audio_chunks = await self._synthesize_tts_chunks(session.session_id, text)
+        audio_chunks = await tts_service.synthesize_chunks(session.session_id, text)
         for chunk in audio_chunks:
             visemes = chunk.get("visemes", [])
             audio_bytes = chunk.get("audio_bytes", b"")
