@@ -135,6 +135,7 @@ services:
       - backend/.env
     environment:
       RUN_DB_MIGRATIONS: "false"
+      FLOWER_BASIC_AUTH: "admin:admin"
     ports:
       - "5555:5555"
     depends_on:

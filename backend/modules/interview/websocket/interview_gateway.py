@@ -47,6 +47,8 @@ class InterviewGateway:
         def handle_done(t):
             try:
                 t.result()
+            except asyncio.CancelledError:
+                pass  # expected during shutdown
             except Exception as e:
                 logger.error(f"Background task failed for session {session_id}: {e}")
         

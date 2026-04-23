@@ -52,7 +52,7 @@ class ResumeParser:
         
         print(f"[INFO] Uploading resume to Gemini: {file_path}")
 
-        uploaded_file = client.files.upload(file=file_path)
+        uploaded_file = client.files.upload(path=file_path)
 
         try:
             prompt = self.prompt_manager.get("resume_parser")

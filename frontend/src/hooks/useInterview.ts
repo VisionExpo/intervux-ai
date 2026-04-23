@@ -304,13 +304,25 @@ export function useInterview() {
   }, [processMessage]);
 
   function connectSocket() {
+    console.log("WS CONNECT", getWebSocketUrl());
+    if (reconnectTimerRef.current !== null) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
     connectIdRef.current += 1;
     const connectId = connectIdRef.current;
     dispatch({ type: "WS_CONNECTING" });
 
     if (socketRef.current) {
       console.log("Cleaning up existing WebSocket before new connection...");
+      // Remove handlers before closing to prevent race-induced reconnects
+      socketRef.current.onopen = null;
+      socketRef.current.onmessage = null;
+      socketRef.current.onerror = null;
+      socketRef.current.onclose = null;
       socketRef.current.close();
+      socketRef.current = null;
     }
 
     const ws = new WebSocket(getWebSocketUrl());
@@ -389,8 +401,11 @@ export function useInterview() {
     };
 
     ws.onclose = (event) => {
-      console.log("WebSocket closed:", event.code, event.reason);
-      if (connectId !== connectIdRef.current) return;
+      console.log("WS CLOSE", event.code, event.reason);
+      if (connectId !== connectIdRef.current) {
+        console.log("Ignoring onclose for stale connection ID:", connectId);
+        return;
+      }
       setIsConnected(false);
 
       if (!shouldReconnectRef.current) return;

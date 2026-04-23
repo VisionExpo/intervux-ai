@@ -6,7 +6,7 @@ import time
 import urllib.error
 import urllib.request
 from statistics import mean
-from typing import Any, Dict, List, Tuple, Type, TypeVar
+from typing import Any, Callable, Dict, List, Tuple, Type, TypeVar
 
 from dotenv import load_dotenv
 from google import genai
@@ -117,19 +117,28 @@ No markdown, no extra text.
 
 T = TypeVar("T", bound=BaseModel)
 
-class GeneratedQuestions(BaseModel):
+class LLMValidationException(Exception):
+    def __init__(self, message: str, raw_output: str, provider: str):
+        super().__init__(message)
+        self.raw_output = raw_output
+        self.provider = provider
+
+class BaseEvaluationModel(BaseModel):
+    meta: Dict[str, Any] = Field(default_factory=dict, exclude=True)
+
+class GeneratedQuestions(BaseEvaluationModel):
     questions: List[str] = Field(default_factory=list)
 
-class NextQuestion(BaseModel):
+class NextQuestion(BaseEvaluationModel):
     question: str = ""
     skill: str = ""
 
-class EvaluationResponse(BaseModel):
+class EvaluationResponse(BaseEvaluationModel):
     scores: Dict[str, int] = Field(default_factory=dict)
     feedback: List[str] = Field(default_factory=list)
     summary: str = ""
 
-class FinalReportResponse(BaseModel):
+class FinalReportResponse(BaseEvaluationModel):
     overall_recommendation: str = ""
     strengths: List[str] = Field(default_factory=list)
     weaknesses: List[str] = Field(default_factory=list)
@@ -149,17 +158,13 @@ def _repair_json(payload: str) -> str:
     raw = re.sub(r',\s*([\]}])', r'\1', raw)
     return raw
 
-def _safe_json_loads(payload: str, expected_model: Type[T]) -> T:
+def _safe_json_loads(payload: str, expected_model: Type[T], provider: str = "unknown") -> T:
     try:
         clean_payload = _repair_json(payload)
         parsed = json.loads(clean_payload)
         return expected_model.model_validate(parsed)
     except (json.JSONDecodeError, ValidationError) as e:
-        logger.error(
-            "Strict parsing or repair failed",
-            extra={"extra_data": {"error": str(e), "payload": payload[:500]}}
-        )
-        raise ValueError(f"Failed to parse or validate LLM output: {e}")
+        raise LLMValidationException(str(e), payload, provider)
 
 
 def _get_or_init_state_unlocked(provider: str) -> Dict[str, float]:
@@ -363,11 +368,25 @@ def _run_json_task(
             metrics.record_latency(f"llm_provider_{provider}_latency", elapsed)
             if index > 0:
                 metrics.increment_counter("llm_fallback_success")
-            parsed = _safe_json_loads(raw, expected_model)
+            parsed = _safe_json_loads(raw, expected_model, provider)
+            if hasattr(parsed, "meta"):
+                parsed.meta = {
+                    "source": "llm",
+                    "provider": provider,
+                    "validation_error": False,
+                    "raw_output": raw
+                }
             return parsed, provider
         except Exception as exc:
             _record_provider_failure(provider)
             last_error = exc
+            
+            # Tracking specific metrics
+            if "timed out" in str(exc).lower():
+                metrics.increment_counter("llm_timeout_rate")
+            if isinstance(exc, LLMValidationException):
+                metrics.increment_counter("validation_failure_rate")
+
             is_last = index == len(providers) - 1
             can_try_next = not is_last and (
                 _should_fallback(exc) or _is_circuit_open(provider)
@@ -391,6 +410,79 @@ def _run_json_task(
             raise
 
     raise RuntimeError("No LLM provider available") from last_error
+
+
+def run_safe_json_task(
+    prompt: str,
+    expected_model: Type[T],
+    temperature: float,
+    fallback_factory: Callable[[], T],
+    top_p: float = 1.0,
+) -> T:
+    """
+    Final safety wrapper for LLM JSON tasks.
+    Tries primary/fallback providers via _run_json_task.
+    If all fail or validation fails, returns a safe default from fallback_factory.
+    Implements Partial Failure Strategy: if validation fails but we have raw output,
+    tries to overlay valid fields onto the fallback model.
+    """
+    try:
+        model, provider = _run_json_task(
+            prompt, expected_model, temperature, top_p=top_p, response_schema=expected_model
+        )
+        metrics.increment_counter("evaluation_success_rate")
+        return model
+    except Exception as exc:
+        raw_output = getattr(exc, "raw_output", None)
+        provider = getattr(exc, "provider", "failed_all")
+        
+        logger.error(
+            "Hard LLM task failure; using fallback/partial recovery",
+            extra={"extra_data": {"model": expected_model.__name__, "error": str(exc)}}
+        )
+        
+        fallback_model = fallback_factory()
+        meta = {
+            "source": "fallback",
+            "provider": provider,
+            "validation_error": True,
+            "raw_output": raw_output,
+            "error": str(exc)
+        }
+        
+        # Partial Failure Strategy
+        if raw_output:
+            try:
+                clean = _repair_json(raw_output)
+                parsed = json.loads(clean)
+                if isinstance(parsed, dict):
+                    # Attempt to overlay valid fields
+                    fallback_dict = fallback_model.model_dump()
+                    recovered_count = 0
+                    for k, v in parsed.items():
+                        if k in fallback_dict and v is not None:
+                            # Basic type checking could be added here, but model_validate will handle it
+                            fallback_dict[k] = v
+                            recovered_count += 1
+                    
+                    if recovered_count > 0:
+                        try:
+                            recovered_model = expected_model.model_validate(fallback_dict)
+                            meta["source"] = "partial"
+                            if hasattr(recovered_model, "meta"):
+                                recovered_model.meta = meta
+                            metrics.increment_counter("fallback_usage_rate")
+                            return recovered_model
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        
+        if hasattr(fallback_model, "meta"):
+            fallback_model.meta = meta
+            
+        metrics.increment_counter("fallback_usage_rate")
+        return fallback_model
 
 
 def _normalize_questions(questions: List[str], num_questions: int) -> List[str]:

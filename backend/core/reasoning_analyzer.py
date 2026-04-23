@@ -3,83 +3,101 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List
 
-from backend.core.llm_brain import _run_json_task
+from pydantic import BaseModel, Field, field_validator
+from backend.core.llm_brain import run_safe_json_task, BaseEvaluationModel
 
 EXTRACT_REASONING_TEMPLATE = """
 Extract reasoning steps from the answer.
 Return JSON:
-{
+{{
   "steps": ["..."],
   "logic_flow": "clear"
-}
+}}
 Answer: {answer}
 """.strip()
 
 EVALUATE_REASONING_TEMPLATE = """
 Evaluate reasoning quality.
 Return JSON:
-{
+{{
   "logical_consistency": 0,
   "step_completeness": 0,
   "causal_reasoning": 0
-}
+}}
 Question: {question}
 Reasoning Steps: {steps_json}
 Logic Flow: {logic_flow}
 """.strip()
 
 
-def _clamp_score(value: Any) -> int:
-    try:
-        parsed = int(value)
-    except Exception:
-        parsed = 0
-    return max(0, min(10, parsed))
+class ReasoningExtractionModel(BaseEvaluationModel):
+    steps: List[str] = Field(default_factory=list)
+    logic_flow: str = "unclear"
+
+    @field_validator("steps", mode="before")
+    @classmethod
+    def normalize_steps(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            # Split by common delimiters if LLM returns a string
+            return [s.strip() for s in re.split(r"[\n,;]", v) if s.strip()]
+        if not isinstance(v, list):
+            return []
+        return [str(s).strip() for s in v if s]
 
 
-def _normalize_logic_flow(value: Any) -> str:
-    if not isinstance(value, str):
-        return "unclear"
-    normalized = value.strip().lower()
-    if normalized in {"clear", "partial", "unclear"}:
-        return normalized
-    return "unclear"
+class ReasoningEvaluationModel(BaseEvaluationModel):
+    logical_consistency: int = 0
+    step_completeness: int = 0
+    causal_reasoning: int = 0
+    confidence: float = 0.5
+
+    @field_validator("logical_consistency", "step_completeness", "causal_reasoning")
+    @classmethod
+    def clamp_score(cls, v: int) -> int:
+        return max(0, min(10, v))
+
+    @field_validator("confidence")
+    @classmethod
+    def clamp_confidence(cls, v: float) -> float:
+        return max(0.0, min(1.0, v))
 
 
 class ReasoningAnalyzer:
     def extract_reasoning(self, answer: str) -> Dict[str, Any]:
         prompt = EXTRACT_REASONING_TEMPLATE.format(answer=answer)
-        payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8)
-        raw_steps = payload.get("steps", [])
-        steps: List[str] = []
-        if isinstance(raw_steps, list):
-            for item in raw_steps:
-                if isinstance(item, str) and item.strip():
-                    steps.append(item.strip())
-        logic_flow = _normalize_logic_flow(payload.get("logic_flow", "unclear"))
-        return {"steps": steps[:8], "logic_flow": logic_flow}
+        result = run_safe_json_task(
+            prompt, ReasoningExtractionModel, temperature=0.1, fallback_factory=ReasoningExtractionModel
+        )
+        return {"steps": result.steps[:8], "logic_flow": result.logic_flow}
 
-    def evaluate_reasoning(self, question: str, reasoning: Dict[str, Any]) -> Dict[str, int]:
+    def evaluate_reasoning(self, question: str, reasoning: Dict[str, Any]) -> Dict[str, float]:
         prompt = EVALUATE_REASONING_TEMPLATE.format(
             question=question,
             steps_json=reasoning.get("steps", []),
             logic_flow=reasoning.get("logic_flow", "unclear"),
         )
-        payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8)
+        result = run_safe_json_task(
+            prompt, ReasoningEvaluationModel, temperature=0.1, fallback_factory=ReasoningEvaluationModel
+        )
         return {
-            "logical_consistency": _clamp_score(payload.get("logical_consistency", 0)),
-            "step_completeness": _clamp_score(payload.get("step_completeness", 0)),
-            "causal_reasoning": _clamp_score(payload.get("causal_reasoning", 0)),
+            "logical_consistency": float(result.logical_consistency),
+            "step_completeness": float(result.step_completeness),
+            "causal_reasoning": float(result.causal_reasoning),
+            "confidence": result.confidence,
         }
 
     @staticmethod
-    def compute_reasoning_score(metrics: Dict[str, int]) -> float:
+    def compute_reasoning_score(metrics: Dict[str, float]) -> float:
         if not metrics:
             return 0.0
-        return round(sum(metrics.values()) / float(len(metrics)), 2)
+        # Exclude confidence from the average score
+        scores = [v for k, v in metrics.items() if k != "confidence"]
+        if not scores:
+            return 0.0
+        return round(sum(scores) / float(len(scores)), 2)
 
     @staticmethod
-    def _detect_shallow_or_memorized(answer: str, steps: List[str], metrics: Dict[str, int]) -> Dict[str, Any]:
+    def _detect_shallow_or_memorized(answer: str, steps: List[str], metrics: Dict[str, float]) -> Dict[str, Any]:
         text = answer.strip()
         words = re.findall(r"[A-Za-z0-9_+\-]+", text)
         word_count = len(words)

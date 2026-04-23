@@ -5,9 +5,8 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict
 
-from pydantic import BaseModel, ValidationError
-
-from backend.core.llm_brain import _run_json_task
+from pydantic import BaseModel, Field, field_validator
+from backend.core.llm_brain import run_safe_json_task
 from backend.core.consistency_checker import ConsistencyChecker
 from backend.core.reasoning_analyzer import ReasoningAnalyzer
 from backend.core.self_consistency import SelfConsistencyEvaluator
@@ -25,14 +24,25 @@ class EvaluationFatalError(Exception):
     pass
 
 class TechnicalEvalResult(BaseModel):
-    accuracy: int
-    depth: int
-    problem_solving: int
+    accuracy: int = 0
+    depth: int = 0
+    problem_solving: int = 0
+
+    @field_validator("accuracy", "depth", "problem_solving")
+    @classmethod
+    def clamp_scores(cls, v: int) -> int:
+        return max(0, min(10, v))
+
 
 class BehavioralEvalResult(BaseModel):
-    clarity: int
-    confidence: int
-    structure: int
+    clarity: int = 0
+    confidence: int = 0
+    structure: int = 0
+
+    @field_validator("clarity", "confidence", "structure")
+    @classmethod
+    def clamp_scores(cls, v: int) -> int:
+        return max(0, min(10, v))
 
 TECH_PROMPT_TEMPLATE = """
 Evaluate the technical correctness of this answer.
@@ -78,37 +88,17 @@ class DualEvaluationEngine:
         ideal_rubric = "Focus precisely on correct identification of technical principles taught in standard engineering pipelines. An ideal answer (10/10) directly names the key technology/concept without hesitation, details its fundamental structural operation, and highlights practical tradeoffs."
         prompt = TECH_PROMPT_TEMPLATE.format(question=question, answer=answer, ideal_rubric=ideal_rubric)
         
-        for attempt in range(3):
-            try:
-                payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8, response_schema=TechnicalEvalResult)
-                TechnicalEvalResult.model_validate(payload)
-                return {
-                    "accuracy": _clamp_score(payload.get("accuracy", 0)),
-                    "depth": _clamp_score(payload.get("depth", 0)),
-                    "problem_solving": _clamp_score(payload.get("problem_solving", 0)),
-                }
-            except ValidationError as e:
-                logger.warning(f"Technical validation failed on attempt {attempt+1}: {str(e)}")
-                prompt += f"\n[SYSTEM VERIFICATION ERROR] Your previous payload was invalid: {str(e)}. Emit ONLY raw valid JSON dict."
-        
-        raise EvaluationFatalError("LLM failed technical evaluation JSON schema matching after 3 retries.")
+        result = run_safe_json_task(
+            prompt, TechnicalEvalResult, temperature=0.1, fallback_factory=TechnicalEvalResult
+        )
+        return result.model_dump()
 
     def behavioral_eval(self, answer: str) -> Dict[str, int]:
         prompt = BEHAVIOR_PROMPT_TEMPLATE.format(answer=answer)
-        for attempt in range(3):
-            try:
-                payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8, response_schema=BehavioralEvalResult)
-                BehavioralEvalResult.model_validate(payload)
-                return {
-                    "clarity": _clamp_score(payload.get("clarity", 0)),
-                    "confidence": _clamp_score(payload.get("confidence", 0)),
-                    "structure": _clamp_score(payload.get("structure", 0)),
-                }
-            except ValidationError as e:
-                logger.warning(f"Behavioral validation failed on attempt {attempt+1}: {str(e)}")
-                prompt += f"\n[SYSTEM VERIFICATION ERROR] Your previous payload was invalid: {str(e)}. Emit ONLY raw valid JSON dict."
-        
-        raise EvaluationFatalError("LLM failed behavioral evaluation JSON schema matching after 3 retries.")
+        result = run_safe_json_task(
+            prompt, BehavioralEvalResult, temperature=0.1, fallback_factory=BehavioralEvalResult
+        )
+        return result.model_dump()
 
     def fuse_scores(self, tech: Dict[str, int], behavior: Dict[str, int]) -> float:
         tech_score = _avg(tech)
@@ -152,6 +142,7 @@ def _format_dual_payload(
     spread: float,
     reasoning: Dict[str, Any] | None = None,
     consistency: Dict[str, Any] | None = None,
+    reconciled_score: float | None = None,
 ) -> Dict[str, Any]:
     tech_avg = _avg(tech)
     beh_avg = _avg(behavior)
@@ -197,6 +188,7 @@ def _format_dual_payload(
         "behavioral": behavior,
         "reasoning": reasoning_payload,
         "consistency": consistency_payload,
+        "reconciled_score": round(float(reconciled_score or final_score), 2),
         "final": {"score": round(float(final_score), 2)},
         "scores": {
             "Technical": round(tech_avg, 2),
@@ -208,6 +200,7 @@ def _format_dual_payload(
             "Consistency": round(
                 float(consistency_payload.get("consistency_score", 0)), 2
             ),
+            "Reconciled": round(float(reconciled_score or final_score), 2),
             "Overall": round(float(final_score), 2),
         },
         "feedback": feedback,
@@ -315,6 +308,11 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
         final_score = float(combined["final"])
         tech_avg = _avg(tech)
         beh_avg = _avg(behavior)
+
+        # Reconciliation Logic
+        reasoning_score = float(reasoning.get("reasoning_score", 0.0))
+        consistency_score = float(consistency.get("consistency_score", 0.0))
+        reconciled_score = (final_score * 0.6) + (reasoning_score * 0.2) + (consistency_score * 0.2)
         
         # New robust composite confidence replacing pure LLM text variation
         initial_confidence = round(
@@ -332,6 +330,7 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
                 spread=0.0,
                 reasoning=reasoning,
                 consistency=consistency,
+                reconciled_score=reconciled_score,
             )
             research_logger.write_evaluation_record({
                 "question": question,
@@ -415,6 +414,7 @@ def evaluate_answer_dual(question: str, answer: str, profile: Dict[str, Any] | N
                 ),
                 "notes": aggregate.get("consistency_notes", consistency.get("notes", [])),
             },
+            reconciled_score=reconciled_score,
         )
         research_logger.write_evaluation_record({
             "question": question,

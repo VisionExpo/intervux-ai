@@ -1,7 +1,8 @@
 import json
 from typing import Any, Dict, List
 
-from backend.core.llm_brain import _run_json_task
+from pydantic import BaseModel, Field, field_validator
+from backend.core.llm_brain import run_safe_json_task, BaseEvaluationModel
 from backend.core.logging.logger import get_logger
 from backend.utils.metrics import metrics
 
@@ -22,11 +23,11 @@ Clarity
 Depth
 Communication
 Return JSON only:
-{
-  "scores": {"Technical Accuracy": 0, "Clarity": 0, "Depth": 0, "Communication": 0},
+{{
+  "scores": {{"Technical Accuracy": 0, "Clarity": 0, "Depth": 0, "Communication": 0}},
   "feedback": ["..."],
   "summary": "..."
-}
+}}
 Question: {question}
 Candidate Answer: {answer}
 """.strip()
@@ -43,36 +44,59 @@ Check:
 - Was the score too high or too low?
 - Was the reasoning weak?
 Return JSON:
-{
+{{
   "issues": ["..."],
   "suggested_score_adjustment": 0
-}
+}}
 """.strip()
 
 
-def _clamp_score(value: Any) -> int:
-    try:
-        number = int(value)
-    except Exception:
-        number = 0
-    return max(0, min(10, number))
+class Pass1EvaluationModel(BaseEvaluationModel):
+    scores: Dict[str, int] = Field(default_factory=dict)
+    feedback: List[str] = Field(default_factory=list)
+    summary: str = ""
+
+    @field_validator("scores")
+    @classmethod
+    def validate_rubric_keys(cls, v: Dict[str, Any]) -> Dict[str, int]:
+        required = set(RUBRIC)
+        normalized = {}
+        for key in required:
+            val = v.get(key, 0)
+            try:
+                num = int(val)
+            except (ValueError, TypeError):
+                num = 0
+            normalized[key] = max(0, min(10, num))
+        return normalized
+
+    @field_validator("feedback", mode="before")
+    @classmethod
+    def normalize_feedback(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            return [s.strip() for s in v.split("\n") if s.strip()]
+        if not isinstance(v, list):
+            return []
+        return [str(s).strip() for s in v if s]
 
 
-def _normalize_scores(scores: Dict[str, Any]) -> Dict[str, int]:
-    normalized: Dict[str, int] = {}
-    for key in RUBRIC:
-        normalized[key] = _clamp_score(scores.get(key, 0))
-    return normalized
+class CritiquePassModel(BaseEvaluationModel):
+    issues: List[str] = Field(default_factory=list)
+    suggested_score_adjustment: int = 0
 
+    @field_validator("suggested_score_adjustment")
+    @classmethod
+    def clamp_adjustment(cls, v: int) -> int:
+        return max(-2, min(2, v))
 
-def _normalize_feedback(feedback: Any) -> List[str]:
-    if not isinstance(feedback, list):
-        return []
-    result: List[str] = []
-    for item in feedback:
-        if isinstance(item, str) and item.strip():
-            result.append(item.strip())
-    return result
+    @field_validator("issues", mode="before")
+    @classmethod
+    def normalize_issues(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            return [s.strip() for s in v.split("\n") if s.strip()]
+        if not isinstance(v, list):
+            return []
+        return [str(s).strip() for s in v if s]
 
 
 def evaluate_pass1(
@@ -82,17 +106,14 @@ def evaluate_pass1(
     temperature: float = 0.1,
 ) -> Dict[str, Any]:
     prompt = PASS1_TEMPLATE.format(question=question, answer=answer)
-    payload, provider = _run_json_task(prompt, dict, temperature=temperature, top_p=0.8)
-    scores = _normalize_scores(payload.get("scores", {}))
-    feedback = _normalize_feedback(payload.get("feedback", []))
-    summary = payload.get("summary", "")
-    if not isinstance(summary, str):
-        summary = ""
+    result = run_safe_json_task(
+        prompt, Pass1EvaluationModel, temperature=temperature, fallback_factory=Pass1EvaluationModel
+    )
     return {
-        "scores": scores,
-        "feedback": feedback,
-        "summary": summary.strip(),
-        "provider": provider,
+        "scores": result.scores,
+        "feedback": result.feedback,
+        "summary": result.summary,
+        "provider": "unknown",  # run_safe_json_task doesn't return provider yet
     }
 
 
@@ -105,26 +126,21 @@ def critique_pass(
         answer=answer,
         evaluation_json=json.dumps(evaluation, separators=(",", ":")),
     )
-    payload, provider = _run_json_task(prompt, dict, temperature=temperature, top_p=0.8)
-    raw_issues = payload.get("issues", [])
-    issues = _normalize_feedback(raw_issues)
-    try:
-        adjustment = int(payload.get("suggested_score_adjustment", 0))
-    except Exception:
-        adjustment = 0
-    adjustment = max(-2, min(2, adjustment))
+    result = run_safe_json_task(
+        prompt, CritiquePassModel, temperature=temperature, fallback_factory=CritiquePassModel
+    )
     return {
-        "issues": issues,
-        "suggested_score_adjustment": adjustment,
-        "provider": provider,
+        "issues": result.issues,
+        "suggested_score_adjustment": result.suggested_score_adjustment,
+        "provider": "unknown",
     }
 
 
 def adjust_scores(pass1_scores: Dict[str, int], adjustment: int) -> Dict[str, int]:
     final_scores: Dict[str, int] = {}
     for key in RUBRIC:
-        base = _clamp_score(pass1_scores.get(key, 0))
-        final_scores[key] = _clamp_score(base + adjustment)
+        base = int(pass1_scores.get(key, 0))
+        final_scores[key] = max(0, min(10, base + adjustment))
     return final_scores
 
 

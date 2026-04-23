@@ -14,7 +14,7 @@ from fastapi import UploadFile
 from pydantic import BaseModel, Field
 
 from backend.core.logging.logger import get_logger
-from backend.core.llm_brain import _run_json_task
+from backend.core.llm_brain import run_safe_json_task
 
 from .models import CandidateProfile
 
@@ -242,6 +242,10 @@ def _gemini_dict_to_parsed_resume(raw: dict) -> ParsedResume:
 # ---------------------------------------------------------------------------
 
 
+class SanitizedTextModel(BaseModel):
+    clean_text: str = ""
+
+
 def _sanitize_resume_text(raw_text: str) -> str:
     if not raw_text.strip():
         return raw_text
@@ -255,13 +259,11 @@ def _sanitize_resume_text(raw_text: str) -> str:
     {raw_text[:12000]}
     </resume_content>
     """
-    try:
-        payload, _ = _run_json_task(prompt, dict, temperature=0.0)
-        clean = payload.get("clean_text", raw_text)
-        return clean if isinstance(clean, str) and clean.strip() else raw_text
-    except Exception as e:
-        logger.warning(f"LLM Resume Sanitization failed: {e}. Falling back to raw text.")
-        return raw_text
+    result = run_safe_json_task(
+        prompt, SanitizedTextModel, temperature=0.0, fallback_factory=SanitizedTextModel
+    )
+    clean = result.clean_text
+    return clean if clean.strip() else raw_text
 
 class TextResumeParser(ResumeParserStrategy):
     """Uses pdfplumber / python-docx + spaCy for text extraction."""

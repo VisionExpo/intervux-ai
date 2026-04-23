@@ -18,7 +18,8 @@ Example output:
 import os
 from typing import Any, Dict, List, Optional
 
-from backend.core.llm_brain import _run_json_task
+from pydantic import BaseModel, Field, field_validator
+from backend.core.llm_brain import run_safe_json_task, BaseEvaluationModel
 from backend.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
@@ -67,6 +68,49 @@ Generate a JSON response with the following structure:
     "role_fit": "senior/junior/mid/entry"
 }}
 """.strip()
+
+
+class CandidateSummaryModel(BaseEvaluationModel):
+    strengths: List[str] = Field(default_factory=list)
+    weaknesses: List[str] = Field(default_factory=list)
+    communication_assessment: str = "moderate"
+    technical_proficiency: Dict[str, str] = Field(default_factory=dict)
+    overall_impression: str = "Summary generation failed"
+
+    @field_validator("strengths", "weaknesses", mode="before")
+    @classmethod
+    def normalize_list(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            return [s.strip() for s in v.split("\n") if s.strip()]
+        if not isinstance(v, list):
+            return []
+        return [str(s).strip() for s in v if s]
+
+
+class RecommendationModel(BaseEvaluationModel):
+    recommendation: str = "hold"
+    confidence: float = 0.5
+    rationale: str = ""
+    next_steps: List[str] = Field(default_factory=list)
+    role_fit: str = "entry"
+
+    @field_validator("confidence")
+    @classmethod
+    def clamp_confidence(cls, v: float) -> float:
+        try:
+            val = float(v)
+        except (ValueError, TypeError):
+            val = 0.5
+        return max(0.0, min(1.0, val))
+
+    @field_validator("next_steps", mode="before")
+    @classmethod
+    def normalize_steps(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            return [s.strip() for s in v.split("\n") if s.strip()]
+        if not isinstance(v, list):
+            return []
+        return [str(s).strip() for s in v if s]
 
 
 # =========================================================
@@ -135,18 +179,14 @@ class DecisionSupportService:
                 answers_text += f"\n\nCandidate Skills: {', '.join(skills)}"
         
         # Generate summary using LLM
-        try:
-            prompt = CANDIDATE_SUMMARY_PROMPT.format(answers_summary=answers_text)
-            result, _ = _run_json_task(
-                prompt,
-                dict,
-                temperature=0.3,
-                top_p=0.8,
-            )
-            return result or self._default_summary()
-        except Exception:
-            logger.exception("Failed to generate candidate summary")
-            return self._default_summary()
+        prompt = CANDIDATE_SUMMARY_PROMPT.format(answers_summary=answers_text)
+        result = run_safe_json_task(
+            prompt,
+            CandidateSummaryModel,
+            temperature=0.3,
+            fallback_factory=CandidateSummaryModel
+        )
+        return result.model_dump()
     
     def get_recommendation(
         self,
@@ -175,24 +215,22 @@ class DecisionSupportService:
         summary_text += f"Communication: {summary.get('communication_assessment', 'unknown')}\n"
         summary_text += f"Overall Impression: {summary.get('overall_impression', '')}"
         
-        try:
-            prompt = RECOMMENDATION_PROMPT.format(
-                candidate_summary=summary_text,
-                overall_score=overall_score,
-                technical_score=technical_score,
-                behavioral_score=behavioral_score,
-                reasoning_score=reasoning_score,
+        prompt = RECOMMENDATION_PROMPT.format(
+            candidate_summary=summary_text,
+            overall_score=overall_score,
+            technical_score=technical_score,
+            behavioral_score=behavioral_score,
+            reasoning_score=reasoning_score,
+        )
+        result = run_safe_json_task(
+            prompt,
+            RecommendationModel,
+            temperature=0.2,
+            fallback_factory=lambda: RecommendationModel.model_validate(
+                self._default_recommendation(overall_score)
             )
-            result, _ = _run_json_task(
-                prompt,
-                dict,
-                temperature=0.2,
-                top_p=0.8,
-            )
-            return result or self._default_recommendation(overall_score)
-        except Exception:
-            logger.exception("Failed to generate recommendation")
-            return self._default_recommendation(overall_score)
+        )
+        return result.model_dump()
     
     def _default_summary(self) -> Dict[str, Any]:
         """Return default summary when LLM fails."""

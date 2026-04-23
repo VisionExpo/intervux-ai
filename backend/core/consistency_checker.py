@@ -3,27 +3,28 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List
 
-from backend.core.llm_brain import _run_json_task
+from pydantic import BaseModel, Field, field_validator
+from backend.core.llm_brain import run_safe_json_task, BaseEvaluationModel
 
 EXTRACT_CONCEPTS_PROMPT_TEMPLATE = """
 Extract technical concepts used in this answer.
 Return JSON:
-{
+{{
   "concepts": ["..."]
-}
+}}
 Answer: {answer}
 """.strip()
 
 VERIFY_CONCEPTS_PROMPT_TEMPLATE = """
 Verify whether the concepts are used correctly in the answer.
 Return JSON:
-{
+{{
   "concept_correctness": 0,
   "misused_terms": ["..."],
   "contradictions": ["..."],
   "hallucination_detected": false,
   "notes": ["..."]
-}
+}}
 Question: {question}
 Answer: {answer}
 Concepts: {concepts}
@@ -31,22 +32,39 @@ Reasoning Steps: {reasoning_steps}
 """.strip()
 
 
-def _clamp_score(value: Any) -> int:
-    try:
-        parsed = int(value)
-    except Exception:
-        parsed = 0
-    return max(0, min(10, parsed))
+class ConceptsExtractionModel(BaseEvaluationModel):
+    concepts: List[str] = Field(default_factory=list)
+
+    @field_validator("concepts", mode="before")
+    @classmethod
+    def normalize_concepts(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            return [s.strip() for s in v.split(",") if s.strip()]
+        if not isinstance(v, list):
+            return []
+        return [str(s).strip() for s in v if s]
 
 
-def _normalize_str_list(value: Any, limit: int = 8) -> List[str]:
-    if not isinstance(value, list):
-        return []
-    out: List[str] = []
-    for item in value:
-        if isinstance(item, str) and item.strip():
-            out.append(item.strip())
-    return out[:limit]
+class ConsistencyVerificationModel(BaseEvaluationModel):
+    concept_correctness: int = 0
+    misused_terms: List[str] = Field(default_factory=list)
+    contradictions: List[str] = Field(default_factory=list)
+    hallucination_detected: bool = False
+    notes: List[str] = Field(default_factory=list)
+
+    @field_validator("concept_correctness")
+    @classmethod
+    def clamp_score(cls, v: int) -> int:
+        return max(0, min(10, v))
+
+    @field_validator("misused_terms", "contradictions", "notes", mode="before")
+    @classmethod
+    def normalize_lists(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            return [s.strip() for s in v.split(",") if s.strip()]
+        if not isinstance(v, list):
+            return []
+        return [str(s).strip() for s in v if s]
 
 
 class ConsistencyChecker:
@@ -73,8 +91,10 @@ class ConsistencyChecker:
 
     def extract_concepts(self, answer: str) -> List[str]:
         prompt = EXTRACT_CONCEPTS_PROMPT_TEMPLATE.format(answer=answer)
-        payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8)
-        return _normalize_str_list(payload.get("concepts", []), limit=12)
+        result = run_safe_json_task(
+            prompt, ConceptsExtractionModel, temperature=0.1, fallback_factory=ConceptsExtractionModel
+        )
+        return result.concepts[:12]
 
     def verify_concepts(
         self,
@@ -89,13 +109,18 @@ class ConsistencyChecker:
             concepts=concepts or [],
             reasoning_steps=reasoning_steps or [],
         )
-        payload, _provider = _run_json_task(prompt, dict, temperature=0.1, top_p=0.8)
+        result = run_safe_json_task(
+            prompt,
+            ConsistencyVerificationModel,
+            temperature=0.1,
+            fallback_factory=ConsistencyVerificationModel,
+        )
 
-        concept_correctness = _clamp_score(payload.get("concept_correctness", 0))
-        hallucination_detected = bool(payload.get("hallucination_detected", False))
-        llm_misused = _normalize_str_list(payload.get("misused_terms", []))
-        llm_contradictions = _normalize_str_list(payload.get("contradictions", []))
-        llm_notes = _normalize_str_list(payload.get("notes", []), limit=10)
+        concept_correctness = result.concept_correctness
+        hallucination_detected = result.hallucination_detected
+        llm_misused = result.misused_terms
+        llm_contradictions = result.contradictions
+        llm_notes = result.notes[:10]
 
         heuristic_misused = self._heuristic_term_misuse(answer)
         heuristic_contradictions = self._heuristic_contradictions(answer)
