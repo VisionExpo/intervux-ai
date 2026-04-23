@@ -15,13 +15,14 @@ from backend.core.security.jwt_service import TokenData, verify_token
 from backend.models.interview import InterviewPhase
 from backend.modules.interview.sessions.interview_session import InterviewSession
 from backend.modules.interview.sessions.registry import get_session_registry
-from backend.services.tts_service import synthesize_speech_with_visemes
+from backend.services.tts_service import TTSService
 from backend.services.viseme_service import VisemeService
 from backend.core.logging.logger import get_logger
 from backend.utils.metrics import metrics
 
 logger = get_logger(__name__)
 viseme_service = VisemeService()
+tts_service = TTSService()
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
@@ -373,59 +374,6 @@ class InterviewGateway:
     @staticmethod
     def _client_ip(ws: WebSocket) -> str:
         return ws.client.host if ws.client and ws.client.host else "unknown"
-
-    async def _synthesize_tts_chunks(self, session_id: str, text: str) -> list:
-        if os.getenv("DISABLE_TTS", "false").lower() == "true":
-            return []
-
-        from backend.core.celery_tasks import synthesize_tts_task
-        import base64
-
-        segments = self._split_sentences(text)
-
-        # Fire all Celery TTS tasks in parallel
-        celery_tasks = [synthesize_tts_task.delay(seg) for seg in segments]
-        
-        # Track these tasks for the session
-        session_task_set = self._active_celery_tasks.get(session_id)
-        if session_task_set is not None:
-            for task in celery_tasks:
-                session_task_set.add(task)
-
-        chunks = []
-        for seg, task in zip(segments, celery_tasks):
-            # Await each task result with a timeout so a slow/dead worker
-            # doesn't hang the entire WebSocket session.
-            deadline = asyncio.get_event_loop().time() + 15.0  # 15 s per segment
-            while not task.ready():
-                if task.failed():
-                    logger.error(f"TTS task failed for segment: {seg[:40]!r}")
-                    break
-                if asyncio.get_event_loop().time() > deadline:
-                    logger.warning(f"TTS task timed out for segment: {seg[:40]!r}")
-                    break
-                await asyncio.sleep(0.05)
-
-            result = task.result if task.ready() and not task.failed() else None
-            
-            # Remove from tracking as it's completed/failed/timeout
-            if session_task_set is not None:
-                session_task_set.discard(task)
-                
-            if result:
-                b64_audio = result.get("audio_b64", "")
-                audio_bytes = base64.b64decode(b64_audio) if b64_audio else b""
-                visemes = result.get("visemes", [])
-                if audio_bytes:
-                    chunks.append({"text": seg, "audio_bytes": audio_bytes, "visemes": visemes})
-        return chunks
-
-    @staticmethod
-    def _split_sentences(text: str) -> list:
-        clean = (text or "").strip()
-        parts = re.split(r"(?<=[.!?])\s+", clean)
-        segments = [part.strip() for part in parts if part.strip()]
-        return segments or [clean]
 
     @staticmethod
     def _wav_duration_ms(audio_bytes: bytes) -> int:

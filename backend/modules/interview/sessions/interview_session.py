@@ -94,6 +94,7 @@ class InterviewSession:
 
         # Monotonic sequence counter for backend -> frontend messages
         self._next_seq: int = 1
+        self._dirty: bool = False
 
     def get_next_seq(self) -> int:
         """Increment and return the next sequence ID."""
@@ -153,12 +154,14 @@ class InterviewSession:
                 "recoverable": True,
             }
             
-        # --- STATELESS ARCHITECTURE ---
-        # Persist updated session block to Redis 
-        try:
-            await redis_client.save_session_state_obj(self.session_id, (self.state, self.eval_context_cache))
-        except Exception as e:
-            logger.error(f"Failed to persist state to redis: {e}")
+        # --- LAZY PERSISTENCE ---
+        # Only persist to Redis if the state was marked as dirty (changed)
+        if self._dirty:
+            try:
+                await redis_client.save_session_state_obj(self.session_id, (self.state, self.eval_context_cache))
+                self._dirty = False # Reset flag after successful save
+            except Exception as e:
+                logger.error(f"Failed to persist state to redis: {e}")
             
         return response
 
@@ -223,6 +226,7 @@ class InterviewSession:
             {"type": "resume_upload", "file_name": "...", "file_bytes": "<b64>"}
         """
         self.state.transition_to(InterviewPhase.PROCESSING_RESUME)
+        self._dirty = True
 
         data = message.get("data", {})
         file_name = data.get("file_name", "")
@@ -245,6 +249,7 @@ class InterviewSession:
                 session_policy=self.session_policy,
             )
             logger.info("Interview engine returned initial question.")
+            self._dirty = True
         except Exception as e:
             logger.exception("Bootstrap interview failed in session handler")
             self._internal_error = True
@@ -351,6 +356,8 @@ class InterviewSession:
                 "message": "Interview processing failed",
                 "recoverable": False,
             }
+        finally:
+            self._dirty = True
 
 
         # Reset audio state
