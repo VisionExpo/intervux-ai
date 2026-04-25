@@ -113,7 +113,7 @@ class TaskQueue:
     ) -> str:
         """Submit an async task."""
         self._prune_tasks()
-        task_id = f"{task_type.value}_{datetime.utcnow().timestamp()}"
+        task_id = f"{task_type.value}_{datetime.now(timezone.utc).timestamp()}"
         
         async def run():
             try:

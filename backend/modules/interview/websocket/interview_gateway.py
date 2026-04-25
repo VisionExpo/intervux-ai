@@ -331,6 +331,10 @@ class InterviewGateway:
         if session and "seq" not in payload:
             payload["seq"] = session.state.get_next_seq()
         
+        # Inject protocol version for backward compatibility tracking
+        if "version" not in payload:
+            payload["version"] = "v1"
+        
         try:
             await asyncio.wait_for(ws.send_json(payload), timeout=self.send_timeout_s)
         except asyncio.TimeoutError as exc:

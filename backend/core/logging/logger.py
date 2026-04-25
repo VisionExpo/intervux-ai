@@ -27,12 +27,14 @@ stdout_handler.setFormatter(formatter)
 handlers = [stdout_handler]
 
 # Only use RotatingFileHandler in production (not in tests) to avoid Windows file locks
-is_testing = "PYTEST_CURRENT_TEST" in os.environ
+is_testing = os.getenv("ENV") == "test"
 if not is_testing:
     handlers.append(file_handler)
 
-# Configure the root logger
-logging.basicConfig(level=logging.INFO, handlers=handlers, force=True)
+# Configure the root logger idempotently
+root_logger = logging.getLogger()
+if not root_logger.handlers:
+    logging.basicConfig(level=logging.INFO, handlers=handlers, force=True)
 
 def get_logger(name: str):
     return logging.getLogger(name)

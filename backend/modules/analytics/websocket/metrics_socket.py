@@ -6,15 +6,16 @@ via WebSocket connections.
 
 Example flow:
     Interview runtime
-    ↓
+    →
     metrics stream
-    ↓
+    →
     WebSocket
-    ↓
+    →
     dashboard updates live
 """
 
 import asyncio
+from datetime import datetime, timezone
 from typing import Any, Dict, Set
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -72,9 +73,10 @@ class MetricsSocket:
         
         try:
             user_data: TokenData = await verify_token(token)
-            # Store user data in connection state for later use
-            websocket.state.user = user_data
-        except Exception:
+            # Store user data in connection scope for later use
+            websocket.scope.setdefault("state", {})["user"] = user_data
+        except Exception as e:
+            logger.error(f"Auth failed for metrics: {e}")
             await websocket.accept()
             await websocket.send_json({
                 "type": "error",
@@ -104,7 +106,7 @@ class MetricsSocket:
         except asyncio.CancelledError:
             logger.info("Metrics WebSocket task cancelled")
             raise
-        except Exception:
+        except Exception as e:
             logger.exception("Metrics WebSocket handler failed")
         finally:
             self._connections.discard(websocket)
@@ -143,7 +145,6 @@ class MetricsSocket:
         snapshot = metrics.snapshot()
         
         # Add timestamp
-        from datetime import datetime
         snapshot["timestamp"] = datetime.now(timezone.utc).isoformat()
         
         # Add derived metrics
@@ -221,4 +222,3 @@ async def start_metrics_broadcast():
 async def stop_metrics_broadcast():
     """Stop broadcasting metrics."""
     metrics_socket._running = False
-

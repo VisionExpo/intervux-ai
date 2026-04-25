@@ -25,11 +25,13 @@ from typing import Any, Generator, Optional
 
 import pytest
 from httpx import AsyncClient, ASGITransport
+from fastapi.testclient import TestClient
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 
 # Set test environment variables before imports
+os.environ["ENV"] = "test"
 os.environ["DATABASE_URL"] = "sqlite:///./tests/data/test_intervux.db"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-testing-only"
 os.environ["RUNTIME_THREADPOOL_WORKERS"] = "2"
@@ -91,18 +93,19 @@ async def db_session() -> AsyncSession:
         await conn.run_sync(Base.metadata.drop_all)
 
 
-@pytest_asyncio.fixture(scope="function")
-async def client(db_session: AsyncSession) -> AsyncClient:
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="function")
+def test_client(db_session: AsyncSession) -> Generator[TestClient, None, None]:
+    from fastapi.testclient import TestClient
+    
     async def override_get_db():
         yield db_session
     
     app.dependency_overrides[get_db] = override_get_db
-    
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as test_client:
-        yield test_client
-    
+    with TestClient(app, raise_server_exceptions=True) as c:
+        yield c
     app.dependency_overrides.clear()
 
 

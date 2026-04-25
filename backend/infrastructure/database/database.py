@@ -1,11 +1,12 @@
 import os
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from sqlalchemy import Column, DateTime, Float, Integer, String, Text, Boolean
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
+import sqlalchemy
 
 load_dotenv()
 
@@ -15,18 +16,21 @@ DATABASE_URL = os.getenv(
 )
 
 if DATABASE_URL.startswith("sqlite"):
-    # For testing, map sqlite to the aiosqlite async driver
-    if "aiosqlite" not in DATABASE_URL:
-        async_db_url = DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://")
-    else:
-        async_db_url = DATABASE_URL
-    print(f"DATABASE_URL={DATABASE_URL!r}, async_db_url={async_db_url!r}")
+    async_db_url = DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://")
     connect_args = {"check_same_thread": False}
+    
     engine = create_async_engine(
         async_db_url,
         connect_args=connect_args,
         pool_pre_ping=True,
     )
+
+    # Enable WAL mode for better concurrency in SQLite
+    @sqlalchemy.event.listens_for(engine.sync_engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
 else:
     # Convert sync postgres URL to asyncpg natively
     async_db_url = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
@@ -65,8 +69,8 @@ class User(Base):
     name = Column(String(255), nullable=False)
     role = Column(String(50), nullable=False, default="recruiter")
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 # =========================================================
@@ -79,7 +83,7 @@ class RevokedToken(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     jti = Column(String(255), unique=True, nullable=False, index=True)
     token_type = Column(String(20), nullable=False, default="access")  # "access" or "refresh"
-    revoked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    revoked_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     expires_at = Column(DateTime, nullable=False)  # When the original token expires
 
 
@@ -96,7 +100,7 @@ class APIKey(Base):
     user_id = Column(Integer, nullable=False)
     role = Column(String(50), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     expires_at = Column(DateTime, nullable=False)
 
 
@@ -117,7 +121,7 @@ class LLMMetrics(Base):
     hallucination_score = Column(Float, nullable=True)
     reasoning_score = Column(Float, nullable=True)
     consistency_score = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 # =========================================================
@@ -133,4 +137,4 @@ class Experiment(Base):
     prompt_template = Column(String, nullable=True)
     accuracy = Column(Float, nullable=True)
     latency_ms = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

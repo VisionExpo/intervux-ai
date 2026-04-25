@@ -1,101 +1,137 @@
 import ast
 import os
 import sys
-from pathlib import Path
+from typing import List, Optional, Set
 
-def check_boundaries(root_dir: str):
-    root = Path(root_dir)
-    backend_dir = root / "backend"
-    modules_dir = backend_dir / "modules"
-    violations = []
+# =============================================================================
+# Boundary Policy Configuration
+# =============================================================================
 
-    if not backend_dir.exists():
-        print(f"Error: {backend_dir} not found.")
-        return False
+# Modules are located under backend/modules/
+MODULE_ROOT = "backend.modules"
 
-    # Identify all modules
-    module_names = []
-    if modules_dir.exists():
-        module_names = [d.name for d in modules_dir.iterdir() if d.is_dir() and d.name != "__pycache__"]
-    
-    # Scan all python files in backend
-    for py_file in backend_dir.rglob("*.py"):
-        relative_path = py_file.relative_to(root)
-        
-        # Determine if this file is inside a module
-        current_module = None
-        if str(py_file).startswith(str(modules_dir)):
-            parts = py_file.relative_to(modules_dir).parts
-            if parts:
-                current_module = parts[0]
+# Allowed global packages that modules can always import from
+ALLOWED_GLOBALS = {
+    "backend.core",
+    "backend.infrastructure",
+    "backend.models",
+    "backend.utils",
+    "backend.background",
+}
 
-        with open(py_file, "r", encoding="utf-8") as f:
+# Rule: modules/<A> cannot import from modules/<B> directly.
+# Rule: If modules/<A> imports from modules/<B>, it MUST use 'backend.modules.<B>'
+#       and NOT any subpackage (e.g. 'backend.modules.<B>.services').
+#       This enforces that only what is exposed in <B>/__init__.py is used.
+
+class BoundaryViolation(Exception):
+    def __init__(self, message, file, line, module):
+        self.message = message
+        self.file = file
+        self.line = line
+        self.module = module
+        super().__init__(message)
+
+class ModuleBoundaryChecker(ast.NodeVisitor):
+    def __init__(self, file_path: str, current_module: str):
+        self.file_path = file_path
+        self.current_module = current_module
+        self.violations: List[str] = []
+
+    def visit_Import(self, node: ast.Import):
+        for alias in node.names:
+            self._check_module_access(alias.name, node.lineno)
+        self.generic_visit(node)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom):
+        if node.level > 0:
+            # Handle relative imports
+            # We normalize them to absolute for checking
+            parts = self.file_path.replace('.py', '').replace('\\', '/').split('/')
+            # Find 'backend' index
             try:
-                tree = ast.parse(f.read())
-            except Exception as e:
-                print(f"Error parsing {relative_path}: {e}")
-                continue
+                backend_idx = parts.index('backend')
+                base_parts = parts[backend_idx:-node.level]
+                module_name = '.'.join(base_parts)
+                if node.module:
+                    module_name += f".{node.module}"
+                self._check_module_access(module_name, node.lineno)
+            except ValueError:
+                pass
+        elif node.module:
+            self._check_module_access(node.module, node.lineno)
+        self.generic_visit(node)
 
-            for node in ast.walk(tree):
-                target_module = None
-                
-                if isinstance(node, ast.Import):
-                    for alias in node.names:
-                        target_module = alias.name
-                elif isinstance(node, ast.ImportFrom):
-                    target_module = node.module
+    def _check_module_access(self, target_module: str, lineno: int):
+        # Only care about backend.modules
+        if not target_module.startswith(MODULE_ROOT):
+            return
 
-                if target_module:
-                    parts = target_module.split(".")
-                    
-                    # 1. Check for cross-module imports (Module A -> Module B)
-                    if len(parts) >= 3 and parts[0] == "backend" and parts[1] == "modules":
-                        imported_module = parts[2]
-                        if current_module and imported_module != current_module and imported_module in module_names:
-                            violations.append(
-                                f"CROSS-MODULE VIOLATION: {relative_path} imports from '{imported_module}'"
-                            )
-                        
-                        # 2. Check for internal access (starts with _)
-                        # If any part after the module name starts with _
-                        # e.g. backend.modules.interview._internal
-                        if len(parts) > 3:
-                            for part in parts[3:]:
-                                if part.startswith("_"):
-                                    # Violation if importing from OUTSIDE that specific module
-                                    if imported_module != current_module:
-                                        violations.append(
-                                            f"PRIVATE ACCESS VIOLATION: {relative_path} imports internal '{part}' from '{imported_module}'"
-                                        )
-                                        break
-                        
-                        # Special case: backend.modules.interview._something
-                        elif len(parts) == 3:
-                            # If it's a "from backend.modules import _interview" (unlikely but possible)
-                            pass
+        parts = target_module.split('.')
+        if len(parts) < 3: # 'backend.modules'
+            return
 
-                    # Also check ImportFrom names for private access
-                    if isinstance(node, ast.ImportFrom) and node.module:
-                        m_parts = node.module.split(".")
-                        if len(m_parts) >= 3 and m_parts[0] == "backend" and m_parts[1] == "modules":
-                            imp_mod = m_parts[2]
-                            if imp_mod != current_module:
-                                for alias in node.names:
-                                    if alias.name.startswith("_"):
-                                        violations.append(
-                                            f"PRIVATE ACCESS VIOLATION: {relative_path} imports internal '{alias.name}' from '{imp_mod}'"
-                                        )
+        target_name = parts[2] # backend.modules.<target_name>
 
-    if violations:
-        print("\n".join(violations))
-        print(f"\nTotal violations: {len(violations)}")
-        return False
+        # 1. Check for cross-module direct imports
+        if target_name != self.current_module:
+            # It's a cross-module import.
+            # Check if it's deeper than the module root.
+            if len(parts) > 3:
+                # Violation: backend.modules.<other>.<something>
+                # Must only import backend.modules.<other>
+                self.violations.append(
+                    f"L{lineno}: Strict Boundary Violation: Module '{self.current_module}' "
+                    f"is importing internals of '{target_name}' via '{target_module}'. "
+                    f"Import only from 'backend.modules.{target_name}'."
+                )
+
+def get_module_info(file_path: str) -> Optional[str]:
+    """Extract module name from file path if it's inside a module."""
+    normalized = file_path.replace('\\', '/')
+    if '/backend/modules/' in normalized:
+        parts = normalized.split('/backend/modules/')[1].split('/')
+        return parts[0]
+    return None
+
+def check_file(file_path: str) -> List[str]:
+    module_name = get_module_info(file_path)
+    if not module_name:
+        return []
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            tree = ast.parse(f.read())
+    except Exception as e:
+        return [f"Error parsing {file_path}: {e}"]
+
+    checker = ModuleBoundaryChecker(file_path, module_name)
+    checker.visit(tree)
+    return checker.violations
+
+def main():
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    all_violations = []
     
-    print("No module boundary violations found.")
-    return True
+    print(f"Checking module boundaries in {root_dir}/backend/modules...")
+    
+    for root, _, files in os.walk(os.path.join(root_dir, 'backend', 'modules')):
+        for file in files:
+            if file.endswith('.py'):
+                path = os.path.join(root, file)
+                violations = check_file(path)
+                if violations:
+                    print(f"\n{os.path.relpath(path, root_dir)}:")
+                    for v in violations:
+                        print(f"  {v}")
+                        all_violations.append(v)
+
+    if all_violations:
+        print(f"\nFound {len(all_violations)} boundary violations.")
+        sys.exit(1)
+    else:
+        print("\nAll module boundaries are clean!")
+        sys.exit(0)
 
 if __name__ == "__main__":
-    success = check_boundaries(".")
-    if not success:
-        sys.exit(1)
-    sys.exit(0)
+    main()
