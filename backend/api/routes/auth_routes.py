@@ -15,7 +15,7 @@ Example usage:
 """
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -155,7 +155,7 @@ async def get_current_user_profile(current_user: TokenData = Depends(get_current
         name=user["name"],
         role=user["role"],
         is_active=True,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
 
 
@@ -183,9 +183,9 @@ async def logout(
         jti = payload.get("jti") or payload.get("user_id", "")
         exp_ts = payload.get("exp")
         expires_at = (
-            datetime.utcfromtimestamp(exp_ts)
+            datetime.fromtimestamp(exp_ts, timezone.utc)
             if exp_ts
-            else datetime.utcnow() + timedelta(hours=12)
+            else datetime.now(timezone.utc) + timedelta(hours=12)
         )
         from backend.infrastructure.database.database import AsyncSessionLocal
         from sqlalchemy import select
@@ -269,7 +269,7 @@ async def list_users(
             name=user_data["name"],
             role=user_data["role"],
             is_active=True,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         ))
     
     return users
@@ -288,6 +288,6 @@ async def auth_health():
     return {
         "status": "healthy",
         "service": "auth",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 

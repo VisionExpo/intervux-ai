@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text, JSON
@@ -53,8 +53,8 @@ class JobPost(Base):
     evaluation_weights = Column(JSON, default=dict)
 
     status = Column(String, nullable=False, default=JobPostStatus.DRAFT.value)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
     
     # Legacy fields
     ai_interview_enabled = Column(String, nullable=False, default="false")
@@ -74,7 +74,7 @@ class Candidate(Base):
     job_post_id = Column(String, ForeignKey("job_posts.id"), nullable=True)
     interview_link = Column(String, nullable=True)
     interview_link_expires_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class Interview(Base):
@@ -111,4 +111,4 @@ class InterviewReplaySegment(Base):
     transcript = Column(Text, nullable=True)
     audio_url = Column(String, nullable=True)
     score = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

@@ -144,7 +144,7 @@ class MetricsSocket:
         
         # Add timestamp
         from datetime import datetime
-        snapshot["timestamp"] = datetime.utcnow().isoformat()
+        snapshot["timestamp"] = datetime.now(timezone.utc).isoformat()
         
         # Add derived metrics
         snapshot["derived"] = self._calculate_derived_metrics(snapshot)

@@ -22,7 +22,7 @@ import logging
 import os
 import sys
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
 
@@ -134,7 +134,7 @@ class StructuredLogger:
     ) -> Dict[str, Any]:
         """Build structured log dict."""
         log = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": level,
             "event": event,
             "message": message,
@@ -331,10 +331,10 @@ def log_execution_time(event: str):
     """
     def decorator(func):
         async def async_wrapper(*args, **kwargs):
-            start = datetime.utcnow()
+            start = datetime.now(timezone.utc)
             try:
                 result = await func(*args, **kwargs)
-                latency = (datetime.utcnow() - start).total_seconds() * 1000
+                latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
                 structured_logger.info(
                     event=event,
                     message=f"{func.__name__} completed",
@@ -344,7 +344,7 @@ def log_execution_time(event: str):
                 )
                 return result
             except Exception as e:
-                latency = (datetime.utcnow() - start).total_seconds() * 1000
+                latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
                 structured_logger.error(
                     event=event,
                     message=f"{func.__name__} failed",
@@ -356,10 +356,10 @@ def log_execution_time(event: str):
                 raise
         
         def sync_wrapper(*args, **kwargs):
-            start = datetime.utcnow()
+            start = datetime.now(timezone.utc)
             try:
                 result = func(*args, **kwargs)
-                latency = (datetime.utcnow() - start).total_seconds() * 1000
+                latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
                 structured_logger.info(
                     event=event,
                     message=f"{func.__name__} completed",
@@ -369,7 +369,7 @@ def log_execution_time(event: str):
                 )
                 return result
             except Exception as e:
-                latency = (datetime.utcnow() - start).total_seconds() * 1000
+                latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
                 structured_logger.error(
                     event=event,
                     message=f"{func.__name__} failed",
@@ -411,7 +411,7 @@ def setup_structured_logging():
     class JSONFormatter(logging.Formatter):
         def format(self, record):
             log_data = {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "level": record.levelname,
                 "message": record.getMessage(),
                 "service": "intervux",

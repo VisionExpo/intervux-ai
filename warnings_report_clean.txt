@@ -1,0 +1,227 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.7, pytest-8.2.2, pluggy-1.6.0 -- C:\Vishal\intervux-ai\venv\Scripts\python.exe
+rootdir: C:\Vishal\intervux-ai
+configfile: pytest.ini
+plugins: anyio-4.4.0, asyncio-0.23.7, cov-5.0.0
+asyncio: mode=Mode.AUTO
+collecting ... collected 53 items
+
+tests/test_websocket_interview.py::TestWebSocketAuthentication::test_ping PASSED [  1%]
+.\venv\Scripts\pytest :   File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1032, in 
+_bootstrap
+At line:1 char:1
++ .\venv\Scripts\pytest tests/test_websocket_interview.py -W always > w ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  File "C:\User..., in _bootstrap:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    self._bootstrap_inner()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+    self.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 92, in _worker
+    work_item.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Vishal\intervux-ai\backend\core\llm_brain.py", line 796, in prewarm_llm
+    raw = _call_provider(provider, prompt, temperature=0.0)
+  File "C:\Vishal\intervux-ai\backend\core\llm_brain.py", line 341, in _call_provider
+    return _call_gemini(prompt, temperature, top_p=top_p, response_schema=response_schema)
+  File "C:\Vishal\intervux-ai\backend\core\llm_brain.py", line 297, in _call_gemini
+    response = GEMINI_CLIENT.models.generate_content(
+  File "C:\Vishal\intervux-ai\venv\Lib\site-packages\google\genai\models.py", line 4377, in generate_content
+    logging.info(
+Message: 'AFC is enabled with max remote calls: 10.'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketAuthentication::test_connection_rejected_without_token PASSED [  3%]
+Call stack:
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1032, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+    self.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 92, in _worker
+    work_item.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Vishal\intervux-ai\backend\core\llm_brain.py", line 796, in prewarm_llm
+    raw = _call_provider(provider, prompt, temperature=0.0)
+  File "C:\Vishal\intervux-ai\backend\core\llm_brain.py", line 341, in _call_provider
+    return _call_gemini(prompt, temperature, top_p=top_p, response_schema=response_schema)
+  File "C:\Vishal\intervux-ai\backend\core\llm_brain.py", line 297, in _call_gemini
+    response = GEMINI_CLIENT.models.generate_content(
+  File "C:\Vishal\intervux-ai\venv\Lib\site-packages\google\genai\models.py", line 4377, in generate_content
+    logging.info(
+Message: 'AFC is enabled with max remote calls: 10.'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketAuthentication::test_connection_rejected_with_invalid_token PASSED [  5%]
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1032, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+    self.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 92, in _worker
+    work_item.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Vishal\intervux-ai\backend\core\llm_brain.py", line 820, in prewarm_llm
+    logger.error(
+Message: 'LLM prewarm failed'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketAuthentication::test_connection_accepted_with_valid_candidate_token PASSED [  7%]
+Call stack:
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1032, in _bootstrap
+    self._bootstrap_inner()
+tests/test_websocket_interview.py::TestWebSocketAuthentication::test_connection_accepted_with_recruiter_token PASSED [  9%]
+Message: 'LLM prewarm failed'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketAuthentication::test_connection_accepted_with_admin_token PASSED [ 11%]
+Message: 'LLM prewarm failed'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketGreeting::test_greeting_contains_welcome_text PASSED [ 13%]
+Message: 'LLM prewarm failed'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketGreeting::test_greeting_is_followed_by_waiting_state PASSED [ 15%]
+Message: 'LLM prewarm failed'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketPingPong::test_ping_returns_pong PASSED [ 16%]
+Call stack:
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1032, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+    self.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 92, in _worker
+    work_item.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Vishal\intervux-ai\backend\core\llm_brain.py", line 820, in prewarm_llm
+    logger.error(
+Message: 'LLM prewarm failed'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketPingPong::test_multiple_pings PASSED [ 18%]
+Call stack:
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1032, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+    self.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 92, in _worker
+    work_item.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Vishal\intervux-ai\backend\core\llm_brain.py", line 820, in prewarm_llm
+    logger.error(
+Message: 'LLM prewarm failed'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketBadMessages::test_invalid_json_returns_error PASSED [ 20%]
+Call stack:
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1032, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+    self.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 92, in _worker
+    work_item.run()
+tests/test_websocket_interview.py::TestWebSocketBadMessages::test_message_wrong_phase_returns_error PASSED [ 22%]
+Message: 'LLM prewarm failed'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketErrorContract::test_error_has_type_field PASSED [ 24%]
+Message: 'LLM prewarm failed'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketErrorContract::test_error_has_code_field PASSED [ 26%]
+Call stack:
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1032, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+    self.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 92, in _worker
+    work_item.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Vishal\intervux-ai\backend\core\llm_brain.py", line 820, in prewarm_llm
+    logger.error(
+Message: 'LLM prewarm failed'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketErrorContract::test_error_has_message_field PASSED [ 28%]
+tests/test_websocket_interview.py::TestWebSocketErrorContract::test_error_has_recoverable_field PASSED [ 30%]
+Call stack:
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1032, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+    self.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 92, in _worker
+    work_item.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Vishal\intervux-ai\backend\core\llm_brain.py", line 820, in prewarm_llm
+    logger.error(
+Message: 'LLM prewarm failed'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketErrorContract::test_unauthorized_error_is_recoverable PASSED [ 32%]
+Call stack:
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1032, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+    self.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 92, in _worker
+    work_item.run()
+  File "C:\Users\LOQ\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Vishal\intervux-ai\backend\core\llm_brain.py", line 820, in prewarm_llm
+    logger.error(
+Message: 'LLM prewarm failed'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketErrorContract::test_invalid_token_error_is_recoverable PASSED [ 33%]
+tests/test_websocket_interview.py::TestWebSocketCapacity::test_gateway_tracks_active_sessions PASSED [ 35%]
+tests/test_websocket_interview.py::TestWebSocketCapacity::test_runtime_stats_returns_expected_keys PASSED [ 37%]
+Message: 'LLM prewarm failed'
+Arguments: ()
+tests/test_websocket_interview.py::TestWebSocketStress::test_rapid_reconnects_do_not_leak_session_slots PASSED [ 39%]
+Call stack:
+tests/test_websocket_interview.py::TestWebSocketStress::test_malformed_json_flood_stays_recoverable PASSED [ 41%]
+tests/test_websocket_interview.py::TestInterviewGatewayUnit::test_split_sentences_basic PASSED [ 43%]
+tests/test_websocket_interview.py::TestInterviewGatewayUnit::test_split_sentences_empty_string PASSED [ 45%]
+tests/test_websocket_interview.py::TestInterviewGatewayUnit::test_split_sentences_no_punctuation PASSED [ 47%]
+tests/test_websocket_interview.py::TestInterviewGatewayUnit::test_client_ip_returns_unknown_when_no_client PASSED [ 49%]
+tests/test_websocket_interview.py::TestInterviewGatewayUnit::test_build_load_policy_returns_required_keys PASSED [ 50%]
+tests/test_websocket_interview.py::TestInterviewGatewayUnit::test_build_load_policy_question_count_bounded PASSED [ 52%]
+tests/test_websocket_interview.py::TestInterviewGatewayUnit::test_wav_duration_ms_empty_bytes PASSED [ 54%]
+tests/test_websocket_interview.py::TestInterviewGatewayUnit::test_wav_duration_ms_non_wav PASSED [ 56%]
+tests/test_websocket_interview.py::TestInterviewSessionUnit::test_get_message_type_from_text PASSED [ 58%]
+tests/test_websocket_interview.py::TestInterviewSessionUnit::test_get_message_type_from_data_dict PASSED [ 60%]
+tests/test_websocket_interview.py::TestInterviewSessionUnit::test_get_message_type_bytes_returns_audio_chunk PASSED [ 62%]
+tests/test_websocket_interview.py::TestInterviewSessionUnit::test_get_message_type_unknown PASSED [ 64%]
+tests/test_websocket_interview.py::TestInterviewSessionUnit::test_get_message_type_invalid_json_text PASSED [ 66%]
+tests/test_websocket_interview.py::TestInterviewSessionUnit::test_completed_normally_starts_false PASSED [ 67%]
+tests/test_websocket_interview.py::TestInterviewSessionUnit::test_mock_interview_session_id_stored PASSED [ 69%]
+tests/test_websocket_interview.py::TestInterviewSessionUnit::test_no_mock_session_id_is_none PASSED [ 71%]
+tests/test_websocket_interview.py::TestInterviewSessionUnit::test_phase_starts_at_connecting PASSED [ 73%]
+tests/test_websocket_interview.py::TestInterviewSessionUnit::test_is_complete_false_on_init PASSED [ 75%]
+tests/test_websocket_interview.py::TestInterviewPersistenceUnit::test_average_scores_empty_answers PASSED [ 77%]
+tests/test_websocket_interview.py::TestInterviewPersistenceUnit::test_average_scores_dual_eval_keys PASSED [ 79%]
+tests/test_websocket_interview.py::TestInterviewPersistenceUnit::test_average_scores_multipass_keys PASSED [ 81%]
+tests/test_websocket_interview.py::TestInterviewPersistenceUnit::test_average_scores_missing_evaluation PASSED [ 83%]
+tests/test_websocket_interview.py::TestInterviewPersistenceUnit::test_average_scores_scores_capped_at_100 PASSED [ 84%]
+tests/test_websocket_interview.py::TestInterviewPersistenceUnit::test_build_transcript_empty PASSED [ 86%]
+tests/test_websocket_interview.py::TestInterviewPersistenceUnit::test_build_transcript_single_qa PASSED [ 88%]
+tests/test_websocket_interview.py::TestInterviewPersistenceUnit::test_build_transcript_multiple_qa PASSED [ 90%]
+tests/test_websocket_interview.py::TestInterviewPersistenceUnit::test_fail_mock_interview_missing_session PASSED [ 92%]
+tests/test_websocket_interview.py::TestInterviewPersistenceUnit::test_complete_mock_interview_missing_session PASSED [ 94%]
+tests/test_websocket_interview.py::TestInterviewPersistenceUnit::test_complete_mock_interview_writes_scores PASSED [ 96%]
+tests/test_websocket_interview.py::TestInterviewPersistenceUnit::test_fail_mock_interview_marks_abandoned PASSED [ 98%]
+tests/test_websocket_interview.py::TestInterviewPersistenceUnit::test_fail_mock_interview_skips_completed_row PASSED [100%]
+
+================= 53 passed, 170 warnings in 94.74s (0:01:34) =================

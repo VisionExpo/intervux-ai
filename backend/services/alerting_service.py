@@ -17,7 +17,7 @@ import os
 import smtplib
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any, Dict, List, Optional
@@ -55,7 +55,7 @@ class Alert:
         self.metric_name = metric_name
         self.metric_value = metric_value
         self.threshold = threshold
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(timezone.utc)
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -262,7 +262,7 @@ class AlertingService:
     def _should_send_alert(self, metric_name: str) -> bool:
         """Check if we should send an alert (respects cooldown)."""
         with self._lock:
-            now = datetime.utcnow().timestamp()
+            now = datetime.now(timezone.utc).timestamp()
             last_alert = self._last_alerts.get(metric_name, 0)
             if now - last_alert < self.cooldown_seconds:
                 return False

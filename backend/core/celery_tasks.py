@@ -7,7 +7,7 @@ instead of calling backend.resume_parser.services directly.
 
 import os
 import base64
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from celery import Task
@@ -240,7 +240,7 @@ def generate_evaluation_async(
 def health_check() -> Dict[str, Any]:
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 

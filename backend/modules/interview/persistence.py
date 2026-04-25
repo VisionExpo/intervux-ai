@@ -8,7 +8,7 @@ Writes live interview results back to the MockInterview table.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from backend.infrastructure.database.database import AsyncSessionLocal
@@ -128,7 +128,7 @@ async def complete_mock_interview(
             avg = _average_scores(answers)
 
             interview.status = "completed"
-            interview.completed_at = datetime.utcnow()
+            interview.completed_at = datetime.now(timezone.utc)
             interview.score = avg["overall"]
             interview.technical_score = avg["technical"]
             interview.communication_score = avg["behavioral"]
@@ -217,7 +217,7 @@ async def fail_mock_interview(session_id: str, reason: str = "error") -> bool:
                 return False
 
             interview.status = "abandoned"
-            interview.completed_at = datetime.utcnow()
+            interview.completed_at = datetime.now(timezone.utc)
             await db.commit()
 
             logger.info(

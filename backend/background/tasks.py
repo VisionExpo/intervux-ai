@@ -26,7 +26,7 @@ Example:
 import asyncio
 import os
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Dict, Optional
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -90,7 +90,7 @@ class TaskQueue:
     ) -> str:
         """Submit a task for background processing."""
         self._prune_tasks()
-        task_id = f"{task_type.value}_{datetime.utcnow().timestamp()}"
+        task_id = f"{task_type.value}_{datetime.now(timezone.utc).timestamp()}"
         
         def run():
             try:
@@ -273,7 +273,7 @@ async def export_data_task(
         "export_type": export_type,
         "format": format,
         "status": "completed",
-        "path": f"/exports/{export_type}_{datetime.utcnow().timestamp()}.{format}"
+        "path": f"/exports/{export_type}_{datetime.now(timezone.utc).timestamp()}.{format}"
     }
 
 

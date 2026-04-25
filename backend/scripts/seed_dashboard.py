@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -32,7 +32,7 @@ async def seed_dashboard() -> None:
             print("Dashboard seed skipped: candidates already exist.")
             return
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         candidates = [
             Candidate(

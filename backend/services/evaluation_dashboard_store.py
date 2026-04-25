@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from statistics import mean
 from typing import Any, Optional
@@ -324,7 +324,7 @@ async def get_llm_metrics_from_db(
     query = select(LLMMetrics)
     
     if days is not None:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         query = query.filter(LLMMetrics.created_at >= cutoff)
     
     if model:
@@ -345,9 +345,9 @@ async def get_db_metrics_aggregates(db: AsyncSession) -> dict[str, Any]:
         Dictionary containing aggregated metrics
     """
     # Get last 24 hours of metrics
-    cutoff_24h = datetime.utcnow() - timedelta(hours=24)
-    cutoff_7d = datetime.utcnow() - timedelta(days=7)
-    cutoff_30d = datetime.utcnow() - timedelta(days=30)
+    cutoff_24h = datetime.now(timezone.utc) - timedelta(hours=24)
+    cutoff_7d = datetime.now(timezone.utc) - timedelta(days=7)
+    cutoff_30d = datetime.now(timezone.utc) - timedelta(days=30)
     
     # Query metrics
     res_24h = await db.execute(select(LLMMetrics).filter(LLMMetrics.created_at >= cutoff_24h))
@@ -412,7 +412,7 @@ async def get_historical_trends(db: AsyncSession, days: int = 30) -> dict[str, A
     Returns:
         Dictionary containing trend data
     """
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     
     # Get daily aggregates
     query = select(

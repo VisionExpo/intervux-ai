@@ -26,10 +26,11 @@ import os
 import sys
 import time
 import uuid
-from datetime import timedelta
-from typing import Any, Generator
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Generator, List, Optional
 
 import pytest
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -49,6 +50,38 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.infrastructure.database.database import Base, get_db
 from backend.main import app
 from backend.core.security.jwt_service import create_token_pair, Role, TokenData
+
+# -- WS Message Contracts (Phase 5C) ------------------------------------------
+class WSBaseMessage(BaseModel):
+    type: str
+    seq: Optional[int] = None
+    timestamp: Optional[float] = None
+
+class WSPongMessage(WSBaseMessage):
+    type: str = "pong"
+
+class WSGreetingMessage(WSBaseMessage):
+    type: str = "greeting"
+    text: str
+
+class WSQuestionMessage(WSBaseMessage):
+    type: str = "question"
+    text: str
+    visemes: Optional[List[Any]] = None
+    audio: Optional[str] = None # Base64
+
+class WSErrorMessage(WSBaseMessage):
+    type: str = "error"
+    code: str
+    message: str
+    recoverable: bool = False
+
+def validate_ws_message(data: Dict[str, Any], model: type[BaseModel]):
+    """Strictly validate a WebSocket message against a Pydantic model."""
+    try:
+        return model.model_validate(data)
+    except ValidationError as e:
+        pytest.fail(f"WS Message Contract Violation!\nModel: {model.__name__}\nPayload: {data}\nErrors: {e}")
 
 # -- test database ------------------------------------------------------------
 # -- test database ------------------------------------------------------------
@@ -225,6 +258,10 @@ class TestWebSocketGreeting:
         token = _make_token()
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             msg = _drain_until(ws, "avatar_sync")
+            
+            # Phase 5C: Strict Contract Validation
+            validate_ws_message(msg, WSGreetingMessage)
+            
             text = msg.get("text", "")
             # Greeting must mention the platform or the interviewer
             assert any(
@@ -826,7 +863,7 @@ class TestInterviewPersistenceUnit:
             status="completed",
             interview_number=1,
             score=80.0,
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(timezone.utc),
         )
         db_session.add(interview)
         await db_session.commit()

@@ -18,7 +18,7 @@ Example usage:
 
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Set
 
 from fastapi import Depends, HTTPException, status
@@ -116,9 +116,9 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
     to_encode = data.copy()
     
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+        expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
     
     to_encode.update({"exp": expire, "type": "access"})
     
@@ -137,7 +137,7 @@ def create_refresh_token(data: Dict[str, Any]) -> str:
         Encoded JWT refresh token string
     """
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
     
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -877,8 +877,8 @@ def create_api_key(name: str, user_id: str, role: str, expires_days: int = 365) 
         "name": name,
         "user_id": user_id,
         "role": role,
-        "created_at": datetime.utcnow(),
-        "expires_at": datetime.utcnow() + timedelta(days=expires_days),
+        "created_at": datetime.now(timezone.utc),
+        "expires_at": datetime.now(timezone.utc) + timedelta(days=expires_days),
     }
     
     return api_key
@@ -900,7 +900,7 @@ def verify_api_key(api_key: str) -> Optional[TokenData]:
         return None
     
     # Check expiration
-    if key_data["expires_at"] < datetime.utcnow():
+    if key_data["expires_at"] < datetime.now(timezone.utc):
         return None
     
     return TokenData(

@@ -20,7 +20,7 @@ Usage:
 import os
 import sys
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Generator, Optional
 
 import pytest
@@ -209,8 +209,8 @@ async def test_job_post(db_session: AsyncSession) -> JobPost:
         status=JobPostStatus.ACTIVE.value,
         ai_interview_enabled="true",
         interview_limit=10,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
         recruiter_id="test-recruiter-001",
     )
     db_session.add(job)
@@ -238,7 +238,7 @@ async def test_candidate(db_session: AsyncSession, test_job_post: JobPost) -> Ca
         resume_url="https://example.com/resume.pdf",
         status=CandidateStatus.INVITED.value,
         job_post_id=test_job_post.id,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(candidate)
     await db_session.commit()
@@ -265,8 +265,8 @@ async def test_interview(
         technical_score=90.0,
         communication_score=80.0,
         problem_solving_score=86.5,
-        started_at=datetime.utcnow() - timedelta(minutes=30),
-        completed_at=datetime.utcnow(),
+        started_at=datetime.now(timezone.utc) - timedelta(minutes=30),
+        completed_at=datetime.now(timezone.utc),
     )
     db_session.add(interview)
     await db_session.commit()
@@ -305,8 +305,8 @@ async def create_test_job_post(
         status=status,
         ai_interview_enabled="true",
         interview_limit=5,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
         created_by="test-recruiter-001",
     )
     db.add(job)
@@ -346,7 +346,7 @@ async def create_test_candidate(
         resume_url="https://example.com/resume.pdf",
         status=CandidateStatus.INVITED.value,
         job_post_id=job_post_id,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     db.add(candidate)
     await db.commit()
@@ -386,8 +386,8 @@ async def create_test_interview(
         technical_score=technical_score,
         communication_score=communication_score,
         problem_solving_score=problem_solving_score,
-        started_at=datetime.utcnow() - timedelta(minutes=30),
-        completed_at=datetime.utcnow(),
+        started_at=datetime.now(timezone.utc) - timedelta(minutes=30),
+        completed_at=datetime.now(timezone.utc),
     )
     db.add(interview)
     await db.commit()
