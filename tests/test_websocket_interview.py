@@ -158,9 +158,12 @@ def _drain_until(ws, target_type: str, max_messages: int = 20) -> dict:
 # =============================================================================
 
 
+@pytest.mark.websocket
+@pytest.mark.auth
 class TestWebSocketAuthentication:
     """Connection-level auth: tokens required, invalid tokens rejected."""
 
+    @pytest.mark.smoke
     def test_ping(self, client: TestClient):
         response = client.get("/ping")
         assert response.status_code == 200
@@ -183,6 +186,7 @@ class TestWebSocketAuthentication:
             assert msg["type"] == "ERROR"
             assert msg["code"] == "UNAUTHORIZED"
 
+    @pytest.mark.smoke
     def test_connection_accepted_with_valid_candidate_token(self, client: TestClient):
         """Valid candidate token ? greeting arrives."""
         token = _make_token(Role.CANDIDATE)
@@ -212,9 +216,11 @@ class TestWebSocketAuthentication:
 # =============================================================================
 
 
+@pytest.mark.websocket
 class TestWebSocketGreeting:
     """After auth the server sends a greeting then waits for resume_upload."""
 
+    @pytest.mark.smoke
     def test_greeting_contains_welcome_text(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
@@ -298,6 +304,7 @@ class TestWebSocketBadMessages:
 # =============================================================================
 
 
+@pytest.mark.websocket
 class TestWebSocketErrorContract:
     """All error messages must carry the documented fields."""
 
@@ -562,6 +569,7 @@ class TestInterviewSessionUnit:
 # =============================================================================
 
 
+@pytest.mark.unit
 class TestInterviewPersistenceUnit:
     """
     Unit tests for score extraction helpers in interview_persistence.py.

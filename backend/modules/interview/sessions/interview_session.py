@@ -18,9 +18,9 @@ import time
 from typing import Any, Dict, Optional
 
 from backend.ai.engines.interview_engine import InterviewEngine
-from backend.models.interview import InterviewPhase, InterviewState
+from backend.modules.interview.models import InterviewPhase, InterviewState
 from backend.services.audio_buffer import AudioBuffer
-from backend.services.interview_persistence import (
+from backend.modules.interview.persistence import (
     complete_mock_interview,
     fail_mock_interview,
 )

@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional, Set
 from fastapi import WebSocket, WebSocketDisconnect
 
 from backend.core.security.jwt_service import TokenData, verify_token
-from backend.models.interview import InterviewPhase
+from backend.modules.interview.models import InterviewPhase
 from backend.modules.interview.sessions.interview_session import InterviewSession
 from backend.modules.interview.sessions.registry import get_session_registry
 from backend.services.tts_service import TTSService

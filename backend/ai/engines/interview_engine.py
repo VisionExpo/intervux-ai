@@ -30,7 +30,7 @@ from backend.core.memory_engine import (
     seed_memory_projects,
     update_memory,
 )
-from backend.models.interview import InterviewPhase, InterviewState, ResumeData
+from backend.modules.interview.models import InterviewPhase, InterviewState, ResumeData
 from backend.services.resume_parser_service import ParsedResume, parse_resume_from_b64
 from backend.services.audio_buffer import AudioBuffer
 from backend.services.evaluation_service import get_evaluation_service
