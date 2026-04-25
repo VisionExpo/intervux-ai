@@ -29,6 +29,7 @@ from datetime import timedelta
 from typing import Any, Generator
 
 import pytest
+from sqlalchemy import select
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -699,7 +700,7 @@ class TestInterviewPersistenceUnit:
         """Calling fail_mock_interview with a non-existent session_id returns False."""
         from backend.services.interview_persistence import fail_mock_interview
 
-        result = fail_mock_interview("does-not-exist-123")
+        result = await fail_mock_interview("does-not-exist-123")
         assert result is False
 
     @pytest.mark.asyncio
@@ -707,7 +708,7 @@ class TestInterviewPersistenceUnit:
         """Calling complete_mock_interview with a non-existent session_id returns False."""
         from backend.services.interview_persistence import complete_mock_interview
 
-        result = complete_mock_interview("does-not-exist-456", {}, [])
+        result = await complete_mock_interview("does-not-exist-456", {}, [])
         assert result is False
 
     @pytest.mark.asyncio
@@ -751,15 +752,14 @@ class TestInterviewPersistenceUnit:
             }
         ]
 
-        result = complete_mock_interview(session_id, {"summary": "good"}, answers)
+        result = await complete_mock_interview(session_id, {"summary": "good"}, answers)
         assert result is True
 
         db_session.expire_all()
-        updated = (
-            db_session.query(MockInterview)
-            .filter(MockInterview.session_id == session_id)
-            .first()
+        result = await db_session.execute(
+            select(MockInterview).filter(MockInterview.session_id == session_id)
         )
+        updated = result.scalar_one_or_none()
         assert updated is not None
         assert updated.status == "completed"
         assert updated.completed_at is not None
@@ -793,15 +793,14 @@ class TestInterviewPersistenceUnit:
         db_session.add(interview)
         await db_session.commit()
 
-        result = fail_mock_interview(session_id, reason="test_disconnect")
+        result = await fail_mock_interview(session_id, reason="test_disconnect")
         assert result is True
 
         db_session.expire_all()
-        updated = (
-            db_session.query(MockInterview)
-            .filter(MockInterview.session_id == session_id)
-            .first()
+        result = await db_session.execute(
+            select(MockInterview).filter(MockInterview.session_id == session_id)
         )
+        updated = result.scalar_one_or_none()
         assert updated.status == "abandoned"
 
     @pytest.mark.asyncio
@@ -832,14 +831,13 @@ class TestInterviewPersistenceUnit:
         db_session.add(interview)
         await db_session.commit()
 
-        result = fail_mock_interview(session_id)
+        result = await fail_mock_interview(session_id)
         # Should return False because the row is not in_progress
         assert result is False
 
         db_session.expire_all()
-        unchanged = (
-            db_session.query(MockInterview)
-            .filter(MockInterview.session_id == session_id)
-            .first()
+        result = await db_session.execute(
+            select(MockInterview).filter(MockInterview.session_id == session_id)
         )
+        unchanged = result.scalar_one_or_none()
         assert unchanged.status == "completed"

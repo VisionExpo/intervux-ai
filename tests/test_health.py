@@ -28,7 +28,7 @@ class TestHealthEndpoints:
         - Response contains 'status' field
         - Status value is 'ok'
         """
-        response = await client.get("/health")
+        response = await client.get("/api/system/health")
         
         assert response.status_code == 200
         data = response.json()
@@ -44,7 +44,7 @@ class TestHealthEndpoints:
         - Response is a valid JSON object
         - Contains expected fields
         """
-        response = await client.get("/health")
+        response = await client.get("/api/system/health")
         
         assert response.status_code == 200
         data = response.json()
@@ -61,12 +61,14 @@ class TestHealthEndpoints:
         - HTTP 200 status code
         - Response contains status field
         """
-        response = await client.get("/ready")
+        response = await client.get("/api/system/ready")
         
         # May return 200 or 503 depending on DB availability
         assert response.status_code in [200, 503]
         
         data = response.json()
+        if response.status_code == 503:
+            data = data["detail"]
         assert "status" in data
 
     @pytest.mark.asyncio
@@ -78,12 +80,14 @@ class TestHealthEndpoints:
         - Response contains 'database' field
         - Database status is reported (connected/unknown)
         """
-        response = await client.get("/ready")
+        response = await client.get("/api/system/ready")
         
         # Accept either success or service unavailable
         assert response.status_code in [200, 503]
         
         data = response.json()
+        if response.status_code == 503:
+            data = data["detail"]
         assert "database" in data
         # In test environment with SQLite, may be unknown or connected
         assert data["database"] in ["unknown", "connected", "disconnected"]
@@ -101,7 +105,7 @@ class TestMetricsEndpoint:
         - HTTP 200 status code
         - Response contains metrics data
         """
-        response = await client.get("/metrics")
+        response = await client.get("/api/system/metrics")
         
         assert response.status_code == 200
         data = response.json()

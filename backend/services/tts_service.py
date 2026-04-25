@@ -124,3 +124,8 @@ class TTSService:
         clean = (text or "").strip()
         parts = re.split(r"(?<=[.!?])\s+", clean)
         return [part.strip() for part in parts if part.strip()] or [clean]
+
+async def synthesize_speech_with_visemes(text: str) -> Tuple[bytes, List[Dict[str, int]]]:
+    service = TTSService()
+    return await service.synthesize_with_visemes(text)
+

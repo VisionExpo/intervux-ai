@@ -372,6 +372,12 @@ class InterviewGateway:
         }
 
     @staticmethod
+    def _split_sentences(text: str) -> list[str]:
+        """Delegator to TTSService._split_sentences for backward compatibility."""
+        from backend.services.tts_service import TTSService
+        return TTSService._split_sentences(text)
+
+    @staticmethod
     def _client_ip(ws: WebSocket) -> str:
         return ws.client.host if ws.client and ws.client.host else "unknown"
 

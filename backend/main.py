@@ -27,7 +27,7 @@ from backend.api.routes.auth_routes import router as auth_router
 from backend.modules.candidate.routes.candidate_routes import router as candidate_router
 from backend.modules.candidate.routes.resume_routes import router as resume_router
 from backend.modules.recruiter.routes.recruiter_routes import router as recruiter_router
-from backend.modules.admin.routes.admin_router import router as admin_router
+from backend.modules.admin.routes.admin_routes import router as admin_router
 from backend.modules.admin.routes.admin_compat_routes import router as admin_compat_router
 from backend.modules.analytics.routes.metrics_routes import router as metrics_router
 from backend.api.routes.system import router as system_router
@@ -106,6 +106,23 @@ def create_app() -> FastAPI:
 
     # --- Routers ---
     app.include_router(system_router, prefix="/api/system") # Grouped system routes
+    
+    # Phase 0: Legacy Compatibility Layer (Redirects/Aliases)
+    @app.get("/health", include_in_schema=False)
+    def legacy_health():
+        from backend.api.routes.system import health
+        return health()
+        
+    @app.get("/ready", include_in_schema=False)
+    async def legacy_ready():
+        from backend.api.routes.system import readiness_check
+        return await readiness_check()
+        
+    @app.get("/metrics", include_in_schema=False)
+    def legacy_metrics():
+        from backend.api.routes.system import get_metrics
+        return get_metrics()
+
     app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
     app.include_router(candidate_router, prefix="/api/candidate", tags=["candidate"])
     app.include_router(resume_router, prefix="/api/resume", tags=["resume"])

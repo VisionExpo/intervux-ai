@@ -26,3 +26,7 @@ class EvaluationService:
         # Placeholder for actual implementation during refactor of evaluator.py
         logger.info(f"Evaluating session {session_data.get('session_id')}")
         return {"status": "success", "score": 0.0, "feedback": "Pending refactor"}
+
+def get_evaluation_service() -> EvaluationService:
+    return EvaluationService()
+
