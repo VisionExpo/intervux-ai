@@ -657,7 +657,7 @@ class TestInterviewPersistenceUnit:
 
     @pytest.mark.asyncio
     async def test_average_scores_scores_capped_at_100(self):
-        from backend.services.interview_persistence import _average_scores
+        from backend.modules.interview.persistence import _average_scores
 
         answers = [
             {"evaluation": {"scores": {"Technical": 10, "Overall": 10}}}
@@ -683,7 +683,7 @@ class TestInterviewPersistenceUnit:
 
     @pytest.mark.asyncio
     async def test_build_transcript_multiple_qa(self):
-        from backend.services.interview_persistence import _build_transcript
+        from backend.modules.interview.persistence import _build_transcript
 
         answers = [
             {"question": "Q one", "answer": "A one"},
@@ -715,7 +715,7 @@ class TestInterviewPersistenceUnit:
     async def test_complete_mock_interview_writes_scores(self, db_session: Session):
         """Full happy path: create a MockInterview row, complete it, verify scores."""
         from backend.models.candidate_portal import CandidateProfile, MockInterview
-        from backend.services.interview_persistence import complete_mock_interview
+        from backend.modules.interview.persistence import complete_mock_interview
 
         # Insert a candidate profile and mock interview
         profile = CandidateProfile(
@@ -807,7 +807,7 @@ class TestInterviewPersistenceUnit:
     async def test_fail_mock_interview_skips_completed_row(self, db_session: Session):
         """fail_mock_interview must not overwrite a row already marked completed."""
         from backend.models.candidate_portal import CandidateProfile, MockInterview
-        from backend.services.interview_persistence import fail_mock_interview
+        from backend.modules.interview.persistence import fail_mock_interview
         from datetime import datetime
 
         profile = CandidateProfile(
