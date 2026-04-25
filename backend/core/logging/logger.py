@@ -2,7 +2,11 @@ import logging
 import os
 import sys
 from logging.handlers import RotatingFileHandler
-from pythonjsonlogger import jsonlogger
+try:
+    from pythonjsonlogger import jsonlogger  # pythonjsonlogger < 3
+except ImportError:
+    from pythonjsonlogger import json as jsonlogger  # pythonjsonlogger >= 3
+
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)

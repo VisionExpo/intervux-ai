@@ -58,10 +58,13 @@ class MetricsSocket:
         Args:
             websocket: The WebSocket connection
         """
+        # Accept first so all close frames go through a proper close handshake.
+        # This prevents Starlette TestClient from seeing a raw disconnect on rejection.
+        await websocket.accept()
+
         # Validate JWT token during handshake
         token = websocket.query_params.get("token")
         if not token:
-            await websocket.accept()
             await websocket.send_json({
                 "type": "error",
                 "code": "UNAUTHORIZED",
@@ -77,7 +80,6 @@ class MetricsSocket:
             websocket.scope.setdefault("state", {})["user"] = user_data
         except Exception as e:
             logger.error(f"Auth failed for metrics: {e}")
-            await websocket.accept()
             await websocket.send_json({
                 "type": "error",
                 "code": "UNAUTHORIZED",
@@ -87,7 +89,6 @@ class MetricsSocket:
             await websocket.close(code=1008)
             return
         
-        await websocket.accept()
         self._connections.add(websocket)
         
         try:
@@ -107,7 +108,7 @@ class MetricsSocket:
             logger.info("Metrics WebSocket task cancelled")
             raise
         except Exception as e:
-            logger.exception("Metrics WebSocket handler failed")
+            logger.exception(f"Metrics WebSocket handler failed: {e!r}")
         finally:
             self._connections.discard(websocket)
     

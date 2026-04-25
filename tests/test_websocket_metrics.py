@@ -46,13 +46,54 @@ def _recv_json(ws) -> dict:
 
 
 # =============================================================================
+# Fixtures
+# =============================================================================
+
+from unittest.mock import patch as _patch, AsyncMock as _AsyncMock
+
+
+@pytest.fixture()
+def patched_metrics_client(db_session):
+    """TestClient with verify_token pre-patched at module level.
+
+    The patch must be applied BEFORE the TestClient is created so that it is
+    visible to the ASGI worker thread which runs the WebSocket handler.
+    Standard `with patch(...)` context managers are not thread-safe across
+    the TestClient's internal threading model.
+    """
+    from backend.core.security.jwt_service import TokenData, Role
+    from backend.infrastructure.database.database import get_db
+
+    mock_user = TokenData(
+        user_id="metrics-fixture-user",
+        email="metrics@test.com",
+        name="Metrics Fixture",
+        role=Role.RECRUITER,
+    )
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    patcher = _patch(
+        "backend.modules.analytics.websocket.metrics_socket.verify_token",
+        new=_AsyncMock(return_value=mock_user),
+    )
+    patcher.start()
+    with TestClient(app, raise_server_exceptions=True) as c:
+        yield c
+    patcher.stop()
+    app.dependency_overrides.clear()
+
+
+# =============================================================================
 # Authentication tests
 # =============================================================================
 
 
 class TestMetricsWebSocketAuth:
-    @pytest.mark.asyncio
-    async def test_connection_rejected_without_token(self, test_client: TestClient):
+    def test_connection_rejected_without_token(self, test_client: TestClient):
         with pytest.raises(WebSocketDisconnect) as excinfo:
             with test_client.websocket_connect("/ws/metrics") as ws:
                 msg = _recv_json(ws)
@@ -60,8 +101,7 @@ class TestMetricsWebSocketAuth:
                 assert msg["code"] == "UNAUTHORIZED"
         assert excinfo.value.code == 1008
 
-    @pytest.mark.asyncio
-    async def test_connection_rejected_with_invalid_token(self, test_client: TestClient):
+    def test_connection_rejected_with_invalid_token(self, test_client: TestClient):
         with pytest.raises(WebSocketDisconnect) as excinfo:
             with test_client.websocket_connect("/ws/metrics?token=garbage_token") as ws:
                 msg = _recv_json(ws)
@@ -69,25 +109,21 @@ class TestMetricsWebSocketAuth:
                 assert msg["code"] == "UNAUTHORIZED"
         assert excinfo.value.code == 1008
 
-    @pytest.mark.asyncio
-    async def test_connection_accepted_with_valid_recruiter_token(self, test_client: TestClient):
-        """Valid token ? first message is a metrics snapshot (not an error)."""
+    def test_connection_accepted_with_valid_recruiter_token(self, patched_metrics_client: TestClient):
+        """Valid token → first message is a metrics snapshot (not an error)."""
         token = _make_token(Role.RECRUITER)
-        with test_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+        with patched_metrics_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
             msg = _recv_json(ws)
-            # Should be a metrics payload, not an error
             assert msg.get("type") != "error"
             assert "timestamp" in msg
 
-    @pytest.mark.asyncio
-    async def test_connection_accepted_with_admin_token(self, test_client: TestClient):
+    def test_connection_accepted_with_admin_token(self, patched_metrics_client: TestClient):
         token = _make_token(Role.ADMIN)
-        with test_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+        with patched_metrics_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
             msg = _recv_json(ws)
             assert "timestamp" in msg
 
-    @pytest.mark.asyncio
-    async def test_missing_token_error_is_recoverable(self, test_client: TestClient):
+    def test_missing_token_error_is_recoverable(self, test_client: TestClient):
         with pytest.raises(WebSocketDisconnect):
             with test_client.websocket_connect("/ws/metrics") as ws:
                 msg = _recv_json(ws)
@@ -100,47 +136,45 @@ class TestMetricsWebSocketAuth:
 
 
 class TestMetricsSnapshotContent:
-    @pytest.mark.asyncio
-    async def test_snapshot_has_timestamp(self, test_client: TestClient):
+    """Tests for metrics snapshot payload content.
+
+    Uses `patched_metrics_client` which patches verify_token at module-level
+    BEFORE creating the TestClient so the mock is visible to the ASGI worker thread.
+    """
+
+    def test_snapshot_has_timestamp(self, patched_metrics_client: TestClient):
         token = _make_token()
-        with test_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+        with patched_metrics_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
             msg = _recv_json(ws)
             assert "timestamp" in msg
-            # Should be a non-empty string
             assert isinstance(msg["timestamp"], str)
             assert len(msg["timestamp"]) > 0
 
-    @pytest.mark.asyncio
-    async def test_snapshot_has_derived_section(self, test_client: TestClient):
+    def test_snapshot_has_derived_section(self, patched_metrics_client: TestClient):
         token = _make_token()
-        with test_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+        with patched_metrics_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
             msg = _recv_json(ws)
             assert "derived" in msg
             assert isinstance(msg["derived"], dict)
 
-    @pytest.mark.asyncio
-    async def test_snapshot_has_request_counter(self, test_client: TestClient):
+    def test_snapshot_has_request_counter(self, patched_metrics_client: TestClient):
         token = _make_token()
-        with test_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+        with patched_metrics_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
             msg = _recv_json(ws)
             assert "request" in msg
 
-    @pytest.mark.asyncio
-    async def test_snapshot_is_json_serializable(self, test_client: TestClient):
+    def test_snapshot_is_json_serializable(self, patched_metrics_client: TestClient):
         token = _make_token()
-        with test_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+        with patched_metrics_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
             msg = _recv_json(ws)
-            # If we got this far the JSON was already parsed;
-            # re-serialise to confirm no exotic types crept in
             re_serialised = json.dumps(msg)
             assert re_serialised is not None
 
-    @pytest.mark.asyncio
-    async def test_snapshot_timestamp_is_iso_format(self, test_client: TestClient):
+    def test_snapshot_timestamp_is_iso_format(self, patched_metrics_client: TestClient):
         from datetime import datetime
 
         token = _make_token()
-        with test_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
+        with patched_metrics_client.websocket_connect(f"/ws/metrics?token={token}") as ws:
             msg = _recv_json(ws)
             # Must parse as ISO datetime without raising
             datetime.fromisoformat(msg["timestamp"])

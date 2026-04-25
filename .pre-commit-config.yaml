@@ -1,0 +1,59 @@
+# .pre-commit-config.yaml
+# Pre-commit hook configuration for Intervux AI.
+#
+# Install hooks:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Run manually:
+#   pre-commit run --all-files
+#
+# Bypass (WIP commits only):
+#   git commit --no-verify -m "WIP: ..."
+
+repos:
+  # ----------------------------------------------------------------
+  # Built-in hooks (no external deps)
+  # ----------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: debug-statements
+
+  # ----------------------------------------------------------------
+  # Ruff: fast Python linter + formatter
+  # ----------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # ----------------------------------------------------------------
+  # Local hooks: architectural enforcement
+  # ----------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: module-boundary-audit
+        name: Module Boundary Audit
+        language: python
+        entry: python scripts/check_module_boundaries.py
+        pass_filenames: false
+        always_run: true
+        description: "Blocks cross-module internal imports (package boundary = module boundary)"
+
+      - id: smoke-tests
+        name: Smoke Tests (Critical Path)
+        language: python
+        entry: python -m pytest -m smoke -q --tb=short -W error
+        pass_filenames: false
+        always_run: false
+        files: ^(backend|tests)/
+        description: "Runs smoke-tagged tests to catch critical regressions"

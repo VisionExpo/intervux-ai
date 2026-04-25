@@ -26,6 +26,10 @@ tts_service = TTSService()
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
+# Protocol version gate — reject any client that sends a different version.
+SUPPORTED_VERSIONS: frozenset = frozenset({"v1"})
+
+
 class InterviewGateway:
     def __init__(self, total_questions: int = 2):
         self.total_questions = total_questions
@@ -224,6 +228,19 @@ class InterviewGateway:
                     await self._send_error(ws, "INVALID_JSON", "Invalid JSON payload.", recoverable=True, session=session)
                     continue
 
+                # Protocol version gate — reject unsupported client versions
+                client_version = data.get("version")
+                if client_version is not None and client_version not in SUPPORTED_VERSIONS:
+                    await self._send_error(
+                        ws,
+                        "UNSUPPORTED_PROTOCOL",
+                        f"Protocol version '{client_version}' is not supported. Supported: {sorted(SUPPORTED_VERSIONS)}",
+                        recoverable=False,
+                        session=session,
+                    )
+                    await self._close_ws(ws, code=1002)
+                    return
+
                 wrapped_message = {"data": data, "text": text}
                 response = await session.handle_message(wrapped_message)
 
@@ -373,7 +390,9 @@ class InterviewGateway:
 
     async def shutdown(self) -> None:
         if getattr(self, "redis", None):
-            await self.redis.close()
+            # redis-py >= 5.0.1 requires aclose(); close() is deprecated.
+            close_fn = getattr(self.redis, "aclose", None) or self.redis.close
+            await close_fn()
         for ws in list(self._connections):
             await self._close_ws(ws, 1001)
         self._connections.clear()
