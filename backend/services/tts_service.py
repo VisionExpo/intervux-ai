@@ -122,6 +122,8 @@ class TTSService:
     @staticmethod
     def _split_sentences(text: str) -> List[str]:
         clean = (text or "").strip()
+        if not clean:
+            return []
         parts = re.split(r"(?<=[.!?])\s+", clean)
         return [part.strip() for part in parts if part.strip()] or [clean]
 

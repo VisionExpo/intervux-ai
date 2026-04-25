@@ -41,6 +41,10 @@ class InterviewGateway:
         self._connections: Set[WebSocket] = set()
         self._active_celery_tasks: Dict[str, Set[Any]] = {}
 
+    async def get_active_sessions_count(self) -> int:
+        """Returns the number of active sessions from the registry."""
+        return await self._registry.count()
+
     def safe_create_task(self, coro, session_id: str = "unknown"):
         """Create a task with an error handler to prevent silent failures."""
         task = asyncio.create_task(coro)
@@ -62,7 +66,7 @@ class InterviewGateway:
             while True:
                 await asyncio.sleep(20)
                 if ws.client_state.name == "CONNECTED":
-                    await self._send_json(ws, {"type": "ping", "message": "heartbeat"}, session=session)
+                    await self._send_json(ws, {"type": "ping", "message": "heartbeat"})
                 else:
                     break
         except Exception:
@@ -104,8 +108,8 @@ class InterviewGateway:
             logger.warning("WS rate limiter unavailable; allowing connection")
             return True
 
-    async def handle(self, ws: WebSocket) -> None:
-        token = ws.query_params.get("token")
+    async def handle(self, ws: WebSocket, token: Optional[str] = None) -> None:
+        token = token or ws.query_params.get("token")
         if not token:
             await ws.accept()
             await self._send_error(ws, "UNAUTHORIZED", "Missing authentication token", recoverable=True)
@@ -201,8 +205,10 @@ class InterviewGateway:
                 if message.get("bytes"):
                     response = await session.handle_message(message)
                     if response:
+                        if response.get("type") == "error":
+                            response["type"] = "ERROR"
                         await self._send_json(ws, response, session=session)
-                        if response.get("type") == "error" and not response.get("recoverable", True):
+                        if response.get("type") == "ERROR" and not response.get("recoverable", True):
                             await self._close_ws(ws, code=1011)
                             return
                     continue
@@ -236,8 +242,10 @@ class InterviewGateway:
                         await self._send_json(ws, {"type": "evaluation", "data": eval_data}, session=session)
                         await self._send_json(ws, final, session=session)
                     else:
+                        if response.get("type") == "error":
+                            response["type"] = "ERROR"
                         await self._send_json(ws, response, session=session)
-                        if response.get("type") == "error" and not response.get("recoverable", True):
+                        if response.get("type") == "ERROR" and not response.get("recoverable", True):
                             await self._close_ws(ws, code=1011)
                             return
 
@@ -339,10 +347,12 @@ class InterviewGateway:
             raise TimeoutError("Timed out sending binary data") from exc
 
     async def _send_error(self, ws: WebSocket, code: str, message: str, recoverable: bool, session: Optional[InterviewSession] = None) -> None:
-        await self._send_json(ws, {"type": "error", "code": code, "message": message, "recoverable": recoverable}, session=session)
+        await self._send_json(ws, {"type": "ERROR", "code": code, "message": message, "recoverable": recoverable}, session=session)
 
     async def _close_ws(self, ws: WebSocket, code: int) -> None:
         try:
+            # Small delay to ensure client reads final messages in test environments
+            await asyncio.sleep(0.05)
             await ws.close(code=code)
         except Exception:
             pass

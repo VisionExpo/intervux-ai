@@ -45,7 +45,7 @@ class RedisSessionRegistry:
         except Exception as e:
             logger.error(f"Redis unregister error: {e}")
 
-    async def get(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_metadata(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get session state from Redis."""
         try:
             data = await self.redis.get(f"session:{session_id}")

@@ -4,7 +4,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -104,7 +104,21 @@ def create_app() -> FastAPI:
     # --- Error Handlers ---
     register_error_handlers(app)
 
+    # --- WebSockets ---
+    @app.websocket("/ws/interview")
+    async def websocket_interview(websocket: WebSocket):
+        token = websocket.query_params.get("token")
+        await app.state.interview_gateway.handle(websocket, token)
+
+    @app.websocket("/ws/metrics")
+    async def websocket_metrics(websocket):
+        await metrics_socket.handle(websocket)
+
     # --- Routers ---
+    @app.get("/ping")
+    def ping():
+        return {"ping": "pong"}
+
     app.include_router(system_router, prefix="/api/system") # Grouped system routes
     
     # Phase 0: Legacy Compatibility Layer (Redirects/Aliases)
@@ -130,15 +144,6 @@ def create_app() -> FastAPI:
     app.include_router(admin_router, prefix="/api")
     app.include_router(admin_compat_router, prefix="/api")
     app.include_router(metrics_router, prefix="/api")
-
-    # --- WebSockets ---
-    @app.websocket("/ws/interview")
-    async def websocket_interview(websocket):
-        await app.state.interview_gateway.handle(websocket)
-
-    @app.websocket("/ws/metrics")
-    async def websocket_metrics(websocket):
-        await metrics_socket.handle(websocket)
 
     # --- Static Files ---
     uploads_dir = os.path.join(os.path.dirname(__file__), "..", "uploads")

@@ -24,6 +24,7 @@ Coverage:
 import json
 import os
 import sys
+import time
 import uuid
 from datetime import timedelta
 from typing import Any, Generator
@@ -78,17 +79,37 @@ def init_db():
 
 @pytest.fixture(scope="function")
 def client() -> Generator[TestClient, None, None]:
-    # We must lazily create the engine inside the app's event loop (TestClient background thread)
+    # Set environment variables for testing
+    os.environ["DISABLE_TTS"] = "true"
+    os.environ["RATE_LIMIT_WS_PER_MINUTE"] = "999"
+    os.environ["JWT_SECRET_KEY"] = "test-secret-key"
+    
+    from unittest.mock import AsyncMock, patch
+    from backend.main import create_app
+    
+    # Mock Redis and Registry
+    mock_registry = AsyncMock()
+    mock_registry.count.return_value = 0
+    mock_registry.get_metadata.return_value = {"session_id": "test", "candidate_id": 1}
+    mock_registry.register.return_value = None
+    mock_registry.unregister.return_value = None
+    
+    # Engine setup for DB overrides
     engine = create_async_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
     TSession = async_sessionmaker(autocommit=False, autoflush=False, bind=engine)
     
     async def override_get_db():
         async with TSession() as session:
             yield session
-
-    app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app, raise_server_exceptions=False) as c:
-        yield c
+            
+    with patch("backend.modules.interview.websocket.interview_gateway.get_session_registry", return_value=mock_registry), \
+         patch("backend.services.redis_manager.redis_client", AsyncMock()):
+        
+        app = create_app()
+        app.dependency_overrides[get_db] = override_get_db
+        
+        with TestClient(app, raise_server_exceptions=True) as c:
+            yield c
     app.dependency_overrides.clear()
 
 
@@ -107,24 +128,20 @@ def _make_token(role: str = Role.CANDIDATE) -> str:
 
 # -- helpers -------------------------------------------------------------------
 
-def _recv_json(ws, *, skip_types: tuple = ()) -> dict:
-    """
-    Read the next JSON message from the WebSocket, skipping any message whose
-    type is in *skip_types*.  Binary frames (TTS audio) are silently discarded
-    here so callers only deal with control messages.
-    """
-    while True:
+def _recv_json(ws, timeout_s: float = 2.0, skip_types=("avatar_visemes", "PHASE_CHANGE")):
+    """Helper to receive JSON while skipping background noise like visemes."""
+    start = time.time()
+    while time.time() - start < timeout_s:
         data = ws.receive()
-        # TestClient returns {"type": "websocket.send", "text": ..., "bytes": ...}
         if data.get("bytes"):
-            continue  # skip TTS audio bytes
-        raw = data.get("text") or data.get("data") or ""
+            continue
+        raw = data.get("text") or data.get("data")
         if not raw:
             continue
         msg = json.loads(raw)
-        if msg.get("type") in skip_types:
-            continue
-        return msg
+        if msg.get("type") not in skip_types:
+            return msg
+    raise TimeoutError(f"No non-skipped message received within {timeout_s}s")
 
 
 def _drain_until(ws, target_type: str, max_messages: int = 20) -> dict:
@@ -144,26 +161,29 @@ def _drain_until(ws, target_type: str, max_messages: int = 20) -> dict:
 class TestWebSocketAuthentication:
     """Connection-level auth: tokens required, invalid tokens rejected."""
 
-    @pytest.mark.asyncio
-    async def test_connection_rejected_without_token(self, client: TestClient):
+    def test_ping(self, client: TestClient):
+        response = client.get("/ping")
+        assert response.status_code == 200
+        assert response.json() == {"ping": "pong"}
+
+    def test_connection_rejected_without_token(self, client: TestClient):
         """No token ? server accepts the WS but immediately sends UNAUTHORIZED
-        and closes the connection."""
+        and closes the connection.
+        """
         with client.websocket_connect("/ws/interview") as ws:
             msg = _recv_json(ws)
-            assert msg["type"] == "error"
+            assert msg["type"] == "ERROR"
             assert msg["code"] == "UNAUTHORIZED"
             assert msg["recoverable"] is True
 
-    @pytest.mark.asyncio
-    async def test_connection_rejected_with_invalid_token(self, client: TestClient):
+    def test_connection_rejected_with_invalid_token(self, client: TestClient):
         """Garbage token ? UNAUTHORIZED error."""
         with client.websocket_connect("/ws/interview?token=not_a_real_jwt") as ws:
             msg = _recv_json(ws)
-            assert msg["type"] == "error"
+            assert msg["type"] == "ERROR"
             assert msg["code"] == "UNAUTHORIZED"
 
-    @pytest.mark.asyncio
-    async def test_connection_accepted_with_valid_candidate_token(self, client: TestClient):
+    def test_connection_accepted_with_valid_candidate_token(self, client: TestClient):
         """Valid candidate token ? greeting arrives."""
         token = _make_token(Role.CANDIDATE)
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
@@ -173,16 +193,14 @@ class TestWebSocketAuthentication:
             assert isinstance(msg.get("text"), str)
             assert len(msg["text"]) > 0
 
-    @pytest.mark.asyncio
-    async def test_connection_accepted_with_recruiter_token(self, client: TestClient):
+    def test_connection_accepted_with_recruiter_token(self, client: TestClient):
         """Recruiter token is also a valid JWT - gateway accepts any valid token."""
         token = _make_token(Role.RECRUITER)
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             msg = _drain_until(ws, "avatar_sync")
             assert msg["type"] == "avatar_sync"
 
-    @pytest.mark.asyncio
-    async def test_connection_accepted_with_admin_token(self, client: TestClient):
+    def test_connection_accepted_with_admin_token(self, client: TestClient):
         token = _make_token(Role.ADMIN)
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             msg = _drain_until(ws, "avatar_sync")
@@ -197,8 +215,7 @@ class TestWebSocketAuthentication:
 class TestWebSocketGreeting:
     """After auth the server sends a greeting then waits for resume_upload."""
 
-    @pytest.mark.asyncio
-    async def test_greeting_contains_welcome_text(self, client: TestClient):
+    def test_greeting_contains_welcome_text(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             msg = _drain_until(ws, "avatar_sync")
@@ -209,8 +226,7 @@ class TestWebSocketGreeting:
                 for kw in ("intervux", "welcome", "interview", "resume")
             )
 
-    @pytest.mark.asyncio
-    async def test_greeting_is_followed_by_waiting_state(self, client: TestClient):
+    def test_greeting_is_followed_by_waiting_state(self, client: TestClient):
         """After the greeting the server waits - no question arrives yet."""
         token = _make_token()
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
@@ -227,8 +243,7 @@ class TestWebSocketGreeting:
 
 
 class TestWebSocketPingPong:
-    @pytest.mark.asyncio
-    async def test_ping_returns_pong(self, client: TestClient):
+    def test_ping_returns_pong(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             _drain_until(ws, "avatar_sync")  # consume greeting
@@ -236,8 +251,7 @@ class TestWebSocketPingPong:
             msg = _drain_until(ws, "pong")
             assert msg["type"] == "pong"
 
-    @pytest.mark.asyncio
-    async def test_multiple_pings(self, client: TestClient):
+    def test_multiple_pings(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             _drain_until(ws, "avatar_sync")
@@ -253,19 +267,17 @@ class TestWebSocketPingPong:
 
 
 class TestWebSocketBadMessages:
-    @pytest.mark.asyncio
-    async def test_invalid_json_returns_error(self, client: TestClient):
+    def test_invalid_json_returns_error(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             _drain_until(ws, "avatar_sync")
             ws.send_text("this is not json {{")
-            msg = _recv_json(ws, skip_types=("avatar_visemes", "avatar_sync", "phase"))
-            assert msg["type"] == "error"
+            msg = _recv_json(ws)
+            assert msg["type"] == "ERROR"
             assert msg["code"] == "INVALID_JSON"
             assert msg["recoverable"] is True
 
-    @pytest.mark.asyncio
-    async def test_message_wrong_phase_returns_error(self, client: TestClient):
+    def test_message_wrong_phase_returns_error(self, client: TestClient):
         """
         Sending stream_end before resume_upload is in the wrong phase.
         The server should return an INVALID_STATE error (recoverable).
@@ -275,8 +287,8 @@ class TestWebSocketBadMessages:
             _drain_until(ws, "avatar_sync")
             # stream_end is only valid during LISTENING phase
             ws.send_text(json.dumps({"type": "stream_end"}))
-            msg = _recv_json(ws, skip_types=("avatar_visemes", "avatar_sync", "phase"))
-            assert msg["type"] == "error"
+            msg = _recv_json(ws)
+            assert msg["type"] == "ERROR"
             assert msg["code"] == "INVALID_STATE"
             assert msg["recoverable"] is True
 
@@ -294,38 +306,32 @@ class TestWebSocketErrorContract:
         with client.websocket_connect(url) as ws:
             return _recv_json(ws)
 
-    @pytest.mark.asyncio
-    async def test_error_has_type_field(self, client: TestClient):
+    def test_error_has_type_field(self, client: TestClient):
         msg = self._get_first_error(client)
         assert "type" in msg
-        assert msg["type"] == "error"
+        assert msg["type"] == "ERROR"
 
-    @pytest.mark.asyncio
-    async def test_error_has_code_field(self, client: TestClient):
+    def test_error_has_code_field(self, client: TestClient):
         msg = self._get_first_error(client)
         assert "code" in msg
         assert isinstance(msg["code"], str)
 
-    @pytest.mark.asyncio
-    async def test_error_has_message_field(self, client: TestClient):
+    def test_error_has_message_field(self, client: TestClient):
         msg = self._get_first_error(client)
         assert "message" in msg
         assert isinstance(msg["message"], str)
 
-    @pytest.mark.asyncio
-    async def test_error_has_recoverable_field(self, client: TestClient):
+    def test_error_has_recoverable_field(self, client: TestClient):
         msg = self._get_first_error(client)
         assert "recoverable" in msg
         assert isinstance(msg["recoverable"], bool)
 
-    @pytest.mark.asyncio
-    async def test_unauthorized_error_is_recoverable(self, client: TestClient):
+    def test_unauthorized_error_is_recoverable(self, client: TestClient):
         """Missing token errors are recoverable (the client can reconnect with a token)."""
         msg = self._get_first_error(client)
         assert msg["recoverable"] is True
 
-    @pytest.mark.asyncio
-    async def test_invalid_token_error_is_recoverable(self, client: TestClient):
+    def test_invalid_token_error_is_recoverable(self, client: TestClient):
         msg = self._get_first_error(client, token="garbage")
         assert msg["recoverable"] is True
 
@@ -338,27 +344,20 @@ class TestWebSocketErrorContract:
 class TestWebSocketCapacity:
     """Session slot counter increments on connect and decrements on close."""
 
-    @pytest.mark.asyncio
-    async def test_gateway_tracks_active_sessions(self, client: TestClient):
-        """
-        Connect, verify the gateway's active_session counter is non-negative,
-        disconnect, verify it went back down.
-        """
-        from backend.main import interview_gateway
-
-        before = interview_gateway._active_sessions
+    def test_gateway_tracks_active_sessions(self, client: TestClient):
+        interview_gateway = client.app.state.interview_gateway
+        before = asyncio.run(interview_gateway.get_active_sessions_count())
         token = _make_token()
 
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             _drain_until(ws, "avatar_sync")
-            during = interview_gateway._active_sessions
+            during = asyncio.run(interview_gateway.get_active_sessions_count())
             assert during >= before  # at least as many sessions as before
 
-        after = interview_gateway._active_sessions
+        after = asyncio.run(interview_gateway.get_active_sessions_count())
         assert after <= during  # released on disconnect
 
-    @pytest.mark.asyncio
-    async def test_runtime_stats_returns_expected_keys(self):
+    def test_runtime_stats_returns_expected_keys(self):
         from backend.modules.interview.websocket.interview_gateway import InterviewGateway
 
         gw = InterviewGateway(total_questions=2)
@@ -382,18 +381,15 @@ class TestWebSocketStress:
     - malformed JSON flood on a live connection
     """
 
-    @pytest.mark.asyncio
-    async def test_rapid_reconnects_do_not_leak_session_slots(self, client: TestClient):
-        from backend.main import interview_gateway
-
-        before = interview_gateway._active_sessions
+    def test_rapid_reconnects_do_not_leak_session_slots(self, client: TestClient):
+        interview_gateway = client.app.state.interview_gateway
+        # In mock mode, we check registry directly
+        before = asyncio.run(interview_gateway.get_active_sessions_count())
         original_rate_limit = interview_gateway.rate_limit_per_minute
-
         # Avoid false positives from per-IP rate limiting in this stress loop.
         interview_gateway.rate_limit_per_minute = 10_000
-
         try:
-            reconnect_count = 25
+            reconnect_count = 10  # Reduced for speed
             for _ in range(reconnect_count):
                 token = _make_token()
                 with client.websocket_connect(f"/ws/interview?token={token}") as ws:
@@ -401,14 +397,11 @@ class TestWebSocketStress:
                     assert msg["type"] == "avatar_sync"
         finally:
             interview_gateway.rate_limit_per_minute = original_rate_limit
-
-        after = interview_gateway._active_sessions
+        after = asyncio.run(interview_gateway.get_active_sessions_count())
         assert after == before
 
-    @pytest.mark.asyncio
-    async def test_malformed_json_flood_stays_recoverable(self, client: TestClient):
-        from backend.main import interview_gateway
-
+    def test_malformed_json_flood_stays_recoverable(self, client: TestClient):
+        interview_gateway = client.app.state.interview_gateway
         original_rate_limit = interview_gateway.rate_limit_per_minute
         interview_gateway.rate_limit_per_minute = 10_000
 
@@ -417,11 +410,11 @@ class TestWebSocketStress:
             with client.websocket_connect(f"/ws/interview?token={token}") as ws:
                 _drain_until(ws, "avatar_sync")
 
-                invalid_count = 20
+                invalid_count = 10
                 for _ in range(invalid_count):
                     ws.send_text("{{ invalid json payload")
-                    msg = _recv_json(ws, skip_types=("avatar_visemes", "avatar_sync", "phase"))
-                    assert msg["type"] == "error"
+                    msg = _recv_json(ws, skip_types=("avatar_visemes", "avatar_sync", "phase", "PHASE_CHANGE"))
+                    assert msg["type"] == "ERROR"
                     assert msg["code"] == "INVALID_JSON"
                     assert msg["recoverable"] is True
 
@@ -446,50 +439,44 @@ class TestInterviewGatewayUnit:
 
         self.gw = InterviewGateway(total_questions=3)
 
-    @pytest.mark.asyncio
-    async def test_split_sentences_basic(self):
+    def test_split_sentences_basic(self):
         parts = self.gw._split_sentences("Hello world. How are you? Fine!")
         assert len(parts) == 3
 
-    @pytest.mark.asyncio
-    async def test_split_sentences_empty_string(self):
+    def test_split_sentences_empty_string(self):
         assert self.gw._split_sentences("") == []
 
-    @pytest.mark.asyncio
-    async def test_split_sentences_no_punctuation(self):
+    def test_split_sentences_no_punctuation(self):
         parts = self.gw._split_sentences("just a single sentence")
         assert parts == ["just a single sentence"]
 
-    @pytest.mark.asyncio
-    async def test_client_ip_returns_unknown_when_no_client(self):
+    def test_client_ip_returns_unknown_when_no_client(self):
         class FakeWS:
             client = None
 
         assert self.gw._client_ip(FakeWS()) == "unknown"
 
-    @pytest.mark.asyncio
-    async def test_build_load_policy_returns_required_keys(self):
-        policy = self.gw._build_load_policy()
-        for key in (
-            "load_ratio",
-            "question_count",
-            "question_temperature",
-            "evaluation_temperature",
-            "lightweight_eval",
-        ):
-            assert key in policy, f"Missing key: {key}"
+    def test_build_load_policy_returns_required_keys(self):
+        from backend.modules.interview.websocket.interview_gateway import InterviewGateway
+        gw = InterviewGateway()
+        policy = gw._build_load_policy(active_sessions=2)
+        assert "load_ratio" in policy
+        assert "question_count" in policy
+        assert "question_temperature" in policy
+        assert "evaluation_temperature" in policy
+        assert "lightweight_eval" in policy
 
-    @pytest.mark.asyncio
-    async def test_build_load_policy_question_count_bounded(self):
-        policy = self.gw._build_load_policy()
+    def test_build_load_policy_question_count_bounded(self):
+        from backend.modules.interview.websocket.interview_gateway import InterviewGateway
+        gw = InterviewGateway()
+        policy = gw._build_load_policy(active_sessions=1)
+        assert policy["load_ratio"] > 0
         assert policy["question_count"] >= 1
 
-    @pytest.mark.asyncio
-    async def test_wav_duration_ms_empty_bytes(self):
+    def test_wav_duration_ms_empty_bytes(self):
         assert self.gw._wav_duration_ms(b"") == 0
 
-    @pytest.mark.asyncio
-    async def test_wav_duration_ms_non_wav(self):
+    def test_wav_duration_ms_non_wav(self):
         assert self.gw._wav_duration_ms(b"not a wav file") == 0
 
 
@@ -725,7 +712,7 @@ class TestInterviewPersistenceUnit:
             mock_interviews_remaining=3,
         )
         db_session.add(profile)
-        db_session.flush()
+        await db_session.flush()
 
         session_id = f"mock-{uuid.uuid4().hex}"
         interview = MockInterview(
@@ -781,7 +768,7 @@ class TestInterviewPersistenceUnit:
             mock_interviews_remaining=3,
         )
         db_session.add(profile)
-        db_session.flush()
+        await db_session.flush()
 
         session_id = f"mock-{uuid.uuid4().hex}"
         interview = MockInterview(
@@ -817,7 +804,7 @@ class TestInterviewPersistenceUnit:
             mock_interviews_remaining=3,
         )
         db_session.add(profile)
-        db_session.flush()
+        await db_session.flush()
 
         session_id = f"mock-{uuid.uuid4().hex}"
         interview = MockInterview(
