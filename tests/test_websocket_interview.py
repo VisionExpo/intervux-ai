@@ -248,6 +248,7 @@ class TestWebSocketGreeting:
 # =============================================================================
 
 
+@pytest.mark.websocket
 class TestWebSocketPingPong:
     def test_ping_returns_pong(self, client: TestClient):
         token = _make_token()
@@ -272,6 +273,7 @@ class TestWebSocketPingPong:
 # =============================================================================
 
 
+@pytest.mark.websocket
 class TestWebSocketBadMessages:
     def test_invalid_json_returns_error(self, client: TestClient):
         token = _make_token()
@@ -348,6 +350,7 @@ class TestWebSocketErrorContract:
 # =============================================================================
 
 
+@pytest.mark.websocket
 class TestWebSocketCapacity:
     """Session slot counter increments on connect and decrements on close."""
 
@@ -381,6 +384,8 @@ class TestWebSocketCapacity:
 # =============================================================================
 
 
+@pytest.mark.websocket
+@pytest.mark.slow
 class TestWebSocketStress:
     """
     Lightweight stress tests designed to be CI-safe:
@@ -553,7 +558,7 @@ class TestInterviewSessionUnit:
 
     @pytest.mark.asyncio
     async def test_phase_starts_at_connecting(self):
-        from backend.models.interview import InterviewPhase
+        from backend.modules.interview.models import InterviewPhase
 
         session = self._make_session()
         assert session.phase == InterviewPhase.CONNECTING
@@ -578,7 +583,7 @@ class TestInterviewPersistenceUnit:
 
     @pytest.mark.asyncio
     async def test_average_scores_empty_answers(self):
-        from backend.services.interview_persistence import _average_scores
+        from backend.modules.interview.persistence import _average_scores
 
         result = _average_scores([])
         assert result["overall"] == 0.0
@@ -589,7 +594,7 @@ class TestInterviewPersistenceUnit:
     @pytest.mark.asyncio
     async def test_average_scores_dual_eval_keys(self):
         """Dual evaluator uses Technical / Behavioral / Reasoning keys."""
-        from backend.services.interview_persistence import _average_scores
+        from backend.modules.interview.persistence import _average_scores
 
         answers = [
             {
@@ -623,7 +628,7 @@ class TestInterviewPersistenceUnit:
     @pytest.mark.asyncio
     async def test_average_scores_multipass_keys(self):
         """Multipass evaluator uses Technical Accuracy / Clarity keys."""
-        from backend.services.interview_persistence import _average_scores
+        from backend.modules.interview.persistence import _average_scores
 
         answers = [
             {
@@ -644,7 +649,7 @@ class TestInterviewPersistenceUnit:
 
     @pytest.mark.asyncio
     async def test_average_scores_missing_evaluation(self):
-        from backend.services.interview_persistence import _average_scores
+        from backend.modules.interview.persistence import _average_scores
 
         answers = [{"answer": "some text"}]  # no 'evaluation' key
         result = _average_scores(answers)
@@ -663,13 +668,13 @@ class TestInterviewPersistenceUnit:
 
     @pytest.mark.asyncio
     async def test_build_transcript_empty(self):
-        from backend.services.interview_persistence import _build_transcript
+        from backend.modules.interview.persistence import _build_transcript
 
         assert _build_transcript([]) == ""
 
     @pytest.mark.asyncio
     async def test_build_transcript_single_qa(self):
-        from backend.services.interview_persistence import _build_transcript
+        from backend.modules.interview.persistence import _build_transcript
 
         answers = [{"question": "What is Python?", "answer": "A language."}]
         transcript = _build_transcript(answers)
@@ -693,7 +698,7 @@ class TestInterviewPersistenceUnit:
     @pytest.mark.asyncio
     async def test_fail_mock_interview_missing_session(self, db_session: Session):
         """Calling fail_mock_interview with a non-existent session_id returns False."""
-        from backend.services.interview_persistence import fail_mock_interview
+        from backend.modules.interview.persistence import fail_mock_interview
 
         result = await fail_mock_interview("does-not-exist-123")
         assert result is False
@@ -701,7 +706,7 @@ class TestInterviewPersistenceUnit:
     @pytest.mark.asyncio
     async def test_complete_mock_interview_missing_session(self, db_session: Session):
         """Calling complete_mock_interview with a non-existent session_id returns False."""
-        from backend.services.interview_persistence import complete_mock_interview
+        from backend.modules.interview.persistence import complete_mock_interview
 
         result = await complete_mock_interview("does-not-exist-456", {}, [])
         assert result is False
@@ -767,7 +772,7 @@ class TestInterviewPersistenceUnit:
     @pytest.mark.asyncio
     async def test_fail_mock_interview_marks_abandoned(self, db_session: Session):
         from backend.models.candidate_portal import CandidateProfile, MockInterview
-        from backend.services.interview_persistence import fail_mock_interview
+        from backend.modules.interview.persistence import fail_mock_interview
 
         profile = CandidateProfile(
             user_id="test-fail-user",
