@@ -28,6 +28,13 @@ from backend.core.security.jwt_service import verify_token, TokenData
 
 logger = get_logger(__name__)
 
+# Production configuration
+MAX_CONNECTIONS = 1000
+SUPPORTED_VERSIONS = {"v1"}
+BROADCAST_INTERVAL = 0.5
+# Double-clamped timeout: min 0.1s, max 2.0s
+WS_SEND_TIMEOUT = max(0.1, min(float(os.getenv("WS_SEND_TIMEOUT", 1.0)), 2.0))
+
 
 class MetricsSocket:
     """
@@ -64,6 +71,24 @@ class MetricsSocket:
         # This prevents Starlette TestClient from seeing a raw disconnect on rejection.
         await websocket.accept()
 
+        # Validate version during handshake
+        version = websocket.query_params.get("version", "v1")
+        if version not in SUPPORTED_VERSIONS:
+            logger.warning(f"Metrics WS rejected: unsupported version {version}")
+            await websocket.close(code=1008)
+            return
+
+        # Atomic connection limit check
+        async with self._lock:
+            if len(self._connections) >= MAX_CONNECTIONS:
+                logger.warning(
+                    "Metrics WS rejected: capacity reached",
+                    extra={"current_connections": len(self._connections)}
+                )
+                await websocket.close(code=1008)
+                return
+            self._connections.add(websocket)
+
         # Validate JWT token during handshake
         token = websocket.query_params.get("token")
         if not token:
@@ -73,6 +98,7 @@ class MetricsSocket:
                 "message": "Missing authentication token",
                 "recoverable": True,
             })
+            await asyncio.sleep(0)  # Yield control
             await websocket.close(code=1008)
             return
         
@@ -94,11 +120,9 @@ class MetricsSocket:
                 "message": "Invalid authentication token",
                 "recoverable": True,
             })
+            await asyncio.sleep(0)  # Yield control
             await websocket.close(code=1008)
             return
-        
-        async with self._lock:
-            self._connections.add(websocket)
         
         try:
             # Keep connection open until client disconnects or server shuts down
@@ -153,10 +177,10 @@ class MetricsSocket:
         Returns True if successful, False if connection is dead.
         """
         try:
-            await asyncio.wait_for(websocket.send_json(data), timeout=1.0)
+            await asyncio.wait_for(websocket.send_json(data), timeout=WS_SEND_TIMEOUT)
             return True
         except (WebSocketDisconnect, asyncio.TimeoutError, Exception) as e:
-            logger.warning(f"Metrics broadcast failed for one client: {e}")
+            # Note: We don't log here to avoid log spam in broadast loops
             return False
     
     def _get_metrics_snapshot(self) -> Dict[str, Any]:
@@ -228,19 +252,39 @@ def get_latest_metrics() -> Dict[str, Any]:
 async def start_metrics_broadcast():
     """Start broadcasting metrics to connected clients."""
     metrics_socket._running = True
+    loop = asyncio.get_event_loop()
+    start_time = loop.time()
     
-    try:
-        while metrics_socket._running:
+    while metrics_socket._running:
+        try:
+            cycle_start = loop.time()
             snapshot = metrics_socket._get_metrics_snapshot()
+            
+            # Broadcast is lock-safe and collects dead connections internally
             await metrics_socket.broadcast(snapshot)
-            await asyncio.sleep(metrics_socket.broadcast_interval)
-    except asyncio.CancelledError:
-        logger.info("Metrics broadcast task cancelled")
-        raise
-    except Exception:
-        logger.exception("Metrics broadcast loop failed")
-    finally:
-        metrics_socket._running = False
+            
+            # Observability: Log cycle metrics
+            duration_ms = int((loop.time() - cycle_start) * 1000)
+            async with metrics_socket._lock:
+                current_conns = len(metrics_socket._connections)
+            
+            logger.debug(
+                "metrics_broadcast_cycle",
+                extra={
+                    "duration_ms": duration_ms,
+                    "connections": current_conns,
+                }
+            )
+        except asyncio.CancelledError:
+            logger.info("Metrics broadcast task cancelled")
+            raise
+        except Exception:
+            logger.exception("Metrics broadcast loop failure")
+        
+        # Drift-free scheduling with overrun safety
+        elapsed = loop.time() - start_time
+        sleep_time = max(0, BROADCAST_INTERVAL - (elapsed % BROADCAST_INTERVAL))
+        await asyncio.sleep(sleep_time)
 
 
 async def stop_metrics_broadcast():
