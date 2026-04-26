@@ -52,17 +52,28 @@ class ResumeParser:
         
         print(f"[INFO] Uploading resume to Gemini: {file_path}")
 
-        uploaded_file = client.files.upload(path=file_path)
-
         try:
+            # Check if file exists and has size
+            if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+                logger.error(f"File {file_path} is missing or empty")
+                return {}
+
+            uploaded_file = client.files.upload(path=file_path)
             prompt = self.prompt_manager.get("resume_parser")
 
             print("[INFO] Analyzing resume...")
             response = client.models.generate_content(
                 model=self.model_name,
-                contents=[prompt, uploaded_file],
+                contents=[
+                    prompt, 
+                    {"file_data": {"file_uri": uploaded_file.uri, "mime_type": uploaded_file.mime_type}}
+                ],
                 config={"response_mime_type": "application/json"}
             )
+
+            if not response or not response.text:
+                logger.warning("Gemini returned empty response")
+                return {}
 
             return json.loads(response.text)
 
@@ -72,14 +83,16 @@ class ResumeParser:
 
         except Exception as e:
             print(f"[ERROR] Resume parsing failed: {e}")
+            logger.exception("Resume parsing failed with exception")
             return {}
 
         finally:
             # Cleanup uploaded artifact
-            try:
-                client.files.delete(name=uploaded_file.name)
-            except Exception:
-                logger.warning("Failed to delete uploaded Gemini file artifact", exc_info=True)
+            if 'uploaded_file' in locals():
+                try:
+                    client.files.delete(name=uploaded_file.name)
+                except Exception:
+                    logger.warning("Failed to delete uploaded Gemini file artifact")
 
 
 def parse_resume(file: UploadFile) -> Tuple[str, dict]:
@@ -91,7 +104,8 @@ def parse_resume(file: UploadFile) -> Tuple[str, dict]:
 
     # Save UploadFile to a temporary file to get a path
     with tempfile.NamedTemporaryFile(delete=False, suffix=file.filename) as tmp:
-        tmp.write(file.file.read())
+        content = file.file.read()
+        tmp.write(content)
         file_path = tmp.name
 
     try:
@@ -110,9 +124,17 @@ def parse_resume_bytes(file_name: str, file_bytes_b64: str) -> Tuple[str, dict]:
     Parse a base64-encoded resume payload from WebSocket transport.
     """
     parser = ResumeParser()
-    decoded = base64.b64decode(file_bytes_b64)
+    try:
+        decoded = base64.b64decode(file_bytes_b64)
+    except Exception as e:
+        logger.error(f"Failed to decode base64 resume: {e}")
+        return "", {}
 
-    suffix = os.path.splitext(file_name)[1] if file_name else ""
+    suffix = os.path.splitext(file_name)[1] if file_name else ".pdf"
+    # Ensure suffix starts with dot
+    if suffix and not suffix.startswith('.'):
+        suffix = '.' + suffix
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(decoded)
         file_path = tmp.name

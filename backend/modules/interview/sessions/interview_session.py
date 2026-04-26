@@ -95,6 +95,9 @@ class InterviewSession:
         # Monotonic sequence counter for backend -> frontend messages
         self._next_seq: int = 1
         self._dirty: bool = False
+        
+        # Background task tracking for cleanup
+        self.tasks: Set[asyncio.Task] = set()
 
     def get_next_seq(self) -> int:
         """Increment and return the next sequence ID."""
@@ -202,9 +205,17 @@ class InterviewSession:
         # Cancel any pending tasks
         if self._early_eval_task and not self._early_eval_task.done():
             self._early_eval_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._early_eval_task
             self._early_eval_task = None
+            
+        for task in list(self.tasks):
+            if not task.done():
+                task.cancel()
+        
+        if self.tasks:
+            # Wait briefly for tasks to acknowledge cancellation
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.gather(*self.tasks, return_exceptions=True)
+            self.tasks.clear()
 
         # Mark abandoned if we have a DB row and didn't complete normally OR crash
         if self.mock_interview_session_id and not self._completed_normally:

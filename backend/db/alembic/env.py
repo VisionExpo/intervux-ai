@@ -8,10 +8,13 @@ from alembic import context
 # Import your models' Base
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
+
 
 from backend.infrastructure.database.database import Base
 from backend.infrastructure.database.database import User, RevokedToken, APIKey, LLMMetrics, Experiment
+from backend.models.recruiter_dashboard_models import JobPost, Candidate, Interview
+
 
 # this is the Alembic Config object
 config = context.config

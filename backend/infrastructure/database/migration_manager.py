@@ -106,9 +106,9 @@ async def run_migrations():
 
     # Handle Schema Drift (Alembic exists but schema is mismatched)
     if has_alembic and not schema_validated:
-        logger.error("CRITICAL: Schema drift detected. Database structure does not match expectations.")
-        logger.error("Manual intervention required to verify migrations or update SCHEMA_SIGNATURE.")
-        sys.exit(EXIT_DRIFT)
+        current_rev = await get_current_revision()
+        logger.warning(f"Schema mismatch detected at revision {current_rev}. Attempting upgrade head...")
+        # We don't exit here, we allow 'upgrade head' to try and fix it
 
     if not has_alembic and is_populated:
         if auto_stamp:

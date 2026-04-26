@@ -10,6 +10,7 @@ import redis.asyncio as aioredis
 from typing import Any, Dict, Optional, Set
 
 from fastapi import WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 
 from backend.core.security.jwt_service import TokenData, verify_token
 from backend.modules.interview.models import InterviewPhase
@@ -49,9 +50,14 @@ class InterviewGateway:
         """Returns the number of active sessions from the registry."""
         return await self._registry.count()
 
-    def safe_create_task(self, coro, session_id: str = "unknown"):
-        """Create a task with an error handler to prevent silent failures."""
+    def safe_create_task(self, coro, session: Optional[InterviewSession] = None):
+        """Create a task with an error handler and optional session tracking."""
         task = asyncio.create_task(coro)
+        
+        if session:
+            session.tasks.add(task)
+            # Remove from set when done
+            task.add_done_callback(lambda t: session.tasks.discard(t) if session else None)
         
         def handle_done(t):
             try:
@@ -59,7 +65,8 @@ class InterviewGateway:
             except asyncio.CancelledError:
                 pass  # expected during shutdown
             except Exception as e:
-                logger.error(f"Background task failed for session {session_id}: {e}")
+                s_id = session.session_id if session else "unknown"
+                logger.error(f"Background task failed for session {s_id}: {e}")
         
         task.add_done_callback(handle_done)
         return task
@@ -69,7 +76,7 @@ class InterviewGateway:
         try:
             while True:
                 await asyncio.sleep(20)
-                if ws.client_state.name == "CONNECTED":
+                if ws.application_state == WebSocketState.CONNECTED:
                     await self._send_json(ws, {"type": "ping", "message": "heartbeat"})
                 else:
                     break
@@ -171,7 +178,7 @@ class InterviewGateway:
                     "seq": seq,
                     "session_id": session_id
                 }),
-                session_id=session_id
+                session=session
             )
         
         session.broadcast_callback = broadcast_phase_change
@@ -186,8 +193,8 @@ class InterviewGateway:
         self._connections.add(ws)
         self._active_celery_tasks[session_id] = set()
         
-        ping_task = self.safe_create_task(self._ping_loop(ws, session_id), session_id)
-        pubsub_task = self.safe_create_task(self._pubsub_listener(ws, session_id, session), session_id)
+        ping_task = self.safe_create_task(self._ping_loop(ws, session_id), session=session)
+        pubsub_task = self.safe_create_task(self._pubsub_listener(ws, session_id, session), session=session)
 
         # Attempt to hydrate state immediately for resumption logic
         is_resumed = await session.hydrate()
@@ -363,7 +370,11 @@ class InterviewGateway:
         return message
 
     async def _send_json(self, ws: WebSocket, payload: Dict[str, Any], session: Optional[InterviewSession] = None) -> None:
-        """Tag payload with sequence ID if session is provided and send."""
+        """Tag payload with sequence ID if session is provided and send with Starlette-safe state check."""
+        # Fast exit if already disconnected or closing
+        if ws.application_state != WebSocketState.CONNECTED:
+            return
+
         if session and "seq" not in payload:
             payload["seq"] = session.state.get_next_seq()
         
@@ -373,21 +384,42 @@ class InterviewGateway:
         
         try:
             await asyncio.wait_for(ws.send_json(payload), timeout=self.send_timeout_s)
+        except (RuntimeError, WebSocketDisconnect):
+            # Already closed or closing; ignore
+            logger.debug("Skipping _send_json: Connection closed during send")
         except asyncio.TimeoutError as exc:
-            raise TimeoutError("Timed out sending JSON response") from exc
+            # We log but don't crash the loop
+            logger.warning("WebSocket send_json timed out", extra={"extra_data": {"timeout": self.send_timeout_s}})
+        except Exception:
+            logger.exception("Failed to send JSON via WebSocket")
 
     async def _broadcast_phase(self, ws: WebSocket, session: InterviewSession, phase: InterviewPhase) -> None:
         """Helper to broadcast phase change to frontend."""
         await self._send_json(ws, {"type": "PHASE_CHANGE", "phase": phase.value}, session=session)
 
     async def _send_bytes(self, ws: WebSocket, data: bytes) -> None:
+        """Send raw bytes with Starlette-safe state check."""
+        if ws.application_state != WebSocketState.CONNECTED:
+            return
+
         try:
             await asyncio.wait_for(ws.send_bytes(data), timeout=self.send_timeout_s)
+        except (RuntimeError, WebSocketDisconnect):
+            pass
         except asyncio.TimeoutError as exc:
-            raise TimeoutError("Timed out sending binary data") from exc
+            logger.warning("WebSocket send_bytes timed out")
+        except Exception:
+            logger.exception("Failed to send bytes via WebSocket")
 
     async def _send_error(self, ws: WebSocket, code: str, message: str, recoverable: bool, session: Optional[InterviewSession] = None) -> None:
-        await self._send_json(ws, {"type": "ERROR", "code": code, "message": message, "recoverable": recoverable}, session=session)
+        """Send an error message to the client with Starlette-safe state check."""
+        if ws.application_state != WebSocketState.CONNECTED:
+            return
+
+        try:
+            await self._send_json(ws, {"type": "ERROR", "code": code, "message": message, "recoverable": recoverable}, session=session)
+        except Exception:
+            logger.debug("Failed to send error message (likely disconnected)")
 
     async def _close_ws(self, ws: WebSocket, code: int) -> None:
         try:
