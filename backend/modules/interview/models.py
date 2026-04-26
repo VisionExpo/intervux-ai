@@ -181,6 +181,22 @@ class InterviewState:
         """Check if current phase can handle this message."""
         return self._phase.can_receive(message_type)
 
+    def __getstate__(self):
+        """Return state for pickling, excluding non-serializable callbacks."""
+        if self._on_phase_change_callbacks:
+            logger.debug("Dropping runtime callbacks during serialization")
+        state = self.__dict__.copy()
+        # Drop callbacks which contain closures (WebSockets/Gateways)
+        state["_on_phase_change_callbacks"] = []
+        return state
+
+    def __setstate__(self, state):
+        """Restore state from pickle."""
+        self.__dict__.update(state)
+        # Re-initialize the list to avoid None or missing key issues
+        if "_on_phase_change_callbacks" not in self.__dict__:
+            self._on_phase_change_callbacks = []
+
 
 # =========================================================
 # v2+ MODELS (PLANNED — NOT USED IN v1.0)
