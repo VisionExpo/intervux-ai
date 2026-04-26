@@ -187,7 +187,7 @@ async def update_candidate_profile(
             profile.linkedin_url = profile_update.linkedin_url
 
         profile.profile_score = calculate_profile_score(profile)
-        profile.updated_at = datetime.now(timezone.utc)
+        profile.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         await db.commit()
         await db.refresh(profile)
@@ -294,7 +294,7 @@ async def upload_resume(
         profile.resume_score = resume_score
         profile.skills = json.dumps(parsed.skills)
         profile.profile_score = calculate_profile_score(profile)
-        profile.updated_at = datetime.now(timezone.utc)
+        profile.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         await db.commit()
 

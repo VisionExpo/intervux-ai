@@ -69,8 +69,8 @@ class User(Base):
     name = Column(String(255), nullable=False)
     role = Column(String(50), nullable=False, default="recruiter")
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 # =========================================================
@@ -83,7 +83,7 @@ class RevokedToken(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     jti = Column(String(255), unique=True, nullable=False, index=True)
     token_type = Column(String(20), nullable=False, default="access")  # "access" or "refresh"
-    revoked_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    revoked_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     expires_at = Column(DateTime, nullable=False)  # When the original token expires
 
 
@@ -100,7 +100,7 @@ class APIKey(Base):
     user_id = Column(Integer, nullable=False)
     role = Column(String(50), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     expires_at = Column(DateTime, nullable=False)
 
 
@@ -121,7 +121,7 @@ class LLMMetrics(Base):
     hallucination_score = Column(Float, nullable=True)
     reasoning_score = Column(Float, nullable=True)
     consistency_score = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
 
 
 # =========================================================
@@ -137,4 +137,4 @@ class Experiment(Base):
     prompt_template = Column(String, nullable=True)
     accuracy = Column(Float, nullable=True)
     latency_ms = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)

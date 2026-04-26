@@ -128,7 +128,7 @@ async def complete_mock_interview(
             avg = _average_scores(answers)
 
             interview.status = "completed"
-            interview.completed_at = datetime.now(timezone.utc)
+            interview.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
             interview.score = avg["overall"]
             interview.technical_score = avg["technical"]
             interview.communication_score = avg["behavioral"]
@@ -217,7 +217,7 @@ async def fail_mock_interview(session_id: str, reason: str = "error") -> bool:
                 return False
 
             interview.status = "abandoned"
-            interview.completed_at = datetime.now(timezone.utc)
+            interview.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await db.commit()
 
             logger.info(

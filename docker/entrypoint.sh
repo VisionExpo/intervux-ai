@@ -44,13 +44,26 @@ done
 echo "[entrypoint] Database is ready."
 
 RUN_DB_MIGRATIONS="${RUN_DB_MIGRATIONS:-true}"
-if [ "$RUN_DB_MIGRATIONS" = "true" ] && ([ -d "alembic" ] || [ -d "backend/alembic" ]); then
+if [ "$RUN_DB_MIGRATIONS" = "true" ] && ([ -d "alembic" ] || [ -d "backend/alembic" ] || [ -d "backend/db/alembic" ]); then
     echo "[entrypoint] Running Alembic migrations..."
     alembic upgrade head
 elif [ "$RUN_DB_MIGRATIONS" != "true" ]; then
     echo "[entrypoint] Skipping Alembic migrations (RUN_DB_MIGRATIONS=$RUN_DB_MIGRATIONS)."
 else
     echo "[entrypoint] No alembic folder found. Skipping migrations."
+fi
+
+# -----------------------------------------------------------------------------
+# Log Rotation Permission Fix
+# -----------------------------------------------------------------------------
+# If logs dir is a bind mount from host, it might be owned by root.
+# We need to ensure the container user can rename files inside it (rotation).
+if [ -d "/app/logs" ]; then
+    echo "[entrypoint] Ensuring /app/logs is writable for rotation..."
+    # We can't chown if we are already 'appuser', but we can check if it's writable
+    if [ ! -w "/app/logs" ]; then
+        echo "[entrypoint] WARNING: /app/logs is NOT writable. Log rotation will fail."
+    fi
 fi
 
 echo "[entrypoint] Migrations complete. Starting application..."

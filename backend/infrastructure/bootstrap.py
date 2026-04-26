@@ -27,7 +27,7 @@ async def run_migrations() -> None:
 
     # Check for alembic folder in various common locations
     project_root = Path(__file__).resolve().parents[2]
-    alembic_path = project_root / "alembic"
+    alembic_path = project_root / "backend" / "db" / "alembic"
     
     if not alembic_path.exists():
         logger.info(f"No alembic folder found at {alembic_path}. Falling back to create_all.")

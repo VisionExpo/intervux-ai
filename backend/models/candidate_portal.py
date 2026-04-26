@@ -31,8 +31,8 @@ class CandidateProfile(Base):
     github_url = Column(String, nullable=True)
     linkedin_url = Column(String, nullable=True)
     mock_interviews_remaining = Column(Integer, nullable=False, default=3)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class MockInterview(Base):
@@ -50,7 +50,7 @@ class MockInterview(Base):
     transcript = Column(Text, nullable=True)
     status = Column(String, nullable=False, default="in_progress")  # in_progress, completed
     interview_number = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     completed_at = Column(DateTime, nullable=True)
 
 
@@ -63,5 +63,5 @@ class Notification(Base):
     type = Column(String, nullable=False)  # interview_invite, report_ready, etc.
     message = Column(Text, nullable=False)
     is_read = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
 
