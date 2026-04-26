@@ -9,6 +9,9 @@ from backend.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
 
+# REQUIRED_TABLES and SCHEMA_SIGNATURE are used for high-fidelity state inference.
+# MAINTAINERS: If you add a migration that changes columns, you MUST update SCHEMA_SIGNATURE
+# to prevent false drift detection in health checks and CI.
 REQUIRED_TABLES = ["users", "candidates", "job_posts", "candidate_profiles", "mock_interviews"]
 SCHEMA_SIGNATURE = {
     "users": ["id", "email", "password_hash", "name", "role", "is_active", "created_at"],
@@ -17,6 +20,12 @@ SCHEMA_SIGNATURE = {
     "candidate_profiles": ["id", "user_id", "name", "skills", "experience_years"],
     "mock_interviews": ["id", "candidate_id", "session_id", "status"]
 }
+
+# Exit Codes for Automation
+EXIT_OK = 0
+EXIT_FATAL = 1
+EXIT_DRIFT = 2
+EXIT_UNSAFE = 3
 
 async def get_current_revision():
     """Returns the current alembic revision or None."""
@@ -95,10 +104,18 @@ async def run_migrations():
     has_alembic, is_populated, schema_validated = await check_db_state()
     auto_stamp = os.getenv("AUTO_STAMP_DB", "false").lower() == "true"
 
+    # Handle Schema Drift (Alembic exists but schema is mismatched)
+    if has_alembic and not schema_validated:
+        logger.error("CRITICAL: Schema drift detected. Database structure does not match expectations.")
+        logger.error("Manual intervention required to verify migrations or update SCHEMA_SIGNATURE.")
+        sys.exit(EXIT_DRIFT)
+
     if not has_alembic and is_populated:
         if auto_stamp:
             logger.warning("Detected pre-existing schema without alembic_version. Stamping to head.")
             logger.warning("⚠️  Stamping unverified schema — potential mismatch with migrations")
+            if not schema_validated:
+                logger.warning("⚠️  UNSAFE: Stamping a drifted schema. Proceed with caution.")
             try:
                 process = await asyncio.create_subprocess_exec(
                     sys.executable, "-m", "alembic", "stamp", "head",
@@ -109,14 +126,14 @@ async def run_migrations():
                 _, stderr = await process.communicate()
                 if process.returncode != 0:
                     logger.error(f"Failed to stamp database:\n{stderr.decode()}")
-                    sys.exit(1)
+                    sys.exit(EXIT_FATAL)
             except Exception as e:
                 logger.error(f"Failed to stamp database: {e}")
-                sys.exit(1)
+                sys.exit(EXIT_FATAL)
         else:
             logger.error("CRITICAL: Detected pre-existing schema without alembic_version.")
-            logger.error("AUTO_STAMP_DB is disabled. Manual intervention required to verify schema and run 'alembic stamp head'.")
-            sys.exit(1)
+            logger.error("AUTO_STAMP_DB is disabled. Manual intervention required.")
+            sys.exit(EXIT_UNSAFE)
 
     logger.info("Running Alembic upgrade head...")
     try:
@@ -129,20 +146,20 @@ async def run_migrations():
         stdout, stderr = await process.communicate()
         if process.returncode != 0:
             logger.error(f"Alembic migration failed:\n{stderr.decode()}")
-            sys.exit(1)
+            sys.exit(EXIT_FATAL)
         else:
             logger.info("Alembic migrations complete.")
     except Exception as e:
         logger.error(f"Failed to run alembic: {e}")
-        sys.exit(1)
+        sys.exit(EXIT_FATAL)
 
 if __name__ == "__main__":
     # Ensure explicit exit codes for CI/CD automation
     try:
         asyncio.run(run_migrations())
-        sys.exit(0)
+        sys.exit(EXIT_OK)
     except SystemExit as e:
         sys.exit(e.code)
     except Exception as e:
         logger.exception(f"Unexpected error in migration manager: {e}")
-        sys.exit(1)
+        sys.exit(EXIT_FATAL)

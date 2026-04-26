@@ -70,6 +70,14 @@ async def migration_health():
     has_alembic, is_populated, schema_validated = await check_db_state()
     auto_stamp = os.getenv("AUTO_STAMP_DB", "false").lower() == "true"
     
+    severity = "ok"
+    if not has_alembic and is_populated:
+        severity = "critical"
+    elif not schema_validated:
+        severity = "warning"
+    elif not has_alembic:
+        severity = "info"
+
     return {
         "revision": revision,
         "alembic_initialized": has_alembic,
@@ -77,5 +85,6 @@ async def migration_health():
         "schema_validated": schema_validated,
         "status": "up-to-date" if revision else "unversioned",
         "mode": "auto-heal" if auto_stamp else "strict",
+        "severity": severity,
         "safe": has_alembic and schema_validated
     }
