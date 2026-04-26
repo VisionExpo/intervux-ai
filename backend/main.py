@@ -124,6 +124,7 @@ def create_app() -> FastAPI:
     # --- WebSockets ---
     @app.websocket("/ws/interview")
     async def websocket_interview(websocket: WebSocket):
+        print(f"DEBUG: WebSocket connection received for /ws/interview", flush=True)
         token = websocket.query_params.get("token")
         await app.state.interview_gateway.handle(websocket, token)
 

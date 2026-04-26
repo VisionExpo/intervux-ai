@@ -7,6 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Vishal}
       POSTGRES_DB: ${POSTGRES_DB:-intervux}
     volumes:
+      - ./backend:/app/backend
       - db_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-intervux}"]
@@ -19,6 +20,7 @@ services:
     image: redis:7
     container_name: intervux-redis
     volumes:
+      - ./backend:/app/backend
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -50,7 +52,7 @@ services:
       dockerfile: Dockerfile
     container_name: intervux-backend
     entrypoint: ["/app/entrypoint.sh"]
-    command: ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+    command: ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--reload"]
     env_file:
       - backend/.env
     environment:
@@ -64,6 +66,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
+      - ./backend:/app/backend
       - ./uploads:/app/uploads
       - ./logs:/app/logs
       - ./docker/entrypoint.sh:/app/entrypoint.sh:ro
@@ -93,6 +96,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
+      - ./backend:/app/backend
       - ./uploads:/app/uploads
       - ./logs:/app/logs
       - ./docker/entrypoint.sh:/app/entrypoint.sh:ro
@@ -119,6 +123,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
+      - ./backend:/app/backend
       - ./logs:/app/logs
     healthcheck:
       disable: true

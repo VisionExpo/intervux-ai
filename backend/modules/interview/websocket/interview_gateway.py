@@ -189,12 +189,15 @@ class InterviewGateway:
             "mock_id": mock_interview_session_id,
             "created_at": time.time()
         }
+        print(f"DEBUG: Handle called for {session_id}", flush=True)
         await self._registry.register(session_id, metadata)
         self._connections.add(ws)
         self._active_celery_tasks[session_id] = set()
         
+        print(f"DEBUG: Registry registered for {session_id}", flush=True)
         ping_task = self.safe_create_task(self._ping_loop(ws, session_id), session=session)
         pubsub_task = self.safe_create_task(self._pubsub_listener(ws, session_id, session), session=session)
+        print(f"DEBUG: Background tasks created for {session_id}", flush=True)
 
         # Attempt to hydrate state immediately for resumption logic
         is_resumed = await session.hydrate()
@@ -211,21 +214,34 @@ class InterviewGateway:
                     "Before we begin, please upload your resume so I can tailor "
                     "questions based on your experience."
                 )
+                print(f"DEBUG: Starting greeting flow for {session_id}", flush=True)
                 # Send greeting synchronously to prevent AnyIO stream lockups in TestClient
                 await self._send_avatar_with_audio(ws, session, full_text, 0, 0)
+                print(f"DEBUG: Greeting sent for {session_id}", flush=True)
                 session.state.greeting_sent = True
+                print(f"DEBUG: Transitioning to WAITING_RESUME for {session_id}", flush=True)
                 session.state.transition_to(InterviewPhase.WAITING_RESUME)
+                print(f"DEBUG: Transition complete for {session_id}", flush=True)
             else:
                 # If resumed, re-broadcast current state to sync UI
+                print(f"DEBUG: Resuming flow for {session_id}", flush=True)
                 await self._send_json(ws, {
                     "type": "RESUMED",
                     "phase": session.state.phase.value,
                     "session_id": session_id
                 }, session=session)
 
+            print(f"DEBUG: Entering while True loop for {session_id}", flush=True)
             while True:
+                print(f"DEBUG: Awaiting message for {session_id}", flush=True)
                 message = await self._recv_with_timeout(ws)
+                print(f"DEBUG: Received message for {session_id}: {message}", flush=True)
                 
+                m_type = message.get("type") if message else "None"
+                m_text_len = len(message.get("text", "")) if message and message.get("text") else 0
+                m_bytes_len = len(message.get("bytes", b"")) if message and message.get("bytes") else 0
+                logger.error(f"WS RAW: type={m_type}, text_len={m_text_len}, bytes_len={m_bytes_len}", extra={"extra_data": {"session_id": session_id}})
+
                 # CRITICAL: Validate session still exists in registry before processing
                 if not await self._registry.get_metadata(session_id):
                     logger.warning(f"Session {session_id} not found in registry during message handling.")
