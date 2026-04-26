@@ -44,13 +44,14 @@ done
 echo "[entrypoint] Database is ready."
 
 RUN_DB_MIGRATIONS="${RUN_DB_MIGRATIONS:-true}"
-if [ "$RUN_DB_MIGRATIONS" = "true" ] && ([ -d "alembic" ] || [ -d "backend/alembic" ] || [ -d "backend/db/alembic" ]); then
-    echo "[entrypoint] Running Alembic migrations..."
-    alembic upgrade head
-elif [ "$RUN_DB_MIGRATIONS" != "true" ]; then
-    echo "[entrypoint] Skipping Alembic migrations (RUN_DB_MIGRATIONS=$RUN_DB_MIGRATIONS)."
+if [ "$RUN_DB_MIGRATIONS" = "true" ]; then
+    echo "[entrypoint] Running database migration manager..."
+    python -m backend.infrastructure.database.migration_manager
+    
+    # Mark migrations as handled so bootstrap.py skips them
+    export SKIP_APP_MIGRATIONS=true
 else
-    echo "[entrypoint] No alembic folder found. Skipping migrations."
+    echo "[entrypoint] Skipping Alembic migrations (RUN_DB_MIGRATIONS=$RUN_DB_MIGRATIONS)."
 fi
 
 # -----------------------------------------------------------------------------

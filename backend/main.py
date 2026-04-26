@@ -154,6 +154,11 @@ def create_app() -> FastAPI:
         from backend.api.routes.system import get_metrics
         return get_metrics()
 
+    @app.get("/health/migrations", include_in_schema=False)
+    async def legacy_migration_health():
+        from backend.api.routes.system import migration_health
+        return await migration_health()
+
     app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
     app.include_router(candidate_router, prefix="/api/candidate", tags=["candidate"])
     app.include_router(resume_router, prefix="/api/resume", tags=["resume"])

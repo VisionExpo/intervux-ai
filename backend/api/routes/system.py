@@ -58,3 +58,24 @@ async def readiness_check():
 def get_metrics():
     """Returns a snapshot of system metrics."""
     return metrics.snapshot()
+
+
+@router.get("/health/migrations")
+async def migration_health():
+    """Returns the current state of database migrations."""
+    import os
+    from backend.infrastructure.database.migration_manager import get_current_revision, check_db_state
+    
+    revision = await get_current_revision()
+    has_alembic, is_populated, schema_validated = await check_db_state()
+    auto_stamp = os.getenv("AUTO_STAMP_DB", "false").lower() == "true"
+    
+    return {
+        "revision": revision,
+        "alembic_initialized": has_alembic,
+        "is_populated": is_populated,
+        "schema_validated": schema_validated,
+        "status": "up-to-date" if revision else "unversioned",
+        "mode": "auto-heal" if auto_stamp else "strict",
+        "safe": has_alembic and schema_validated
+    }

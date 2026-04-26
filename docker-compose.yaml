@@ -55,6 +55,7 @@ services:
       - backend/.env
     environment:
       RUN_DB_MIGRATIONS: "true"
+      AUTO_STAMP_DB: "true"
     ports:
       - "8000:8000"
     depends_on:

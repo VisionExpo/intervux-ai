@@ -2,7 +2,7 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from backend.infrastructure.database.database import engine, Base
 from backend.core.llm_brain import prewarm_llm
 from backend.core.logging.logger import get_logger
@@ -16,44 +16,22 @@ def _is_sqlite(url: str) -> bool:
 
 async def run_migrations() -> None:
     """
-    Run 'alembic upgrade head' as a subprocess or fallback to create_all.
+    Coordinates Alembic migrations via the centralized migration manager.
     """
-    db_url = os.getenv("DATABASE_URL", "")
-    if _is_sqlite(db_url):
-        logger.info("SQLite detected — using create_all for dev/test environment")
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        return
-
-    # Check for alembic folder in various common locations
-    project_root = Path(__file__).resolve().parents[2]
-    alembic_path = project_root / "backend" / "db" / "alembic"
+    from backend.infrastructure.database.migration_manager import run_migrations as central_run_migrations
     
-    if not alembic_path.exists():
-        logger.info(f"No alembic folder found at {alembic_path}. Falling back to create_all.")
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+    # 1. Skip if already handled by entrypoint (Docker)
+    skip_migrations = os.getenv("SKIP_APP_MIGRATIONS") == "true"
+    if skip_migrations:
+        from backend.infrastructure.database.migration_manager import check_db_state
+        has_alembic, _, _ = await check_db_state()
+        if not has_alembic:
+            logger.critical("Invalid state: SKIP_APP_MIGRATIONS is true but database is not initialized.")
+            raise RuntimeError("Database not initialized. Migration manager must run before application startup.")
+        logger.info("SKIP_APP_MIGRATIONS is set. Skipping application-level migration check.")
         return
 
-    logger.info("Running Alembic migrations...")
-    try:
-        process = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "alembic", "upgrade", "head",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=str(project_root)
-        )
-        stdout, stderr = await process.communicate()
-        if process.returncode != 0:
-            logger.error(f"Alembic migration failed:\n{stderr.decode()}")
-            # We don't necessarily want to crash the whole app if migrations fail
-            # but in production, we might.
-        else:
-            logger.info("Alembic migrations complete.")
-    except Exception as e:
-        logger.warning(f"Failed to run alembic: {e}. Falling back to create_all.")
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+    await central_run_migrations()
 
 
 async def bootstrap_system() -> None:
