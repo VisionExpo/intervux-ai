@@ -68,7 +68,7 @@ class InterviewSession:
         self.mock_interview_session_id = mock_interview_session_id
         self.broadcast_callback = broadcast_callback
 
-        self.state = InterviewState()
+        self.state = InterviewState(user_id=self.user_id)
         if self.broadcast_callback:
             self.state.subscribe_to_phase_changes(self.broadcast_callback)
 
@@ -104,6 +104,32 @@ class InterviewSession:
 
     # ------------------------------------------------------------------
 
+    async def hydrate(self) -> bool:
+        """
+        Explicitly hydrate session state from Redis.
+        Returns True if state was found and loaded.
+        """
+        try:
+            persisted = await redis_client.get_session_state_obj(self.session_id)
+            if persisted:
+                # SECURITY CHECK: Ensure user_id matches
+                if persisted[0].user_id and persisted[0].user_id != self.user_id:
+                    logger.warning(
+                        f"Security rejection: Session {self.session_id} belongs to user {persisted[0].user_id}, "
+                        f"but user {self.user_id} tried to hydrate it."
+                    )
+                    return False
+
+                self.state, self.eval_context_cache = persisted
+                # Re-attach broadcast callback after hydration
+                if self.broadcast_callback:
+                    self.state.subscribe_to_phase_changes(self.broadcast_callback)
+                logger.info(f"Session {self.session_id} hydrated from Redis.")
+                return True
+        except Exception as e:
+            logger.warning(f"Could not hydrate session {self.session_id}: {e}")
+        return False
+
     async def handle_message(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Handle an incoming WebSocket message.
@@ -112,15 +138,7 @@ class InterviewSession:
         """
         # --- STATELESS ARCHITECTURE ---
         # Hydrate session block dynamically from Redis if resuming.
-        try:
-            persisted = await redis_client.get_session_state_obj(self.session_id)
-            if persisted:
-                self.state, self.eval_context_cache = persisted
-                # Re-attach broadcast callback after hydration
-                if self.broadcast_callback:
-                    self.state.subscribe_to_phase_changes(self.broadcast_callback)
-        except Exception as e:
-            logger.warning(f"Could not load state from redis: {e}")
+        await self.hydrate()
 
         msg_type = self._get_message_type(message)
 

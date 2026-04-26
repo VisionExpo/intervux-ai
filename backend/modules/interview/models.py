@@ -99,9 +99,10 @@ class InterviewState:
     - Reset on /start
     """
 
-    def __init__(self):
+    def __init__(self, user_id: Optional[str] = None):
         self._phase: InterviewPhase = InterviewPhase.CONNECTING
         self._on_phase_change_callbacks: List[callable] = []
+        self.user_id = user_id
         self.reset()
 
     def reset(self):

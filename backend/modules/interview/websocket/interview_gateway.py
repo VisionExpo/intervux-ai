@@ -146,7 +146,10 @@ class InterviewGateway:
             await self._close_ws(ws, code=1013)
             return
 
-        session_id = str(uuid.uuid4())
+        # Support resumption if session_id is provided in query params
+        provided_session_id = ws.query_params.get("session_id")
+        session_id = provided_session_id or str(uuid.uuid4())
+        
         session_policy = self._build_load_policy(active_sessions)
 
         session = InterviewSession(
@@ -162,7 +165,12 @@ class InterviewGateway:
             # Capture sequence ID synchronously to guarantee order
             seq = session.state.get_next_seq()
             self.safe_create_task(
-                self._send_json(ws, {"type": "PHASE_CHANGE", "phase": new_phase.value, "seq": seq}),
+                self._send_json(ws, {
+                    "type": "PHASE_CHANGE", 
+                    "phase": new_phase.value, 
+                    "seq": seq,
+                    "session_id": session_id
+                }),
                 session_id=session_id
             )
         
@@ -181,6 +189,11 @@ class InterviewGateway:
         ping_task = self.safe_create_task(self._ping_loop(ws, session_id), session_id)
         pubsub_task = self.safe_create_task(self._pubsub_listener(ws, session_id, session), session_id)
 
+        # Attempt to hydrate state immediately for resumption logic
+        is_resumed = await session.hydrate()
+        if is_resumed:
+            logger.info(f"Resuming interview for session {session_id}")
+
         try:
             if not session.state.greeting_sent:
                 user_name = user_data.name.split()[0] if user_data.name else ""
@@ -194,8 +207,14 @@ class InterviewGateway:
                 # Send greeting synchronously to prevent AnyIO stream lockups in TestClient
                 await self._send_avatar_with_audio(ws, session, full_text, 0, 0)
                 session.state.greeting_sent = True
-
-            session.state.transition_to(InterviewPhase.WAITING_RESUME)
+                session.state.transition_to(InterviewPhase.WAITING_RESUME)
+            else:
+                # If resumed, re-broadcast current state to sync UI
+                await self._send_json(ws, {
+                    "type": "RESUMED",
+                    "phase": session.state.phase.value,
+                    "session_id": session_id
+                }, session=session)
 
             while True:
                 message = await self._recv_with_timeout(ws)
