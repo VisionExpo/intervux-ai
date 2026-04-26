@@ -783,6 +783,10 @@ def prewarm_llm():
     """
     Best-effort prewarm to reduce first request latency.
     """
+    if os.getenv("ENV") == "test":
+        logger.info("Skipping LLM prewarm in test environment")
+        return
+
     prompt = '{"status":"ok"}'
     providers = _provider_order()
     last_error: Exception | None = None

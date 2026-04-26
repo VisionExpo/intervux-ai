@@ -37,11 +37,19 @@ def _make_token(role: str = Role.RECRUITER) -> str:
 
 def _recv_json(ws) -> dict:
     data = ws.receive()
-    # If the connection was closed, TestClient might return a disconnect message or raise
-    if isinstance(data, dict) and data.get("type") == "websocket.disconnect":
-        raise WebSocketDisconnect(code=data.get("code", 1000))
+    # If the connection was closed, TestClient might return a disconnect or close message
+    if isinstance(data, dict):
+        if data.get("type") in ["websocket.disconnect", "websocket.close"]:
+            raise WebSocketDisconnect(code=data.get("code", 1000))
     
-    raw = data.get("text") or data.get("data") or ""
+    # Extract text content
+    raw = data.get("text")
+    if raw is None:
+        # Fallback for weird TestClient edge cases
+        if isinstance(data, dict) and data.get("type") in ["websocket.disconnect", "websocket.close"]:
+             raise WebSocketDisconnect(code=data.get("code", 1000))
+        raise Exception(f"WebSocket received non-text data: {data}")
+        
     return json.loads(raw)
 
 
@@ -94,20 +102,22 @@ def patched_metrics_client(db_session):
 
 class TestMetricsWebSocketAuth:
     def test_connection_rejected_without_token(self, test_client: TestClient):
-        with pytest.raises(WebSocketDisconnect) as excinfo:
-            with test_client.websocket_connect("/ws/metrics") as ws:
-                msg = _recv_json(ws)
-                assert msg["type"] == "error"
-                assert msg["code"] == "UNAUTHORIZED"
-        assert excinfo.value.code == 1008
+        with test_client.websocket_connect("/ws/metrics") as ws:
+            msg = _recv_json(ws)
+            assert msg["type"] == "error"
+            assert "Missing" in msg["message"]
+            with pytest.raises(WebSocketDisconnect) as excinfo:
+                _recv_json(ws)
+            assert excinfo.value.code == 1008
 
     def test_connection_rejected_with_invalid_token(self, test_client: TestClient):
-        with pytest.raises(WebSocketDisconnect) as excinfo:
-            with test_client.websocket_connect("/ws/metrics?token=garbage_token") as ws:
-                msg = _recv_json(ws)
-                assert msg["type"] == "error"
-                assert msg["code"] == "UNAUTHORIZED"
-        assert excinfo.value.code == 1008
+        with test_client.websocket_connect("/ws/metrics?token=invalid-token") as ws:
+            msg = _recv_json(ws)
+            assert msg["type"] == "error"
+            assert "Invalid" in msg["message"]
+            with pytest.raises(WebSocketDisconnect) as excinfo:
+                _recv_json(ws)
+            assert excinfo.value.code == 1008
 
     def test_connection_accepted_with_valid_recruiter_token(self, patched_metrics_client: TestClient):
         """Valid token → first message is a metrics snapshot (not an error)."""
@@ -124,10 +134,11 @@ class TestMetricsWebSocketAuth:
             assert "timestamp" in msg
 
     def test_missing_token_error_is_recoverable(self, test_client: TestClient):
-        with pytest.raises(WebSocketDisconnect):
-            with test_client.websocket_connect("/ws/metrics") as ws:
-                msg = _recv_json(ws)
-                assert msg["recoverable"] is True
+        with test_client.websocket_connect("/ws/metrics") as ws:
+            msg = _recv_json(ws)
+            assert msg["recoverable"] is True
+            with pytest.raises(WebSocketDisconnect):
+                _recv_json(ws)
 
 
 # =============================================================================

@@ -61,9 +61,26 @@ async def lifespan(app: FastAPI):
     if hasattr(app.state, "runtime_monitor"):
         await app.state.runtime_monitor.start()
 
+    # 4. Start Metrics Broadcast
+    from backend.modules.analytics.websocket.metrics_socket import start_metrics_broadcast
+    metrics_task = asyncio.create_task(start_metrics_broadcast())
+    app.state.metrics_broadcast_task = metrics_task
+
     yield
 
-    # 4. Shutdown
+    # 5. Shutdown
+    # Stop Metrics Broadcast
+    from backend.modules.analytics.websocket.metrics_socket import stop_metrics_broadcast
+    await stop_metrics_broadcast()
+    
+    if hasattr(app.state, "metrics_broadcast_task"):
+        task = app.state.metrics_broadcast_task
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Metrics broadcast task shutdown cleanly")
     if hasattr(app.state, "interview_gateway"):
         await app.state.interview_gateway.shutdown()
     if hasattr(app.state, "runtime_monitor"):
@@ -111,7 +128,7 @@ def create_app() -> FastAPI:
         await app.state.interview_gateway.handle(websocket, token)
 
     @app.websocket("/ws/metrics")
-    async def websocket_metrics(websocket):
+    async def websocket_metrics(websocket: WebSocket):
         await metrics_socket.handle(websocket)
 
     # --- Routers ---

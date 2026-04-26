@@ -17,6 +17,7 @@ Usage:
         assert response.status_code == 200
 """
 
+import asyncio
 import os
 import sys
 import uuid
@@ -81,18 +82,30 @@ TestSessionLocal = async_sessionmaker(class_=AsyncSession,
 # =========================================================
 
 
-@pytest_asyncio.fixture(scope="function")
-async def db_session() -> AsyncSession:
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def setup_database():
+    """Create database schema once per test session."""
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
-    async with TestSessionLocal() as session:
-        yield session
-        
+    yield
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
-
+@pytest_asyncio.fixture(scope="function")
+async def db_session() -> AsyncSession:
+    """Provides a transactional database session for each test."""
+    async with test_engine.connect() as conn:
+        # Use a transaction to ensure rollback after each test
+        transaction = await conn.begin()
+        
+        async with TestSessionLocal(bind=conn) as session:
+            yield session
+            await session.close()
+        
+        await transaction.rollback()
+    
+    # Flush event loop to ensure background tasks are handled
+    await asyncio.sleep(0)
     app.dependency_overrides.clear()
 
 

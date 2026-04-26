@@ -45,6 +45,7 @@ class TokenUsageMetrics(BaseModel):
 
 
 class ModelUsageMetric(BaseModel):
+    model_config = {"protected_namespaces": ()}
     model: str
     percentage: float
     requests: int
@@ -75,6 +76,7 @@ class AlertItem(BaseModel):
 
 
 class EvaluationDashboardResponse(BaseModel):
+    model_config = {"protected_namespaces": ()}
     generated_at: str
     model_quality: ModelQualityMetrics
     performance: PerformanceMetrics
@@ -88,6 +90,7 @@ class EvaluationDashboardResponse(BaseModel):
 
 
 class ExperimentCreateRequest(BaseModel):
+    model_config = {"protected_namespaces": ()}
     experiment_name: str
     model_version: str
     prompt_template: str

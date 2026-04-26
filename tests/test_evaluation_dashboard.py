@@ -24,7 +24,7 @@ class TestEvaluationDashboard:
 
     @pytest.mark.asyncio
     async def test_get_evaluation_dashboard_success(
-        self, client: TestClient, recruiter_headers: dict
+        self, test_client: TestClient, recruiter_headers: dict
     ):
         """
         Test successful evaluation dashboard retrieval.
@@ -33,7 +33,7 @@ class TestEvaluationDashboard:
         - HTTP 200 status code
         - Response contains dashboard metrics
         """
-        response = await client.get(
+        response = test_client.get(
             "/api/admin/evaluation-dashboard",
             headers=recruiter_headers,
         )
@@ -45,20 +45,20 @@ class TestEvaluationDashboard:
         assert "model_quality" in data or "performance" in data or "alerts" in data
 
     @pytest.mark.asyncio
-    async def test_get_evaluation_dashboard_requires_auth(self, client: TestClient):
+    async def test_get_evaluation_dashboard_requires_auth(self, test_client: TestClient):
         """
         Test evaluation dashboard requires authentication.
         
         Validates:
         - HTTP 401 status code
         """
-        response = await client.get("/api/admin/evaluation-dashboard")
+        response = test_client.get("/api/admin/evaluation-dashboard")
         
         assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_get_evaluation_dashboard_with_candidate_token(
-        self, client: TestClient, candidate_headers: dict
+        self, test_client: TestClient, candidate_headers: dict
     ):
         """
         Test evaluation dashboard with candidate token.
@@ -66,7 +66,7 @@ class TestEvaluationDashboard:
         Validates:
         - HTTP 403 status code (forbidden)
         """
-        response = await client.get(
+        response = test_client.get(
             "/api/admin/evaluation-dashboard",
             headers=candidate_headers,
         )
@@ -75,7 +75,7 @@ class TestEvaluationDashboard:
 
     @pytest.mark.asyncio
     async def test_get_evaluation_dashboard_structure(
-        self, client: TestClient, recruiter_headers: dict
+        self, test_client: TestClient, recruiter_headers: dict
     ):
         """
         Test evaluation dashboard response structure.
@@ -83,7 +83,7 @@ class TestEvaluationDashboard:
         Validates:
         - Response contains expected sections
         """
-        response = await client.get(
+        response = test_client.get(
             "/api/admin/evaluation-dashboard",
             headers=recruiter_headers,
         )
@@ -101,7 +101,7 @@ class TestExperiments:
 
     @pytest.mark.asyncio
     async def test_get_experiments_list_success(
-        self, client: TestClient, admin_headers: dict
+        self, test_client: TestClient, admin_headers: dict
     ):
         """
         Test successful experiments list retrieval.
@@ -110,7 +110,7 @@ class TestExperiments:
         - HTTP 200 status code
         - Response is a list
         """
-        response = await client.get(
+        response = test_client.get(
             "/api/admin/experiments",
             headers=admin_headers,
         )
@@ -121,7 +121,7 @@ class TestExperiments:
 
     @pytest.mark.asyncio
     async def test_get_experiments_requires_admin(
-        self, client: TestClient, recruiter_headers: dict
+        self, test_client: TestClient, recruiter_headers: dict
     ):
         """
         Test experiments require admin role.
@@ -129,7 +129,7 @@ class TestExperiments:
         Validates:
         - HTTP 403 status code (forbidden)
         """
-        response = await client.get(
+        response = test_client.get(
             "/api/admin/experiments",
             headers=recruiter_headers,
         )
@@ -137,14 +137,14 @@ class TestExperiments:
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_get_experiments_requires_auth(self, client: TestClient):
+    async def test_get_experiments_requires_auth(self, test_client: TestClient):
         """
         Test experiments requires authentication.
         
         Validates:
         - HTTP 401 status code
         """
-        response = await client.get("/api/admin/experiments")
+        response = test_client.get("/api/admin/experiments")
         
         assert response.status_code == 401
 
@@ -154,7 +154,7 @@ class TestCreateExperiment:
 
     @pytest.mark.asyncio
     async def test_create_experiment_success(
-        self, client: TestClient, admin_headers: dict
+        self, test_client: TestClient, admin_headers: dict
     ):
         """
         Test successful experiment creation.
@@ -163,7 +163,7 @@ class TestCreateExperiment:
         - HTTP 200 status code
         - Response contains experiment details
         """
-        response = await client.post(
+        response = test_client.post(
             "/api/admin/experiments",
             headers=admin_headers,
             json={
@@ -181,7 +181,7 @@ class TestCreateExperiment:
 
     @pytest.mark.asyncio
     async def test_create_experiment_with_minimal_data(
-        self, client: TestClient, admin_headers: dict
+        self, test_client: TestClient, admin_headers: dict
     ):
         """
         Test experiment creation with minimal data.
@@ -190,7 +190,7 @@ class TestCreateExperiment:
         - HTTP 200 status code
         - Default values are applied
         """
-        response = await client.post(
+        response = test_client.post(
             "/api/admin/experiments",
             headers=admin_headers,
             json={
@@ -204,7 +204,7 @@ class TestCreateExperiment:
 
     @pytest.mark.asyncio
     async def test_create_experiment_requires_admin(
-        self, client: TestClient, recruiter_headers: dict
+        self, test_client: TestClient, recruiter_headers: dict
     ):
         """
         Test experiment creation requires admin role.
@@ -212,7 +212,7 @@ class TestCreateExperiment:
         Validates:
         - HTTP 403 status code
         """
-        response = await client.post(
+        response = test_client.post(
             "/api/admin/experiments",
             headers=recruiter_headers,
             json={
@@ -225,14 +225,14 @@ class TestCreateExperiment:
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_create_experiment_requires_auth(self, client: TestClient):
+    async def test_create_experiment_requires_auth(self, test_client: TestClient):
         """
         Test experiment creation requires authentication.
         
         Validates:
         - HTTP 401 status code
         """
-        response = await client.post(
+        response = test_client.post(
             "/api/admin/experiments",
             json={
                 "experiment_name": "test",
@@ -249,7 +249,7 @@ class TestCompareExperiments:
 
     @pytest.mark.asyncio
     async def test_compare_experiments_success(
-        self, client: TestClient, admin_headers: dict
+        self, test_client: TestClient, admin_headers: dict
     ):
         """
         Test successful experiment comparison.
@@ -258,7 +258,7 @@ class TestCompareExperiments:
         - HTTP 200 status code
         - Response contains comparison data
         """
-        response = await client.post(
+        response = test_client.post(
             "/api/admin/experiments/compare",
             headers=admin_headers,
             json={
@@ -273,7 +273,7 @@ class TestCompareExperiments:
 
     @pytest.mark.asyncio
     async def test_compare_experiments_with_empty_list(
-        self, client: TestClient, admin_headers: dict
+        self, test_client: TestClient, admin_headers: dict
     ):
         """
         Test experiment comparison with empty list.
@@ -281,7 +281,7 @@ class TestCompareExperiments:
         Validates:
         - HTTP 422 status code (validation error)
         """
-        response = await client.post(
+        response = test_client.post(
             "/api/admin/experiments/compare",
             headers=admin_headers,
             json={
@@ -294,7 +294,7 @@ class TestCompareExperiments:
 
     @pytest.mark.asyncio
     async def test_compare_experiments_requires_admin(
-        self, client: TestClient, recruiter_headers: dict
+        self, test_client: TestClient, recruiter_headers: dict
     ):
         """
         Test experiment comparison requires admin role.
@@ -302,7 +302,7 @@ class TestCompareExperiments:
         Validates:
         - HTTP 403 status code
         """
-        response = await client.post(
+        response = test_client.post(
             "/api/admin/experiments/compare",
             headers=recruiter_headers,
             json={
@@ -313,14 +313,14 @@ class TestCompareExperiments:
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_compare_experiments_requires_auth(self, client: TestClient):
+    async def test_compare_experiments_requires_auth(self, test_client: TestClient):
         """
         Test experiment comparison requires authentication.
         
         Validates:
         - HTTP 401 status code
         """
-        response = await client.post(
+        response = test_client.post(
             "/api/admin/experiments/compare",
             json={
                 "experiment_names": ["exp1"],
@@ -335,7 +335,7 @@ class TestExperimentWorkflow:
 
     @pytest.mark.asyncio
     async def test_full_experiment_lifecycle(
-        self, client: TestClient, admin_headers: dict
+        self, test_client: TestClient, admin_headers: dict
     ):
         """
         Test complete experiment lifecycle.
@@ -346,7 +346,7 @@ class TestExperimentWorkflow:
         - Compare experiments
         """
         # Create first experiment
-        create_response1 = await client.post(
+        create_response1 = test_client.post(
             "/api/admin/experiments",
             headers=admin_headers,
             json={
@@ -360,7 +360,7 @@ class TestExperimentWorkflow:
         assert create_response1.status_code == 200
         
         # Create second experiment
-        create_response2 = await client.post(
+        create_response2 = test_client.post(
             "/api/admin/experiments",
             headers=admin_headers,
             json={
@@ -374,14 +374,14 @@ class TestExperimentWorkflow:
         assert create_response2.status_code == 200
         
         # List experiments
-        list_response = await client.get(
+        list_response = test_client.get(
             "/api/admin/experiments",
             headers=admin_headers,
         )
         assert list_response.status_code == 200
         
         # Compare experiments
-        compare_response = await client.post(
+        compare_response = test_client.post(
             "/api/admin/experiments/compare",
             headers=admin_headers,
             json={
