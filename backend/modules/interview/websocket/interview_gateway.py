@@ -158,6 +158,10 @@ class InterviewGateway:
         # Support resumption if session_id is provided in query params
         provided_session_id = ws.query_params.get("session_id")
         session_id = provided_session_id or str(uuid.uuid4())
+        
+        # Identify this specific socket connection
+        socket_id = str(uuid.uuid4())
+        ws.socket_id = socket_id
 
         # Demo-safety guard: allow only one active session per user.
         existing_session_id: Optional[str] = None
@@ -191,15 +195,25 @@ class InterviewGateway:
         def broadcast_phase_change(new_phase):
             # Capture sequence ID synchronously to guarantee order
             seq = session.state.get_next_seq()
-            self.safe_create_task(
-                self._send_json(ws, {
+            
+            async def _send_phase():
+                target_ws = ws
+                current_meta = await self._registry.get_metadata(session_id)
+                if current_meta:
+                    active_socket_id = current_meta.get("socket_id")
+                    for conn in self._connections:
+                        if getattr(conn, "socket_id", None) == active_socket_id:
+                            target_ws = conn
+                            break
+                            
+                await self._send_json(target_ws, {
                     "type": "PHASE_CHANGE", 
                     "phase": new_phase.value, 
                     "seq": seq,
                     "session_id": session_id
-                }),
-                session=session
-            )
+                }, session=session)
+                
+            self.safe_create_task(_send_phase(), session=session)
         
         session.broadcast_callback = broadcast_phase_change
         session.state.subscribe_to_phase_changes(broadcast_phase_change)
@@ -207,7 +221,8 @@ class InterviewGateway:
         metadata = {
             "user_id": user_data.user_id,
             "mock_id": mock_interview_session_id,
-            "created_at": time.time()
+            "created_at": time.time(),
+            "socket_id": socket_id
         }
         print(f"DEBUG: Handle called for {session_id}", flush=True)
         await self._registry.register(session_id, metadata)
@@ -218,6 +233,54 @@ class InterviewGateway:
         ping_task = self.safe_create_task(self._ping_loop(ws, session_id), session=session)
         pubsub_task = self.safe_create_task(self._pubsub_listener(ws, session_id, session), session=session)
         print(f"DEBUG: Background tasks created for {session_id}", flush=True)
+
+        async def _process_and_respond(msg: Dict[str, Any], orig_socket_id: str):
+            try:
+                response = await session.handle_message(msg)
+                if not response:
+                    return
+
+                # LOOKUP ACTIVE SOCKET
+                current_meta = await self._registry.get_metadata(session_id)
+                if not current_meta:
+                    return # Session destroyed
+                    
+                active_socket_id = current_meta.get("socket_id")
+                
+                # Find the actual WebSocket object matching active_socket_id
+                active_ws = None
+                for conn in self._connections:
+                    if getattr(conn, "socket_id", None) == active_socket_id:
+                        active_ws = conn
+                        break
+                        
+                if not active_ws:
+                    logger.warning(f"No active socket found for session {session_id} to route response.")
+                    return
+
+                # ROUTE TO ACTIVE SOCKET
+                if response.get("type") == "question":
+                    await self._send_evaluation_response(active_ws, response, session=session)
+                    await self._send_question_with_audio(active_ws, session, response)
+                elif response.get("type") == "next_question":
+                    eval_data = response.get("question", {}).get("data", {})
+                    next_q = response.get("next_question", {})
+                    await self._send_json(active_ws, {"type": "evaluation", "data": eval_data}, session=session)
+                    await self._send_question_with_audio(active_ws, session, next_q)
+                elif response.get("type") == "complete":
+                    eval_data = response.get("evaluation", {}).get("data", {})
+                    final = response.get("final", {})
+                    await self._send_json(active_ws, {"type": "evaluation", "data": eval_data}, session=session)
+                    await self._send_json(active_ws, final, session=session)
+                else:
+                    if response.get("type") == "error":
+                        response["type"] = "ERROR"
+                    await self._send_json(active_ws, response, session=session)
+                    if response.get("type") == "ERROR" and not response.get("recoverable", True):
+                        await self._close_ws(active_ws, code=1011)
+
+            except Exception as e:
+                logger.error(f"Background processing failed: {e}")
 
         # Attempt to hydrate state immediately for resumption logic
         is_resumed = await session.hydrate()
@@ -275,14 +338,7 @@ class InterviewGateway:
                     break
 
                 if message.get("bytes"):
-                    response = await session.handle_message(message)
-                    if response:
-                        if response.get("type") == "error":
-                            response["type"] = "ERROR"
-                        await self._send_json(ws, response, session=session)
-                        if response.get("type") == "ERROR" and not response.get("recoverable", True):
-                            await self._close_ws(ws, code=1011)
-                            return
+                    self.safe_create_task(_process_and_respond(message, socket_id), session=session)
                     continue
 
                 text = message.get("text")
@@ -310,29 +366,7 @@ class InterviewGateway:
                     return
 
                 wrapped_message = {"data": data, "text": text}
-                response = await session.handle_message(wrapped_message)
-
-                if response:
-                    if response.get("type") == "question":
-                        await self._send_evaluation_response(ws, response, session=session)
-                        await self._send_question_with_audio(ws, session, response)
-                    elif response.get("type") == "next_question":
-                        eval_data = response.get("question", {}).get("data", {})
-                        next_q = response.get("next_question", {})
-                        await self._send_json(ws, {"type": "evaluation", "data": eval_data}, session=session)
-                        await self._send_question_with_audio(ws, session, next_q)
-                    elif response.get("type") == "complete":
-                        eval_data = response.get("evaluation", {}).get("data", {})
-                        final = response.get("final", {})
-                        await self._send_json(ws, {"type": "evaluation", "data": eval_data}, session=session)
-                        await self._send_json(ws, final, session=session)
-                    else:
-                        if response.get("type") == "error":
-                            response["type"] = "ERROR"
-                        await self._send_json(ws, response, session=session)
-                        if response.get("type") == "ERROR" and not response.get("recoverable", True):
-                            await self._close_ws(ws, code=1011)
-                            return
+                self.safe_create_task(_process_and_respond(wrapped_message, socket_id), session=session)
 
         except WebSocketDisconnect:
             logger.info("WebSocket disconnected", extra={"extra_data": {"session_id": session_id}})
@@ -349,26 +383,32 @@ class InterviewGateway:
                 await self._send_error(ws, "INTERNAL_ERROR", "Interview session failed.", recoverable=False, session=session)
             await self._close_ws(ws, code=1011)
         finally:
-            # 🔥 CRITICAL FIX: Cancel all tasks associated with this session immediately
+            # 🔥 CRITICAL FIX: Cancel old socket listeners
             ping_task.cancel()
             pubsub_task.cancel()
-            
-            for task in list(session.tasks):
-                if not task.done():
-                    task.cancel()
-            
-            # Revoke any lingering Celery TTS tasks for this session
-            pending_tts = self._active_celery_tasks.pop(session_id, set())
-            for tts_task in pending_tts:
-                try:
-                    if not tts_task.ready():
-                        tts_task.revoke(terminate=True)
-                except Exception:
-                    pass
-                    
-            await session.cleanup()
-            await self._registry.unregister(session_id)
             self._connections.discard(ws)
+            
+            # SOCKET EVICTION GUARD
+            current_meta = await self._registry.get_metadata(session_id)
+            if current_meta and current_meta.get("socket_id") == socket_id:
+                # We are the active socket, safe to cleanup
+                for task in list(session.tasks):
+                    if not task.done():
+                        task.cancel()
+                
+                # Revoke any lingering Celery TTS tasks for this session
+                pending_tts = self._active_celery_tasks.pop(session_id, set())
+                for tts_task in pending_tts:
+                    try:
+                        if not tts_task.ready():
+                            tts_task.revoke(terminate=True)
+                    except Exception:
+                        pass
+                        
+                await session.cleanup()
+                await self._registry.unregister(session_id)
+            else:
+                logger.info(f"Skipping cleanup for superseded socket {socket_id} in session {session_id}.")
 
             # Clean up the PubSub results channel key from Redis
             try:

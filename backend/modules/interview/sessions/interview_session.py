@@ -102,6 +102,9 @@ class InterviewSession:
         
         # Background task tracking for cleanup
         self.tasks: Set[asyncio.Task] = set()
+        
+        # Async safety serialization lock
+        self._processing_lock = asyncio.Lock()
 
     def get_next_seq(self) -> int:
         """Increment and return the next sequence ID."""
@@ -143,63 +146,72 @@ class InterviewSession:
 
         Returns a response dict to send back, or None.
         """
-        # --- STATELESS ARCHITECTURE ---
-        # Hydrate session block dynamically from Redis if resuming.
-        await self.hydrate()
+        if self._processing_lock.locked():
+            logger.warning(f"Session {self.session_id} is already processing a message. Dropping concurrent input.")
+            return {"type": "error", "message": "Please wait, the interviewer is thinking.", "recoverable": True}
 
-        # Risk 1: Validate session still exists in registry before any heavy logic
-        from backend.modules.interview.sessions.registry import get_session_registry
-        registry = get_session_registry()
-        if not await registry.get_metadata(self.session_id):
-            logger.warning(f"Aborting handle_message for {self.session_id}: session no longer in registry.")
-            return None
+        async with self._processing_lock:
+            # --- STATELESS ARCHITECTURE ---
+            # Hydrate session block dynamically from Redis if resuming.
+            await self.hydrate()
 
-        msg_type = self._get_message_type(message)
+            # Risk 1: Validate session still exists in registry before any heavy logic
+            from backend.modules.interview.sessions.registry import get_session_registry
+            registry = get_session_registry()
+            if not await registry.get_metadata(self.session_id):
+                logger.warning(f"Aborting handle_message for {self.session_id}: session no longer in registry.")
+                return None
 
-        if not self.state.can_proceed(msg_type):
-            logger.warning(
-                f"Invalid message {msg_type} for phase {self.state.phase.value}",
-                extra={"extra_data": {"session_id": self.session_id}},
-            )
-            response = {
-                "type": "error",
-                "code": "INVALID_STATE",
-                "message": f"Cannot receive {msg_type} in {self.state.phase.value} phase",
-                "recoverable": True,
-            }
-            return response
+            msg_type = self._get_message_type(message)
 
-        if msg_type == "ping":
-            response = await self._handle_ping()
-        elif msg_type == "resume_upload":
-            response = await self._handle_resume_upload(message)
-        elif msg_type == "audio_chunk":
-            response = await self._handle_audio_chunk(message)
-        elif msg_type in ("stream_end", "audio_end"):
-            response = await self._handle_stream_end(message)
-        else:
-            logger.warning(f"Unknown message type: {msg_type}")
-            response = {
-                "type": "error",
-                "code": "UNKNOWN_MESSAGE",
-                "message": f"Unknown message type: {msg_type}",
-                "recoverable": True,
-            }
-            
-        # --- LAZY PERSISTENCE ---
-        # Only persist to Redis if the state was marked as dirty (changed)
-        if self._dirty:
-            # Check registry one last time to prevent ghost updates after disconnect/cleanup
-            if await registry.get_metadata(self.session_id):
-                try:
-                    await redis_client.save_session_state_obj(self.session_id, (self.state, self.eval_context_cache))
-                    self._dirty = False # Reset flag after successful save
-                except Exception as e:
-                    logger.error(f"Failed to persist state to redis: {e}")
+            if not self.state.can_proceed(msg_type):
+                logger.warning(
+                    f"Invalid message {msg_type} for phase {self.state.phase.value}",
+                    extra={"extra_data": {"session_id": self.session_id}},
+                )
+                response = {
+                    "type": "error",
+                    "code": "INVALID_STATE",
+                    "message": f"Cannot receive {msg_type} in {self.state.phase.value} phase",
+                    "recoverable": True,
+                }
+                return response
+
+            if msg_type == "ping":
+                response = await self._handle_ping()
+            elif msg_type == "resume_upload":
+                if getattr(self, "_resume_upload_started", False):
+                    logger.warning("Resume upload already in progress. Dropping duplicate.")
+                    return None
+                self._resume_upload_started = True
+                response = await self._handle_resume_upload(message)
+            elif msg_type == "audio_chunk":
+                response = await self._handle_audio_chunk(message)
+            elif msg_type in ("stream_end", "audio_end"):
+                response = await self._handle_stream_end(message)
             else:
-                logger.warning(f"Skipping Redis save for {self.session_id}: session already unregistered.")
-            
-        return response
+                logger.warning(f"Unknown message type: {msg_type}")
+                response = {
+                    "type": "error",
+                    "code": "UNKNOWN_MESSAGE",
+                    "message": f"Unknown message type: {msg_type}",
+                    "recoverable": True,
+                }
+                
+            # --- LAZY PERSISTENCE ---
+            # Only persist to Redis if the state was marked as dirty (changed)
+            if self._dirty:
+                # Check registry one last time to prevent ghost updates after disconnect/cleanup
+                if await registry.get_metadata(self.session_id):
+                    try:
+                        await redis_client.save_session_state_obj(self.session_id, (self.state, self.eval_context_cache))
+                        self._dirty = False # Reset flag after successful save
+                    except Exception as e:
+                        logger.error(f"Failed to persist state to redis: {e}")
+                else:
+                    logger.warning(f"Skipping Redis save for {self.session_id}: session already unregistered.")
+                
+            return response
 
     async def persist_state_now(self) -> None:
         """
