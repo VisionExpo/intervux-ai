@@ -32,6 +32,7 @@ from backend.modules.admin.routes.admin_routes import router as admin_router
 from backend.modules.admin.routes.admin_compat_routes import router as admin_compat_router
 from backend.modules.analytics.routes.metrics_routes import router as metrics_router
 from backend.api.routes.system import router as system_router
+from backend.api.routes.diagnostics import router as diagnostics_router
 
 # Real-time / Sockets
 from backend.modules.interview.websocket.interview_gateway import InterviewGateway
@@ -170,6 +171,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_router, prefix="/api")
     app.include_router(admin_compat_router, prefix="/api")
     app.include_router(metrics_router, prefix="/api")
+    app.include_router(diagnostics_router, prefix="/api/diagnostics", tags=["diagnostics"])
 
     # --- Static Files ---
     uploads_dir = os.path.join(os.path.dirname(__file__), "..", "uploads")

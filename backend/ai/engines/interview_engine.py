@@ -24,7 +24,7 @@ from backend.core.adaptive_engine import (
     update_topic_scores,
 )
 from backend.core.difficulty_engine import DifficultyCalibrationEngine
-from backend.core.llm_brain import generate_final_report
+from backend.core.llm_brain import generate_final_report, observe_gemini_call
 from backend.core.memory_engine import (
     build_memory_context,
     seed_memory_projects,
@@ -136,6 +136,7 @@ class InterviewEngine:
             question_temperature=session_policy.get("question_temperature", 0.7),
             memory_context=initial_memory_context,
             start_difficulty=state.current_difficulty,
+            session_id=state.session_id,
         )
         
         state.questions = [first_question]
@@ -218,6 +219,7 @@ class InterviewEngine:
             eval_context_cache=eval_context_cache,
             draft_transcript=draft_transcript,
             early_eval_task=early_eval_task,
+            session_id=state.session_id,
         )
         eval_duration = time.time() - eval_start
         metrics.record_latency("evaluation", eval_duration)
@@ -325,6 +327,7 @@ class InterviewEngine:
             question_temperature=session_policy.get("question_temperature", 0.7),
             memory_context=memory_context,
             current_concept=current_concept,
+            session_id=state.session_id,
         )
         
         state.questions.append(generated_question)
@@ -353,6 +356,7 @@ class InterviewEngine:
         report = await self._generate_report(
             profile=state.profile.model_dump(),
             answers=state.answers,
+            session_id=state.session_id,
         )
         if isinstance(report, dict):
             report["skill_performance"] = self._build_skill_performance_summary(state)
@@ -384,6 +388,7 @@ class InterviewEngine:
             logger.exception("Resume parsing failed")
             return ParsedResume(parser_used="failed")
 
+    @observe_gemini_call
     async def _generate_initial_question(
         self,
         skill_map: dict,
@@ -391,6 +396,7 @@ class InterviewEngine:
         question_temperature: float,
         memory_context: str,
         start_difficulty: int,
+        session_id: str = "unknown_session",
     ) -> Tuple[str, str, str, str, int, str, int]:
         return await asyncio.to_thread(
             partial(
@@ -403,6 +409,7 @@ class InterviewEngine:
             )
         )
 
+    @observe_gemini_call
     async def _generate_next_question(
         self,
         score: float,
@@ -418,6 +425,7 @@ class InterviewEngine:
         question_temperature: float,
         memory_context: str,
         current_concept: str,
+        session_id: str = "unknown_session",
     ) -> Tuple[str, str, str, str, int, str, int]:
         return await asyncio.to_thread(
             partial(
@@ -447,6 +455,7 @@ class InterviewEngine:
             )
         )
 
+    @observe_gemini_call
     async def _evaluate(
         self,
         question: str,
@@ -457,6 +466,7 @@ class InterviewEngine:
         eval_context_cache: Dict[int, dict],
         draft_transcript: str = "",
         early_eval_task: Any = None,
+        session_id: str = "unknown_session",
     ) -> dict:
         return await asyncio.to_thread(
             partial(
@@ -468,7 +478,8 @@ class InterviewEngine:
             )
         )
 
-    async def _generate_report(self, profile: dict, answers: list) -> dict:
+    @observe_gemini_call
+    async def _generate_report(self, profile: dict, answers: list, session_id: str = "unknown_session") -> dict:
         return await asyncio.to_thread(
             partial(
                 generate_final_report,

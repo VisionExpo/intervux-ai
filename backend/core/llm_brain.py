@@ -7,6 +7,7 @@ import urllib.error
 import urllib.request
 from statistics import mean
 from typing import Any, Callable, Dict, List, Tuple, Type, TypeVar
+from functools import wraps
 
 from dotenv import load_dotenv
 from google import genai
@@ -14,6 +15,34 @@ from pydantic import BaseModel, Field, ValidationError
 
 from backend.core.logging.logger import get_logger
 from backend.utils.metrics import metrics
+from backend.core.telemetry import SessionTelemetry
+from backend.core.exceptions.types import GeminiQuotaExceeded
+
+def observe_gemini_call(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        session_id = kwargs.get('session_id', 'unknown_session')
+        start_time = time.time()
+        try:
+            result = await func(*args, **kwargs)
+            latency_ms = int((time.time() - start_time) * 1000)
+            await SessionTelemetry.record_event(
+                session_id=session_id,
+                event_type="GEMINI_CALL_SUCCESS",
+                metadata={"function": func.__name__},
+                latency_ms=latency_ms
+            )
+            return result
+        except Exception as e:
+            latency_ms = int((time.time() - start_time) * 1000)
+            await SessionTelemetry.record_event(
+                session_id=session_id,
+                event_type="GEMINI_CALL_FAILED",
+                error=GeminiQuotaExceeded(str(e)) if "quota" in str(e).lower() else None,
+                latency_ms=latency_ms
+            )
+            raise
+    return wrapper
 
 load_dotenv()
 

@@ -21,6 +21,7 @@ from backend.modules.interview.sessions.registry import get_session_registry
 from backend.services.tts_service import TTSService
 from backend.services.viseme_service import VisemeService
 from backend.core.logging.logger import get_logger
+from backend.core.telemetry import SessionTelemetry
 from backend.utils.metrics import metrics
 
 logger = get_logger(__name__)
@@ -213,6 +214,14 @@ class InterviewGateway:
                     "session_id": session_id
                 }, session=session)
                 
+                SessionTelemetry.record(
+                    session_id=session_id,
+                    event_type="PHASE_CHANGE",
+                    socket_id=active_socket_id if current_meta else None,
+                    seq=seq,
+                    metadata={"new_phase": new_phase.value}
+                )
+                
             self.safe_create_task(_send_phase(), session=session)
         
         session.broadcast_callback = broadcast_phase_change
@@ -228,6 +237,13 @@ class InterviewGateway:
         await self._registry.register(session_id, metadata)
         self._connections.add(ws)
         self._active_celery_tasks[session_id] = set()
+        
+        SessionTelemetry.record(
+            session_id=session_id,
+            event_type="SOCKET_CONNECTED",
+            socket_id=socket_id,
+            metadata={"user_id": user_data.user_id, "mock_id": mock_interview_session_id}
+        )
         
         print(f"DEBUG: Registry registered for {session_id}", flush=True)
         ping_task = self.safe_create_task(self._ping_loop(ws, session_id), session=session)
@@ -256,6 +272,12 @@ class InterviewGateway:
                         
                 if not active_ws:
                     logger.warning(f"No active socket found for session {session_id} to route response.")
+                    SessionTelemetry.record(
+                        session_id=session_id,
+                        event_type="STALE_SEND_ABORTED",
+                        socket_id=socket_id,
+                        metadata={"attempted_socket": socket_id, "active_socket": active_socket_id}
+                    )
                     return
 
                 # ROUTE TO ACTIVE SOCKET
@@ -370,6 +392,7 @@ class InterviewGateway:
 
         except WebSocketDisconnect:
             logger.info("WebSocket disconnected", extra={"extra_data": {"session_id": session_id}})
+            SessionTelemetry.record(session_id, "SOCKET_DISCONNECTED", socket_id=socket_id, metadata={"reason": "client_disconnect"})
         except TimeoutError as exc:
             if ws.application_state == WebSocketState.CONNECTED:
                 await self._send_error(ws, "TIMEOUT", str(exc), recoverable=False, session=session)
@@ -409,6 +432,12 @@ class InterviewGateway:
                 await self._registry.unregister(session_id)
             else:
                 logger.info(f"Skipping cleanup for superseded socket {socket_id} in session {session_id}.")
+                SessionTelemetry.record(
+                    session_id=session_id,
+                    event_type="SOCKET_EVICTED",
+                    socket_id=socket_id,
+                    metadata={"new_socket": current_meta.get("socket_id") if current_meta else None}
+                )
 
             # Clean up the PubSub results channel key from Redis
             try:

@@ -26,6 +26,7 @@ from backend.modules.interview.persistence import (
     complete_mock_interview,
     fail_mock_interview,
 )
+from backend.core.telemetry import SessionTelemetry
 from backend.core.evaluation_engine import EvaluationFatalError
 from backend.core.logging.logger import get_logger
 from backend.utils.metrics import metrics
@@ -302,6 +303,8 @@ class InterviewSession:
 
         self.state.transition_to(InterviewPhase.PROCESSING_RESUME)
         self._dirty = True
+        
+        SessionTelemetry.record(self.session_id, "RESUME_UPLOAD_STARTED", metadata={"file_name": data.get("file_name", "")})
 
         data = message.get("data", {})
         file_name = data.get("file_name", "")
@@ -325,6 +328,7 @@ class InterviewSession:
                     profile_data=cached_profile,
                     session_policy=self.session_policy,
                 )
+                SessionTelemetry.record(self.session_id, "RESUME_PARSE_COMPLETED", metadata={"cached": True})
                 self.state.resume_processed = True
                 self._dirty = True
                 return result
@@ -339,8 +343,10 @@ class InterviewSession:
                 file_bytes_b64=file_bytes,
                 session_policy=self.session_policy,
             )
+            SessionTelemetry.record(self.session_id, "RESUME_PARSE_COMPLETED", metadata={"cached": False})
             self.state.resume_processed = True
             logger.info("Interview engine returned initial question.")
+            SessionTelemetry.record(self.session_id, "QUESTION_GENERATED", metadata={"question_index": 0})
             self._dirty = True
         except Exception as e:
             logger.exception("Bootstrap interview failed in session handler")
@@ -401,6 +407,7 @@ class InterviewSession:
         now = time.time()
         if self._first_chunk_time is None:
             self._first_chunk_time = now
+            SessionTelemetry.record(self.session_id, "AUDIO_STREAM_STARTED")
         self._last_chunk_time = now
 
         if not self.audio_buffer.add(audio_chunk):
@@ -454,9 +461,11 @@ class InterviewSession:
             }
         question = self.state.questions[self.state.current_index]
         audio_bytes = self.audio_buffer.bytes()
+        SessionTelemetry.record(self.session_id, "STREAM_END", metadata={"buffer_bytes": len(audio_bytes)})
 
         # Evaluate the answer
         try:
+            SessionTelemetry.record(self.session_id, "EVALUATION_STARTED", metadata={"question_index": self.state.current_index})
             eval_result = await self.engine.evaluate_answer(
                 state=self.state,
                 audio_bytes=audio_bytes,
@@ -503,6 +512,7 @@ class InterviewSession:
             )
 
             if next_q:
+                SessionTelemetry.record(self.session_id, "QUESTION_GENERATED", metadata={"question_index": self.state.current_index})
                 return {
                     "type": "next_question",
                     "question": eval_result,
@@ -513,6 +523,7 @@ class InterviewSession:
         # Interview complete - generate final report and persist to DB
         # ----------------------------------------------------------------
         final_result = await self.engine.complete_interview(self.state)
+        SessionTelemetry.record(self.session_id, "SESSION_COMPLETED")
 
         # Persist to MockInterview table if we have a session_id
         if self.mock_interview_session_id:
