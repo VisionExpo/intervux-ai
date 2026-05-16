@@ -20,6 +20,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Set
 
 from fastapi import WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
+import anyio
+import concurrent.futures
 
 from backend.utils.metrics import metrics
 from backend.core.logging.logger import get_logger
@@ -92,7 +95,7 @@ class MetricsSocket:
         # Validate JWT token during handshake
         token = websocket.query_params.get("token")
         if not token:
-            await websocket.send_json({
+            await self._safe_send(websocket, {
                 "type": "error",
                 "code": "UNAUTHORIZED",
                 "message": "Missing authentication token",
@@ -114,7 +117,7 @@ class MetricsSocket:
             websocket.scope.setdefault("state", {})["user"] = user_data
         except Exception as e:
             logger.error(f"Auth failed for metrics: {e}")
-            await websocket.send_json({
+            await self._safe_send(websocket, {
                 "type": "error",
                 "code": "UNAUTHORIZED",
                 "message": "Invalid authentication token",
@@ -132,9 +135,8 @@ class MetricsSocket:
                 await websocket.receive_text()
         except WebSocketDisconnect:
             logger.info("Metrics WebSocket disconnected")
-        except asyncio.CancelledError:
+        except (asyncio.CancelledError, concurrent.futures.CancelledError, getattr(concurrent.futures, "_base", concurrent.futures).CancelledError):
             logger.info("Metrics WebSocket task cancelled")
-            raise
         except Exception as e:
             logger.exception(f"Metrics WebSocket handler failed: {e!r}")
         finally:
@@ -176,11 +178,17 @@ class MetricsSocket:
         Send data with timeout and error handling.
         Returns True if successful, False if connection is dead.
         """
+        if websocket.application_state != WebSocketState.CONNECTED or \
+           websocket.client_state != WebSocketState.CONNECTED:
+            return False
+
         try:
             await asyncio.wait_for(websocket.send_json(data), timeout=WS_SEND_TIMEOUT)
             return True
-        except (WebSocketDisconnect, asyncio.TimeoutError, Exception) as e:
-            # Note: We don't log here to avoid log spam in broadast loops
+        except (WebSocketDisconnect, asyncio.TimeoutError, RuntimeError, 
+                anyio.BrokenResourceError, anyio.ClosedResourceError):
+            return False
+        except Exception:
             return False
     
     def _get_metrics_snapshot(self) -> Dict[str, Any]:
@@ -275,9 +283,9 @@ async def start_metrics_broadcast():
                     "connections": current_conns,
                 }
             )
-        except asyncio.CancelledError:
+        except (asyncio.CancelledError, concurrent.futures.CancelledError, getattr(concurrent.futures, "_base", concurrent.futures).CancelledError):
             logger.info("Metrics broadcast task cancelled")
-            raise
+            return
         except Exception:
             logger.exception("Metrics broadcast loop failure")
         

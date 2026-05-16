@@ -109,6 +109,7 @@ class InterviewState:
         self._phase = InterviewPhase.CONNECTING
         self._next_seq: int = 1
         self.greeting_sent: bool = False
+        self.resume_processed: bool = False
         self.resume_text: Optional[str] = None
         self.profile: Optional[ResumeData] = None
         self.questions: List[str] = []

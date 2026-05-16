@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 import os
 from typing import Optional
 
@@ -29,7 +30,7 @@ class RuntimeMonitor:
         self._task.cancel()
         try:
             await self._task
-        except asyncio.CancelledError:
+        except (asyncio.CancelledError, concurrent.futures.CancelledError, getattr(concurrent.futures, "_base", concurrent.futures).CancelledError):
             pass
         self._task = None
 

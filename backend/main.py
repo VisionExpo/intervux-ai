@@ -2,6 +2,7 @@ import os
 import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
+import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, WebSocket, Query
@@ -78,7 +79,7 @@ async def lifespan(app: FastAPI):
         task.cancel()
         try:
             await task
-        except asyncio.CancelledError:
+        except (asyncio.CancelledError, concurrent.futures.CancelledError, getattr(concurrent.futures, "_base", concurrent.futures).CancelledError):
             pass
         logger.info("Metrics broadcast task shutdown cleanly")
     if hasattr(app.state, "interview_gateway"):
@@ -101,7 +102,9 @@ def create_app() -> FastAPI:
     )
 
     # --- Dependency Injection / State ---
-    interview_gateway = InterviewGateway(total_questions=2)
+    interview_gateway = InterviewGateway(
+        total_questions=int(os.getenv("INTERVIEW_TOTAL_QUESTIONS", "10"))
+    )
     runtime_monitor = RuntimeMonitor(interview_socket=interview_gateway)
     app.state.interview_gateway = interview_gateway
     app.state.runtime_monitor = runtime_monitor

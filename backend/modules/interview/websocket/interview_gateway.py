@@ -11,6 +11,8 @@ from typing import Any, Dict, Optional, Set
 
 from fastapi import WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
+import anyio
+import concurrent.futures
 
 from backend.core.security.jwt_service import TokenData, verify_token
 from backend.modules.interview.models import InterviewPhase
@@ -62,11 +64,11 @@ class InterviewGateway:
         def handle_done(t):
             try:
                 t.result()
-            except asyncio.CancelledError:
+            except (asyncio.CancelledError, concurrent.futures.CancelledError, getattr(concurrent.futures, "_base", concurrent.futures).CancelledError):
                 pass  # expected during shutdown
-            except Exception as e:
+            except Exception:
                 s_id = session.session_id if session else "unknown"
-                logger.error(f"Background task failed for session {s_id}: {e}")
+                logger.exception(f"Background task failed for session {s_id}")
         
         task.add_done_callback(handle_done)
         return task
@@ -156,6 +158,24 @@ class InterviewGateway:
         # Support resumption if session_id is provided in query params
         provided_session_id = ws.query_params.get("session_id")
         session_id = provided_session_id or str(uuid.uuid4())
+
+        # Demo-safety guard: allow only one active session per user.
+        existing_session_id: Optional[str] = None
+        finder = getattr(self._registry, "find_active_session_by_user", None)
+        if callable(finder):
+            found = await finder(user_data.user_id)
+            if isinstance(found, str) and found:
+                existing_session_id = found
+
+        if existing_session_id and existing_session_id != session_id:
+            await self._send_error(
+                ws,
+                "ACTIVE_SESSION_EXISTS",
+                "Another interview session is already active for this user.",
+                recoverable=False,
+            )
+            await self._close_ws(ws, code=1008)
+            return
         
         session_policy = self._build_load_policy(active_sessions)
 
@@ -221,6 +241,7 @@ class InterviewGateway:
                 session.state.greeting_sent = True
                 print(f"DEBUG: Transitioning to WAITING_RESUME for {session_id}", flush=True)
                 session.state.transition_to(InterviewPhase.WAITING_RESUME)
+                await session.persist_state_now()
                 print(f"DEBUG: Transition complete for {session_id}", flush=True)
             else:
                 # If resumed, re-broadcast current state to sync UI
@@ -237,6 +258,11 @@ class InterviewGateway:
                 message = await self._recv_with_timeout(ws)
                 print(f"DEBUG: Received message for {session_id}: {message}", flush=True)
                 
+                # Risk 1: Stop processing immediately if socket closed during recv or just after
+                if ws.application_state != WebSocketState.CONNECTED or ws.client_state != WebSocketState.CONNECTED:
+                    logger.info(f"Socket closed for {session_id}, stopping message processing.")
+                    break
+
                 m_type = message.get("type") if message else "None"
                 m_text_len = len(message.get("text", "")) if message and message.get("text") else 0
                 m_bytes_len = len(message.get("bytes", b"")) if message and message.get("bytes") else 0
@@ -311,15 +337,25 @@ class InterviewGateway:
         except WebSocketDisconnect:
             logger.info("WebSocket disconnected", extra={"extra_data": {"session_id": session_id}})
         except TimeoutError as exc:
-            await self._send_error(ws, "TIMEOUT", str(exc), recoverable=False, session=session)
+            if ws.application_state == WebSocketState.CONNECTED:
+                await self._send_error(ws, "TIMEOUT", str(exc), recoverable=False, session=session)
             await self._close_ws(ws, code=1001)
+        except (asyncio.CancelledError, concurrent.futures.CancelledError, getattr(concurrent.futures, "_base", concurrent.futures).CancelledError):
+            logger.info(f"Session {session_id} handler cancelled")
         except Exception:
             metrics.record_error()
-            await self._send_error(ws, "INTERNAL_ERROR", "Interview session failed.", recoverable=False, session=session)
+            logger.exception("Interview session failed")
+            if ws.application_state == WebSocketState.CONNECTED:
+                await self._send_error(ws, "INTERNAL_ERROR", "Interview session failed.", recoverable=False, session=session)
             await self._close_ws(ws, code=1011)
         finally:
+            # 🔥 CRITICAL FIX: Cancel all tasks associated with this session immediately
             ping_task.cancel()
             pubsub_task.cancel()
+            
+            for task in list(session.tasks):
+                if not task.done():
+                    task.cancel()
             
             # Revoke any lingering Celery TTS tasks for this session
             pending_tts = self._active_celery_tasks.pop(session_id, set())
@@ -348,6 +384,8 @@ class InterviewGateway:
         await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions}, session=session)
         audio_chunks = await tts_service.synthesize_chunks(session.session_id, text)
         for chunk in audio_chunks:
+            if ws.application_state != WebSocketState.CONNECTED or ws.client_state != WebSocketState.CONNECTED:
+                break
             visemes = chunk.get("visemes", [])
             audio_bytes = chunk.get("audio_bytes", b"")
             if not audio_bytes:
@@ -356,11 +394,14 @@ class InterviewGateway:
             await self._send_bytes(ws, bytes(audio_bytes))
         
         session.state.transition_to(InterviewPhase.LISTENING)
+        await session.persist_state_now()
 
     async def _send_avatar_with_audio(self, ws: WebSocket, session: InterviewSession, text: str, question_index: int, total_questions: int) -> None:
         await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions}, session=session)
         audio_chunks = await tts_service.synthesize_chunks(session.session_id, text)
         for chunk in audio_chunks:
+            if ws.application_state != WebSocketState.CONNECTED or ws.client_state != WebSocketState.CONNECTED:
+                break
             visemes = chunk.get("visemes", [])
             audio_bytes = chunk.get("audio_bytes", b"")
             if not audio_bytes:
@@ -369,6 +410,7 @@ class InterviewGateway:
             await self._send_bytes(ws, bytes(audio_bytes))
         if question_index > 0:
             session.state.transition_to(InterviewPhase.LISTENING)
+            await session.persist_state_now()
 
     async def _send_evaluation_response(self, ws: WebSocket, response: Dict[str, Any], session: InterviewSession) -> None:
         eval_payload = response.get("data")
@@ -387,8 +429,8 @@ class InterviewGateway:
 
     async def _send_json(self, ws: WebSocket, payload: Dict[str, Any], session: Optional[InterviewSession] = None) -> None:
         """Tag payload with sequence ID if session is provided and send with Starlette-safe state check."""
-        # Fast exit if already disconnected or closing
-        if ws.application_state != WebSocketState.CONNECTED:
+        # Fast exit if already disconnected or closing (from either side)
+        if ws.application_state != WebSocketState.CONNECTED or ws.client_state != WebSocketState.CONNECTED:
             return
 
         if session and "seq" not in payload:
@@ -400,14 +442,14 @@ class InterviewGateway:
         
         try:
             await asyncio.wait_for(ws.send_json(payload), timeout=self.send_timeout_s)
-        except (RuntimeError, WebSocketDisconnect):
-            # Already closed or closing; ignore
-            logger.debug("Skipping _send_json: Connection closed during send")
-        except asyncio.TimeoutError as exc:
+        except (RuntimeError, WebSocketDisconnect, anyio.BrokenResourceError, anyio.ClosedResourceError):
+            # WebSocket already closed or closing → ignore silently
+            return
+        except asyncio.TimeoutError:
             # We log but don't crash the loop
             logger.warning("WebSocket send_json timed out", extra={"extra_data": {"timeout": self.send_timeout_s}})
         except Exception:
-            logger.exception("Failed to send JSON via WebSocket")
+            logger.exception("Unexpected send failure")
 
     async def _broadcast_phase(self, ws: WebSocket, session: InterviewSession, phase: InterviewPhase) -> None:
         """Helper to broadcast phase change to frontend."""
@@ -415,21 +457,21 @@ class InterviewGateway:
 
     async def _send_bytes(self, ws: WebSocket, data: bytes) -> None:
         """Send raw bytes with Starlette-safe state check."""
-        if ws.application_state != WebSocketState.CONNECTED:
+        if ws.application_state != WebSocketState.CONNECTED or ws.client_state != WebSocketState.CONNECTED:
             return
 
         try:
             await asyncio.wait_for(ws.send_bytes(data), timeout=self.send_timeout_s)
-        except (RuntimeError, WebSocketDisconnect):
+        except (RuntimeError, WebSocketDisconnect, anyio.BrokenResourceError, anyio.ClosedResourceError):
             pass
-        except asyncio.TimeoutError as exc:
+        except asyncio.TimeoutError:
             logger.warning("WebSocket send_bytes timed out")
         except Exception:
             logger.exception("Failed to send bytes via WebSocket")
 
     async def _send_error(self, ws: WebSocket, code: str, message: str, recoverable: bool, session: Optional[InterviewSession] = None) -> None:
         """Send an error message to the client with Starlette-safe state check."""
-        if ws.application_state != WebSocketState.CONNECTED:
+        if ws.application_state != WebSocketState.CONNECTED or ws.client_state != WebSocketState.CONNECTED:
             return
 
         try:

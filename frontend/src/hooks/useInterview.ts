@@ -25,7 +25,6 @@ type QueuedAudioChunk = {
 };
 
 const WS_BASE_URL = `${import.meta.env.VITE_WS_URL ?? "ws://localhost:8000"}/ws/interview`;
-const MAX_RECONNECT_ATTEMPTS = 6;
 
 /**
  * Build the WebSocket URL.
@@ -61,7 +60,6 @@ export function useInterview() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const connectIdRef = useRef(0);
-  const reconnectAttemptRef = useRef(0);
   const shouldReconnectRef = useRef(true);
   const inFlightSendRef = useRef(false);
   const socketInitialized = useRef(false);
@@ -69,14 +67,17 @@ export function useInterview() {
   const [stage, dispatch] = useReducer(interviewReducer, initialState);
   const stageRef = useRef<InterviewState>(stage);
 
-  const audioRef = useRef<HTMLAudioElement | null>(new Audio());
-  const activeObjectUrlRef = useRef<string | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const playbackStartTimeRef = useRef<number>(0);
   const audioQueueRef = useRef<QueuedAudioChunk[]>([]);
   const pendingVisemesRef = useRef<VisemeCue[] | null>(null);
   const isPlayingQueueRef = useRef(false);
   const nextExpectedSeqRef = useRef(1);
   const incomingBufferRef = useRef<Map<number, any>>(new Map());
   const bufferTimeoutRef = useRef<number | null>(null);
+  const heartbeatIntervalRef = useRef<any>(null);
+  const streamEndTimerRef = useRef<number | null>(null);
 
   const [avatarText, setAvatarText] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -87,12 +88,11 @@ export function useInterview() {
   const [partialTranscript, setPartialTranscript] = useState("");
   const [finalReport, setFinalReport] = useState<Record<string, unknown> | null>(null);
   const [lastError, setLastError] = useState<string>("");
-  const [visemes, setVisemes] = useState<VisemeCue[]>([]);
+  const visemesRef = useRef<VisemeCue[]>([]);
   const [emotion, setEmotion] = useState("neutral");
   const [transcriptMessages, setTranscriptMessages] = useState<TranscriptMessage[]>([]);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
-
-  const isRecording = stage === "LISTENING";
+  const [isRecording, setIsRecording] = useState(false);
 
   const avatarState: AvatarState = useMemo(() => {
     if (isSpeaking) return "speaking";
@@ -128,9 +128,8 @@ export function useInterview() {
     const stuckStages: InterviewState[] = ["PROCESSING_RESUME", "PROCESSING_ANSWER"];
     if (stuckStages.includes(stage)) {
       const timer = window.setTimeout(() => {
-        console.warn(`Watchdog: Stuck in ${stage} for too long. Reconnecting...`);
-        setLastError("Still processing? Reconnecting to sync state...");
-        connectSocket();
+        console.warn(`Watchdog: Stuck in ${stage} for too long.`);
+        setLastError("Processing is taking longer than expected. Please wait.");
       }, 15000);
       return () => window.clearTimeout(timer);
     }
@@ -170,15 +169,20 @@ export function useInterview() {
     connectSocket();
 
     return () => {
+      console.log("useInterview: useEffect cleanup (connectSocket effect)");
       shouldReconnectRef.current = false;
       if (reconnectTimerRef.current !== null) {
         window.clearTimeout(reconnectTimerRef.current);
+      }
+      if (streamEndTimerRef.current !== null) {
+        window.clearTimeout(streamEndTimerRef.current);
+        streamEndTimerRef.current = null;
       }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
       }
       // Note: The global mediaStream cleanup is handled by the dedicated useEffect.
-      clearAudioQueue();
+      interruptAudio();
       socketRef.current?.close(1000, "Component unmounted");
       socketInitialized.current = false;
 
@@ -190,6 +194,7 @@ export function useInterview() {
 
   const processMessage = useCallback((msg: any) => {
     const type = typeof msg.type === "string" ? msg.type : "";
+    const normalizedType = type.toLowerCase();
 
     if (type === "PHASE_CHANGE") {
       const phase = msg.phase as InterviewState;
@@ -240,7 +245,7 @@ export function useInterview() {
       return;
     }
 
-    if (type === "complete") {
+    if (type === "interview_complete" || normalizedType === "complete") {
       setFinalReport((msg.report ?? null) as Record<string, unknown> | null);
       dispatch({ type: "SET_PHASE", phase: "INTERVIEW_COMPLETE" });
       shouldReconnectRef.current = false;
@@ -248,10 +253,13 @@ export function useInterview() {
       return;
     }
 
-    if (type === "error") {
+    if (type === "ERROR" || normalizedType === "error") {
       const message = typeof msg.message === "string" ? msg.message : "Server error.";
       setLastError(message);
       dispatch({ type: "ERROR_OCCURRED" });
+      if (msg.recoverable === false) {
+        shouldReconnectRef.current = false;
+      }
       return;
     }
 
@@ -305,10 +313,24 @@ export function useInterview() {
 
   function connectSocket() {
     console.log("WS CONNECT", getWebSocketUrl());
+    if (
+      socketRef.current &&
+      (socketRef.current.readyState === WebSocket.OPEN ||
+        socketRef.current.readyState === WebSocket.CONNECTING)
+    ) {
+      return;
+    }
+
     if (reconnectTimerRef.current !== null) {
       window.clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
     }
+    if (bufferTimeoutRef.current !== null) {
+      window.clearTimeout(bufferTimeoutRef.current);
+      bufferTimeoutRef.current = null;
+    }
+    nextExpectedSeqRef.current = 1;
+    incomingBufferRef.current.clear();
 
     connectIdRef.current += 1;
     const connectId = connectIdRef.current;
@@ -330,12 +352,19 @@ export function useInterview() {
     socketRef.current = ws;
 
     ws.onopen = () => {
-      console.log("WebSocket connected successfully");
+      console.log("WebSocket connected successfully (connectId:", connectId, ")");
       if (connectId !== connectIdRef.current) return;
-      reconnectAttemptRef.current = 0;
       setIsConnected(true);
       setLastError("");
       dispatch({ type: "WS_CONNECTED" });
+
+      // Start heartbeat to prevent timeouts
+      if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "ping" }));
+        }
+      }, 30000);
     };
 
     ws.onmessage = (event) => {
@@ -401,7 +430,13 @@ export function useInterview() {
     };
 
     ws.onclose = (event) => {
-      console.log("WS CLOSE", event.code, event.reason);
+      console.warn(`WebSocket closed: code=${event.code}, reason=${event.reason || "no reason"}, wasClean=${event.wasClean}`);
+      
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+
       if (connectId !== connectIdRef.current) {
         console.log("Ignoring onclose for stale connection ID:", connectId);
         return;
@@ -411,43 +446,14 @@ export function useInterview() {
       if (!shouldReconnectRef.current) return;
       if (stageRef.current === "INTERVIEW_COMPLETE") return;
 
-      scheduleReconnect();
+      shouldReconnectRef.current = false;
+      setLastError("Connection closed. Please refresh to continue.");
+      dispatch({ type: "ERROR_OCCURRED" });
     };
   }
 
-  function scheduleReconnect() {
-    const attempt = reconnectAttemptRef.current + 1;
-    reconnectAttemptRef.current = attempt;
-
-    if (attempt > MAX_RECONNECT_ATTEMPTS) {
-      console.error("Max reconnect attempts reached. Stopping.");
-      setLastError("Connection lost. Please refresh the page or check your internet.");
-      dispatch({ type: "ERROR_OCCURRED" });
-      shouldReconnectRef.current = false;
-      return;
-    }
-
-    const backoffMs = Math.min(1500 * 2 ** (attempt - 1), 15000);
-    const jitterMs = Math.floor(Math.random() * 300);
-    const delayMs = backoffMs + jitterMs;
-
-    setLastError(`Connection lost. Reconnecting (attempt ${attempt})...`);
-    dispatch({ type: "RESET" });
-
-    if (reconnectTimerRef.current !== null) {
-      window.clearTimeout(reconnectTimerRef.current);
-    }
-    reconnectTimerRef.current = window.setTimeout(() => {
-      setQuestionIndex(0);
-      setTotalQuestions(0);
-      setLastEvaluation(null);
-      setAvatarText("Reconnected. Please upload resume again.");
-      connectSocket();
-    }, delayMs);
-  }
-
-  async function uploadResume(file: File) {
-    if (stage !== "WAITING_RESUME") {
+  const uploadResume = useCallback(async (file: File) => {
+    if (stageRef.current !== "WAITING_RESUME") {
       console.warn("Cannot upload resume outside of WAITING_RESUME stage");
       return;
     }
@@ -473,10 +479,10 @@ export function useInterview() {
     } finally {
       inFlightSendRef.current = false;
     }
-  }
+  }, [dispatch]);
 
-  async function startAudioStream() {
-    if (stage !== "LISTENING") {
+  const startAudioStream = useCallback(async () => {
+    if (stageRef.current !== "LISTENING") {
       console.warn("Cannot start audio stream outside of LISTENING stage");
       return;
     }
@@ -485,7 +491,10 @@ export function useInterview() {
       dispatch({ type: "ERROR_OCCURRED" });
       return;
     }
-    if (isRecording) return;
+    if (isRecording) {
+      console.log("Audio stream already recording, skipping start.");
+      return;
+    }
 
     const stream = mediaStreamRef.current;
     if (!stream) {
@@ -510,6 +519,10 @@ export function useInterview() {
     };
 
     recorder.onstop = () => {
+      if (streamEndTimerRef.current !== null) {
+        window.clearTimeout(streamEndTimerRef.current);
+        streamEndTimerRef.current = null;
+      }
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(JSON.stringify({ type: "stream_end" }));
         // dispatch({ type: "ANSWER_PROCESSING_START" }); // REMOVED: Now driven by backend PHASE_CHANGE
@@ -520,17 +533,35 @@ export function useInterview() {
     };
 
     recorder.start(300);
+    if (streamEndTimerRef.current !== null) {
+      window.clearTimeout(streamEndTimerRef.current);
+    }
+    streamEndTimerRef.current = window.setTimeout(() => {
+      if (stageRef.current !== "LISTENING") return;
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      } else if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.send(JSON.stringify({ type: "stream_end" }));
+      }
+      setIsRecording(false);
+    }, 5000);
+    setIsRecording(true);
     setPartialTranscript("");
     setLastError("");
-  }
+  }, [isRecording, dispatch]);
 
-  function stopAudioStream() {
+  const stopAudioStream = useCallback(() => {
+    if (streamEndTimerRef.current !== null) {
+      window.clearTimeout(streamEndTimerRef.current);
+      streamEndTimerRef.current = null;
+    }
     const recorder = mediaRecorderRef.current;
     if (!recorder) return;
     if (recorder.state !== "inactive") {
       recorder.stop();
     }
-  }
+    setIsRecording(false);
+  }, []);
 
   function enqueueAudioChunk(audio: ArrayBuffer) {
     const nextVisemes = pendingVisemesRef.current || [];
@@ -551,105 +582,72 @@ export function useInterview() {
 
     const next = audioQueueRef.current.shift();
     if (!next) {
+      isPlayingQueueRef.current = false;
       setIsSpeaking(false);
-      setVisemes([]);
+      visemesRef.current = [];
       return;
     }
 
-    const audioEl = audioRef.current;
-    if (!audioEl) {
-      setIsSpeaking(false);
-      return;
+    // Initialize or resume AudioContext
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    const ctx = audioContextRef.current;
+    
+    if (ctx.state === "suspended") {
+      await ctx.resume();
     }
 
     isPlayingQueueRef.current = true;
     setIsSpeaking(true);
-    setVisemes(next.visemes);
-
-    if (activeObjectUrlRef.current) {
-      URL.revokeObjectURL(activeObjectUrlRef.current);
-      activeObjectUrlRef.current = null;
-    }
-
-    const blob = new Blob([next.audio], { type: "audio/wav" });
-    const objectUrl = URL.createObjectURL(blob);
-    activeObjectUrlRef.current = objectUrl;
-
-    audioEl.src = objectUrl;
-    audioEl.currentTime = 0;
-
-    const continueQueue = () => {
-      audioEl.onended = null;
-      audioEl.onerror = null;
-      isPlayingQueueRef.current = false;
-      setIsSpeaking(false);
-      if (activeObjectUrlRef.current) {
-        URL.revokeObjectURL(activeObjectUrlRef.current);
-        activeObjectUrlRef.current = null;
-      }
-      void playNextQueuedAudio();
-    };
-
-    audioEl.onended = continueQueue;
-    audioEl.onerror = continueQueue;
+    visemesRef.current = next.visemes;
 
     try {
-      await audioEl.play();
-    } catch {
-      continueQueue();
+      // Decode the ArrayBuffer into an AudioBuffer
+      // Note: We use slice(0) to avoid detached buffer issues if the original buffer is reused
+      const audioBuffer = await ctx.decodeAudioData(next.audio.slice(0));
+      
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(ctx.destination);
+      
+      audioSourceRef.current = source;
+      playbackStartTimeRef.current = ctx.currentTime;
+      
+      source.onended = () => {
+        audioSourceRef.current = null;
+        isPlayingQueueRef.current = false;
+        // Small delay to allow state to settle before next chunk
+        setTimeout(() => {
+          void playNextQueuedAudio();
+        }, 10);
+      };
+      
+      source.start(0);
+    } catch (err) {
+      console.error("Audio playback error:", err);
+      isPlayingQueueRef.current = false;
+      void playNextQueuedAudio();
     }
   }
 
-  function interruptAudio() {
+  const interruptAudio = useCallback(() => {
     audioQueueRef.current = [];
     pendingVisemesRef.current = null;
-
-    const audioEl = audioRef.current;
-    if (audioEl && !audioEl.paused) {
-      fadeOutAudio(audioEl);
-    }
-
     isPlayingQueueRef.current = false;
     setIsSpeaking(false);
-    setVisemes([]);
-  }
+    visemesRef.current = [];
 
-  function fadeOutAudio(audio: HTMLAudioElement) {
-    let vol = audio.volume;
-    const interval = setInterval(() => {
-      if (vol > 0.05) {
-        vol -= 0.05;
-        audio.volume = Math.max(0, vol);
-      } else {
-        audio.pause();
-        audio.volume = 1.0; // Reset for next play
-        clearInterval(interval);
+    if (audioSourceRef.current) {
+      try {
+        audioSourceRef.current.stop();
+      } catch (err) {
+        // Source might already be stopped or not started
       }
-    }, 20);
-  }
-
-  function clearAudioQueue() {
-    audioQueueRef.current = [];
-    pendingVisemesRef.current = null;
-
-    const audioEl = audioRef.current;
-    if (audioEl) {
-      audioEl.pause();
-      audioEl.onended = null;
-      audioEl.onerror = null;
-      audioEl.removeAttribute("src");
-      audioEl.load();
+      audioSourceRef.current = null;
     }
+  }, []);
 
-    if (activeObjectUrlRef.current) {
-      URL.revokeObjectURL(activeObjectUrlRef.current);
-      activeObjectUrlRef.current = null;
-    }
-
-    isPlayingQueueRef.current = false;
-    setIsSpeaking(false);
-    setVisemes([]);
-  }
 
     return {
       stage,
@@ -664,8 +662,9 @@ export function useInterview() {
       lastEvaluation,
       finalReport,
       lastError,
-      audioRef,
-      visemes,
+      audioContextRef,
+      playbackStartTimeRef,
+      visemesRef,
       emotion,
       transcriptMessages,
       mediaStream,

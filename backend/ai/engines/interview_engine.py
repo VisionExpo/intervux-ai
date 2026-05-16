@@ -88,14 +88,26 @@ class InterviewEngine:
         )
         extracted = parsed_resume.to_interview_profile()
 
-        try:
-            state.profile = ResumeData(**extracted)
-        except Exception:
-            logger.exception("Failed to build ResumeData from ParsedResume")
-            state.profile = ResumeData()
-            
         metrics.record_latency("resume_parsing", time.time() - resume_start)
-        
+
+        return await self.start_interview_from_profile(
+            state=state,
+            profile_data=extracted,
+            session_policy=session_policy,
+        )
+
+    async def start_interview_from_profile(
+        self,
+        state: InterviewState,
+        profile_data: Dict[str, Any],
+        session_policy: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        try:
+            state.profile = ResumeData(**(profile_data or {}))
+        except Exception:
+            logger.exception("Failed to build ResumeData from profile data")
+            state.profile = ResumeData()
+
         logger.info("Generating first question")
         question_start = time.time()
         state.target_question_count = int(session_policy.get("question_count", 2))
@@ -448,7 +460,7 @@ class InterviewEngine:
     ) -> dict:
         return await asyncio.to_thread(
             partial(
-                self.evaluation_service.evaluate_full,
+                self.evaluation_service.evaluate,
                 question=question,
                 answer=answer,
                 profile=profile,

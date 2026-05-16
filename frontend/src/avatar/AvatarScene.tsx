@@ -4,8 +4,9 @@ import VRMAvatar from "./VRMAvatar";
 import type { VisemeCue } from "./LipSyncController";
 
 type AvatarSceneProps = {
-  audioRef: RefObject<HTMLAudioElement | null>;
-  visemes?: VisemeCue[];
+  audioContextRef: RefObject<AudioContext | null>;
+  playbackStartTimeRef: RefObject<number>;
+  visemesRef: RefObject<VisemeCue[]>;
   avatarState?: "speaking" | "listening" | "thinking";
   emotion?: string;
 };
@@ -32,8 +33,9 @@ const AvatarFallback = () => (
 );
 
 export default function AvatarScene({
-  audioRef,
-  visemes,
+  audioContextRef,
+  playbackStartTimeRef,
+  visemesRef,
   avatarState = "listening",
   emotion = "neutral",
 }: AvatarSceneProps) {
@@ -53,8 +55,9 @@ export default function AvatarScene({
 
       <Suspense fallback={null}>
         <VRMAvatar
-          audioRef={audioRef}
-          visemes={visemes}
+          audioContextRef={audioContextRef}
+          playbackStartTimeRef={playbackStartTimeRef}
+          visemesRef={visemesRef}
           avatarState={avatarState}
           emotion={emotion}
           onLoadError={() => setAvatarLoadFailed(true)}

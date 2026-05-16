@@ -26,8 +26,9 @@ export default function InterviewPage() {
     totalQuestions,
     lastEvaluation,
     finalReport,
-    audioRef,
-    visemes,
+    audioContextRef,
+    playbackStartTimeRef,
+    visemesRef,
     emotion,
     transcriptMessages,
     mediaStream,
@@ -86,7 +87,9 @@ export default function InterviewPage() {
   }, [stage]);
 
   useEffect(() => {
+    console.log("InterviewPage mounted");
     return () => {
+      console.log("InterviewPage unmounted");
       audioFeedback.dispose();
     };
   }, []);
@@ -169,8 +172,9 @@ export default function InterviewPage() {
         ) : (
           <AvatarInterviewer
             isSpeaking={isSpeaking}
-            audioRef={audioRef}
-            visemes={visemes}
+            audioContextRef={audioContextRef}
+            playbackStartTimeRef={playbackStartTimeRef}
+            visemesRef={visemesRef}
             avatarState={avatarState}
             emotion={emotion}
             questionText={currentQuestion}

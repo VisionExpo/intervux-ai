@@ -13,9 +13,11 @@ Changes vs previous version:
 
 import asyncio
 import contextlib
+import concurrent.futures
 import json
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
+from sqlalchemy import select
 
 from backend.ai.engines.interview_engine import InterviewEngine
 from backend.modules.interview.models import InterviewPhase, InterviewState
@@ -28,6 +30,8 @@ from backend.core.evaluation_engine import EvaluationFatalError
 from backend.core.logging.logger import get_logger
 from backend.utils.metrics import metrics
 from backend.services.redis_manager import redis_client
+from backend.infrastructure.database.database import AsyncSessionLocal
+from backend.models.candidate_portal import CandidateProfile
 
 logger = get_logger(__name__)
 
@@ -143,6 +147,13 @@ class InterviewSession:
         # Hydrate session block dynamically from Redis if resuming.
         await self.hydrate()
 
+        # Risk 1: Validate session still exists in registry before any heavy logic
+        from backend.modules.interview.sessions.registry import get_session_registry
+        registry = get_session_registry()
+        if not await registry.get_metadata(self.session_id):
+            logger.warning(f"Aborting handle_message for {self.session_id}: session no longer in registry.")
+            return None
+
         msg_type = self._get_message_type(message)
 
         if not self.state.can_proceed(msg_type):
@@ -178,13 +189,32 @@ class InterviewSession:
         # --- LAZY PERSISTENCE ---
         # Only persist to Redis if the state was marked as dirty (changed)
         if self._dirty:
-            try:
-                await redis_client.save_session_state_obj(self.session_id, (self.state, self.eval_context_cache))
-                self._dirty = False # Reset flag after successful save
-            except Exception as e:
-                logger.error(f"Failed to persist state to redis: {e}")
+            # Check registry one last time to prevent ghost updates after disconnect/cleanup
+            if await registry.get_metadata(self.session_id):
+                try:
+                    await redis_client.save_session_state_obj(self.session_id, (self.state, self.eval_context_cache))
+                    self._dirty = False # Reset flag after successful save
+                except Exception as e:
+                    logger.error(f"Failed to persist state to redis: {e}")
+            else:
+                logger.warning(f"Skipping Redis save for {self.session_id}: session already unregistered.")
             
         return response
+
+    async def persist_state_now(self) -> None:
+        """
+        Persist the current state immediately.
+
+        Used by gateway-owned phase transitions so the next incoming message
+        hydrates the latest phase without race windows.
+        """
+        try:
+            await redis_client.save_session_state_obj(
+                self.session_id, (self.state, self.eval_context_cache)
+            )
+            self._dirty = False
+        except Exception as e:
+            logger.warning(f"Immediate state persist failed for {self.session_id}: {e}")
 
     async def cleanup(self) -> None:
         """
@@ -213,7 +243,7 @@ class InterviewSession:
         
         if self.tasks:
             # Wait briefly for tasks to acknowledge cancellation
-            with contextlib.suppress(asyncio.CancelledError):
+            with contextlib.suppress(asyncio.CancelledError, concurrent.futures.CancelledError):
                 await asyncio.gather(*self.tasks, return_exceptions=True)
             self.tasks.clear()
 
@@ -247,13 +277,17 @@ class InterviewSession:
     async def _handle_ping(self) -> Dict[str, Any]:
         return {"type": "pong"}
 
-    async def _handle_resume_upload(self, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_resume_upload(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Handle resume_upload message.
 
         Expected format:
             {"type": "resume_upload", "file_name": "...", "file_bytes": "<b64>"}
         """
+        if getattr(self.state, "resume_processed", False):
+            logger.info("Resume already processed for this session; ignoring duplicate upload")
+            return None
+
         self.state.transition_to(InterviewPhase.PROCESSING_RESUME)
         self._dirty = True
 
@@ -269,6 +303,22 @@ class InterviewSession:
                 "recoverable": True,
             }
 
+        # Cost-safety guard: if profile resume is already parsed, reuse it.
+        cached_profile = await self._load_profile_resume_data()
+        if cached_profile is not None:
+            logger.info("Using cached profile resume data; skipping duplicate resume parsing.")
+            try:
+                result = await self.engine.start_interview_from_profile(
+                    state=self.state,
+                    profile_data=cached_profile,
+                    session_policy=self.session_policy,
+                )
+                self.state.resume_processed = True
+                self._dirty = True
+                return result
+            except Exception:
+                logger.exception("Failed to start interview from cached profile data")
+
         logger.info("Resume upload message received, starting processing.")
         try:
             result = await self.engine.start_interview(
@@ -277,6 +327,7 @@ class InterviewSession:
                 file_bytes_b64=file_bytes,
                 session_policy=self.session_policy,
             )
+            self.state.resume_processed = True
             logger.info("Interview engine returned initial question.")
             self._dirty = True
         except Exception as e:
@@ -290,6 +341,40 @@ class InterviewSession:
             }
 
         return result
+
+    async def _load_profile_resume_data(self) -> Optional[Dict[str, Any]]:
+        """
+        Load already-parsed resume profile data from CandidateProfile.
+        Returns None when no reusable profile is available.
+        """
+        try:
+            async with AsyncSessionLocal() as db:
+                res = await db.execute(
+                    select(CandidateProfile).filter(CandidateProfile.user_id == self.user_id)
+                )
+                profile = res.scalar_one_or_none()
+                if not profile:
+                    return None
+                if not profile.resume_url:
+                    return None
+
+                skills: list[str] = []
+                if profile.skills:
+                    try:
+                        parsed_skills = json.loads(profile.skills)
+                        if isinstance(parsed_skills, list):
+                            skills = [str(s) for s in parsed_skills if isinstance(s, str)]
+                    except Exception:
+                        skills = []
+
+                return {
+                    "name": profile.name,
+                    "skills": skills,
+                    "projects": [],
+                }
+        except Exception:
+            logger.exception("Failed to load candidate profile resume data")
+            return None
 
     async def _handle_audio_chunk(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """

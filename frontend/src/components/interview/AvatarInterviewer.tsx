@@ -7,8 +7,9 @@ type AvatarState = "speaking" | "listening" | "thinking";
 
 interface AvatarInterviewerProps {
   isSpeaking: boolean;
-  audioRef: RefObject<HTMLAudioElement | null>;
-  visemes?: VisemeCue[];
+  audioContextRef: RefObject<AudioContext | null>;
+  playbackStartTimeRef: RefObject<number>;
+  visemesRef: RefObject<VisemeCue[]>;
   avatarState?: AvatarState;
   emotion?: string;
   questionText?: string;
@@ -17,8 +18,9 @@ interface AvatarInterviewerProps {
 
 export default function AvatarInterviewer({
   isSpeaking,
-  audioRef,
-  visemes,
+  audioContextRef,
+  playbackStartTimeRef,
+  visemesRef,
   avatarState = "listening",
   emotion = "neutral",
   questionText = "",
@@ -103,9 +105,10 @@ export default function AvatarInterviewer({
         }}
       >
         <Avatar3D
-          isSpeacking={isSpeaking}
-          audioRef={audioRef}
-          visemes={visemes}
+          isSpeaking={isSpeaking}
+          audioContextRef={audioContextRef}
+          playbackStartTimeRef={playbackStartTimeRef}
+          visemesRef={visemesRef}
           avatarState={displayState}
           emotion={emotion}
         />

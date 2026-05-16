@@ -53,6 +53,27 @@ class RedisSessionRegistry:
         except Exception:
             return None
 
+    async def find_active_session_by_user(self, user_id: str) -> Optional[str]:
+        """
+        Return an active session_id for a given user_id if one exists.
+        """
+        try:
+            async for key in self.redis.scan_iter("session:*"):
+                if key == "session_cluster_count":
+                    continue
+                raw = await self.redis.get(key)
+                if not raw:
+                    continue
+                try:
+                    payload = json.loads(raw)
+                except Exception:
+                    continue
+                if payload.get("user_id") == user_id:
+                    return key.split("session:", 1)[1]
+        except Exception as e:
+            logger.error(f"find_active_session_by_user error: {e}")
+        return None
+
     async def count(self) -> int:
         """Get number of active sessions globally."""
         try:

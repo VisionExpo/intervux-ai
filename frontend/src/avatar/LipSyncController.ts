@@ -9,13 +9,12 @@ export type VisemeCue = {
 
 export function applyLipSync(
   vrm: VRM,
-  audio: HTMLAudioElement | null,
+  elapsedTimeMs: number,
   visemes: VisemeCue[] | undefined
 ) {
-  if (!audio || !visemes?.length || !vrm.expressionManager) return;
+  if (!visemes?.length || !vrm.expressionManager) return;
 
-  const time = audio.currentTime * 1000;
-  const active = visemes.find((v) => time >= v.start && time <= v.end);
+  const active = visemes.find((v) => elapsedTimeMs >= v.start && elapsedTimeMs <= v.end);
 
   for (const key of allMappedVisemes) {
     vrm.expressionManager.setValue(key, 0);

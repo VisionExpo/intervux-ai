@@ -8,16 +8,18 @@ import { applyLipSync } from "./LipSyncController";
 import { applyBlink } from "./BlinkController";
 
 type VRMAvatarProps = {
-  audioRef: RefObject<HTMLAudioElement | null>;
-  visemes?: VisemeCue[];
+  audioContextRef: RefObject<AudioContext | null>;
+  playbackStartTimeRef: RefObject<number>;
+  visemesRef: RefObject<VisemeCue[]>;
   avatarState: "speaking" | "listening" | "thinking";
   emotion: string;
   onLoadError?: () => void;
 };
 
 export default function VRMAvatar({
-  audioRef,
-  visemes,
+  audioContextRef,
+  playbackStartTimeRef,
+  visemesRef,
   avatarState,
   emotion,
   onLoadError,
@@ -77,7 +79,14 @@ export default function VRMAvatar({
     if (!vrm) return;
 
     applyBlink(vrm, delta);
-    applyLipSync(vrm, audioRef.current, visemes);
+
+    // Calculate elapsed time from AudioContext
+    let elapsedTimeMs = 0;
+    if (audioContextRef.current && playbackStartTimeRef.current > 0) {
+      elapsedTimeMs = (audioContextRef.current.currentTime - playbackStartTimeRef.current) * 1000;
+    }
+
+    applyLipSync(vrm, elapsedTimeMs, visemesRef.current);
     applyAvatarBehavior(vrm, headRef.current, avatarState, emotion, state.clock.elapsedTime, state.camera.position);
     vrm.update(delta);
   });
