@@ -322,12 +322,16 @@ class InterviewGateway:
                 print(f"DEBUG: Starting greeting flow for {session_id}", flush=True)
                 # Send greeting synchronously to prevent AnyIO stream lockups in TestClient
                 await self._send_avatar_with_audio(ws, session, full_text, 0, 0)
-                print(f"DEBUG: Greeting sent for {session_id}", flush=True)
-                session.state.greeting_sent = True
-                print(f"DEBUG: Transitioning to WAITING_RESUME for {session_id}", flush=True)
-                session.state.transition_to(InterviewPhase.WAITING_RESUME)
-                await session.persist_state_now()
-                print(f"DEBUG: Transition complete for {session_id}", flush=True)
+                
+                if ws.application_state == WebSocketState.CONNECTED and ws.client_state == WebSocketState.CONNECTED:
+                    print(f"DEBUG: Greeting sent for {session_id}", flush=True)
+                    session.state.greeting_sent = True
+                    print(f"DEBUG: Transitioning to WAITING_RESUME for {session_id}", flush=True)
+                    session.state.transition_to(InterviewPhase.WAITING_RESUME)
+                    await session.persist_state_now()
+                    print(f"DEBUG: Transition complete for {session_id}", flush=True)
+                else:
+                    logger.warning(f"Socket disconnected during greeting for {session_id}, aborting state transition.")
             else:
                 # If resumed, re-broadcast current state to sync UI
                 print(f"DEBUG: Resuming flow for {session_id}", flush=True)
@@ -376,7 +380,7 @@ class InterviewGateway:
 
                 # Protocol version gate — reject unsupported client versions
                 client_version = data.get("version")
-                if client_version is not None and client_version not in SUPPORTED_VERSIONS:
+                if client_version not in SUPPORTED_VERSIONS:
                     await self._send_error(
                         ws,
                         "UNSUPPORTED_PROTOCOL",

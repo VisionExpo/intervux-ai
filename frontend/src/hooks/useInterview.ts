@@ -48,7 +48,10 @@ function getWebSocketUrl(): string {
 
   const params = new URLSearchParams();
   if (token) params.set("token", token);
-  if (mockSessionId) params.set("mock_session_id", mockSessionId);
+  if (mockSessionId) {
+    params.set("mock_session_id", mockSessionId);
+    params.set("session_id", mockSessionId);
+  }
 
   const qs = params.toString();
   return qs ? `${WS_BASE_URL}?${qs}` : WS_BASE_URL;
@@ -362,7 +365,7 @@ export function useInterview() {
       if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
       heartbeatIntervalRef.current = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "ping" }));
+          ws.send(JSON.stringify({ type: "ping", version: "v1" }));
         }
       }, 30000);
     };
@@ -471,6 +474,7 @@ export function useInterview() {
       socketRef.current.send(
         JSON.stringify({
           type: "resume_upload",
+          version: "v1",
           file_name: file.name,
           file_bytes: fileBytes,
         })
@@ -524,7 +528,7 @@ export function useInterview() {
         streamEndTimerRef.current = null;
       }
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.send(JSON.stringify({ type: "stream_end" }));
+        socketRef.current.send(JSON.stringify({ type: "stream_end", version: "v1" }));
         // dispatch({ type: "ANSWER_PROCESSING_START" }); // REMOVED: Now driven by backend PHASE_CHANGE
       }
       // DO NOT stop the tracks or nullify mediaStreamRef here!
@@ -541,7 +545,7 @@ export function useInterview() {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
       } else if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.send(JSON.stringify({ type: "stream_end" }));
+        socketRef.current.send(JSON.stringify({ type: "stream_end", version: "v1" }));
       }
       setIsRecording(false);
     }, 5000);
