@@ -10,41 +10,78 @@ class SessionTelemetry:
     TTL_SECONDS = 7 * 24 * 3600  # 7 days
     
     @classmethod
+    def record(
+        cls, 
+        session_id: str, 
+        event_type: str, 
+        metadata: Dict[str, Any] = None, 
+        error: Optional[IntervuxSystemError] = None,
+        latency_ms: Optional[float] = None,
+        **kwargs
+    ):
+        """Synchronous non-blocking telemetry emission."""
+        try:
+            socket_id = kwargs.pop("socket_id", None)
+            seq = kwargs.pop("seq", None)
+
+            full_metadata = (metadata or {}).copy()
+            for k, v in kwargs.items():
+                full_metadata[k] = v
+
+            event = {
+                "timestamp": time.time(),
+                "event_type": event_type,
+                "severity": getattr(error, "severity", "ERROR") if error else "INFO",
+                "session_id": session_id,
+                "metadata": full_metadata,
+                "latency_ms": latency_ms
+            }
+            if socket_id is not None:
+                event["socket_id"] = socket_id
+            if seq is not None:
+                event["seq"] = seq
+
+            if error:
+                event["error_detail"] = getattr(error, "message", str(error))
+                event["retryable"] = getattr(error, "retryable", False)
+
+            # Fire-and-forget to avoid blocking core loop
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(cls._flush_to_redis(session_id, event))
+            except RuntimeError:
+                pass
+
+            # Log for stdout visibility
+            severity = getattr(error, "severity", "ERROR") if error else "INFO"
+            if severity in ["ERROR", "FATAL"]:
+                logger.error(f"TELEMETRY: {event_type}", extra=event)
+            else:
+                logger.info(f"TELEMETRY: {event_type}", extra=event)
+
+        except Exception as e:
+            # Observability layer must never crash the system
+            logger.error("Telemetry emission failed", extra={"error": str(e)})
+
+    @classmethod
     async def record_event(
         cls, 
         session_id: str, 
         event_type: str, 
         metadata: Dict[str, Any] = None, 
         error: Optional[IntervuxSystemError] = None,
-        latency_ms: Optional[float] = None
+        latency_ms: Optional[float] = None,
+        **kwargs
     ):
-        """Non-blocking telemetry emission."""
-        try:
-            event = {
-                "timestamp": time.time(),
-                "event_type": event_type,
-                "severity": error.severity if error else "INFO",
-                "session_id": session_id,
-                "metadata": metadata or {},
-                "latency_ms": latency_ms
-            }
-            
-            if error:
-                event["error_detail"] = error.message
-                event["retryable"] = error.retryable
-            
-            # Fire-and-forget to avoid blocking core loop
-            asyncio.create_task(cls._flush_to_redis(session_id, event))
-            
-            # Log for stdout visibility
-            if error and error.severity in ["ERROR", "FATAL"]:
-                logger.error(f"TELEMETRY: {event_type}", extra=event)
-            else:
-                logger.info(f"TELEMETRY: {event_type}", extra=event)
-                
-        except Exception as e:
-            # Observability layer must never crash the system
-            logger.error("Telemetry emission failed", extra={"error": str(e)})
+        """Async backward-compatible wrapper for record."""
+        cls.record(
+            session_id=session_id,
+            event_type=event_type,
+            metadata=metadata,
+            error=error,
+            latency_ms=latency_ms,
+            **kwargs
+        )
             
     @classmethod
     async def _flush_to_redis(cls, session_id: str, event: Dict[str, Any]):

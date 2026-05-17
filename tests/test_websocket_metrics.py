@@ -399,11 +399,18 @@ class TestMetricsBroadcast:
     @pytest.mark.asyncio
     async def test_broadcast_reaches_all_connections(self):
         from backend.modules.analytics.websocket.metrics_socket import MetricsSocket
+        from starlette.websockets import WebSocketState
 
         socket = MetricsSocket()
 
         ws1 = AsyncMock()
+        ws1.application_state = WebSocketState.CONNECTED
+        ws1.client_state = WebSocketState.CONNECTED
+        
         ws2 = AsyncMock()
+        ws2.application_state = WebSocketState.CONNECTED
+        ws2.client_state = WebSocketState.CONNECTED
+
         socket._connections.add(ws1)
         socket._connections.add(ws2)
 
@@ -423,11 +430,17 @@ class TestMetricsBroadcast:
     @pytest.mark.asyncio
     async def test_broadcast_removes_failed_connections(self):
         from backend.modules.analytics.websocket.metrics_socket import MetricsSocket
+        from starlette.websockets import WebSocketState
 
         socket = MetricsSocket()
 
         ws_good = AsyncMock()
+        ws_good.application_state = WebSocketState.CONNECTED
+        ws_good.client_state = WebSocketState.CONNECTED
+
         ws_bad = AsyncMock()
+        ws_bad.application_state = WebSocketState.CONNECTED
+        ws_bad.client_state = WebSocketState.CONNECTED
         ws_bad.send_json.side_effect = Exception("connection reset")
 
         socket._connections.add(ws_good)
@@ -443,10 +456,13 @@ class TestMetricsBroadcast:
     @pytest.mark.asyncio
     async def test_broadcast_with_timeout_removes_slow_connection(self):
         from backend.modules.analytics.websocket.metrics_socket import MetricsSocket
+        from starlette.websockets import WebSocketState
 
         socket = MetricsSocket()
 
         ws_slow = AsyncMock()
+        ws_slow.application_state = WebSocketState.CONNECTED
+        ws_slow.client_state = WebSocketState.CONNECTED
         ws_slow.send_json.side_effect = asyncio.TimeoutError()
 
         socket._connections.add(ws_slow)

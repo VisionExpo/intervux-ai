@@ -122,6 +122,36 @@ def test_client(db_session: AsyncSession) -> Generator[TestClient, None, None]:
     app.dependency_overrides.clear()
 
 
+class AsyncTestClientWrapper:
+    def __init__(self, sync_client):
+        self._sync_client = sync_client
+
+    def __getattr__(self, name):
+        return getattr(self._sync_client, name)
+
+    async def get(self, *args, **kwargs):
+        return self._sync_client.get(*args, **kwargs)
+
+    async def post(self, *args, **kwargs):
+        return self._sync_client.post(*args, **kwargs)
+
+    async def put(self, *args, **kwargs):
+        return self._sync_client.put(*args, **kwargs)
+
+    async def delete(self, *args, **kwargs):
+        return self._sync_client.delete(*args, **kwargs)
+
+    async def patch(self, *args, **kwargs):
+        return self._sync_client.patch(*args, **kwargs)
+
+
+@pytest.fixture(scope="function")
+def client(test_client: TestClient) -> Any:
+    """Alias fixture wrapping TestClient for both sync/async wide suite compatibility."""
+    return AsyncTestClientWrapper(test_client)
+
+
+
 @pytest.fixture
 def admin_token() -> str:
     """
@@ -135,6 +165,7 @@ def admin_token() -> str:
         "email": "admin@intervux.ai",
         "name": "Admin Test User",
         "role": Role.ADMIN,
+        "jti": str(uuid.uuid4()),
     }
     token = create_token_pair(user_data)
     return token.access_token
@@ -153,6 +184,7 @@ def recruiter_token() -> str:
         "email": "recruiter@intervux.ai",
         "name": "Recruiter Test User",
         "role": Role.RECRUITER,
+        "jti": str(uuid.uuid4()),
     }
     token = create_token_pair(user_data)
     return token.access_token
@@ -171,6 +203,7 @@ def candidate_token() -> str:
         "email": "candidate@intervux.ai",
         "name": "Candidate Test User",
         "role": Role.CANDIDATE,
+        "jti": str(uuid.uuid4()),
     }
     token = create_token_pair(user_data)
     return token.access_token

@@ -304,11 +304,11 @@ class InterviewSession:
         self.state.transition_to(InterviewPhase.PROCESSING_RESUME)
         self._dirty = True
         
-        SessionTelemetry.record(self.session_id, "RESUME_UPLOAD_STARTED", metadata={"file_name": data.get("file_name", "")})
-
         data = message.get("data", {})
         file_name = data.get("file_name", "")
         file_bytes = data.get("file_bytes", "")
+
+        SessionTelemetry.record(self.session_id, "RESUME_UPLOAD_STARTED", metadata={"file_name": file_name})
 
         if not file_name or not file_bytes:
             return {

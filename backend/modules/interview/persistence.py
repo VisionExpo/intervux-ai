@@ -110,13 +110,15 @@ async def complete_mock_interview(
     session_id: str,
     final_report: Dict[str, Any],
     answers: List[Dict[str, Any]],
+    db: AsyncSession | None = None,
 ) -> bool:
     """Mark a MockInterview row as completed and persist scores/transcript/evaluation."""
     from backend.infrastructure.database.database import AsyncSessionLocal
     from sqlalchemy import select
-    async with AsyncSessionLocal() as db:
+
+    async def _run(session):
         try:
-            result = await db.execute(select(MockInterview).filter(MockInterview.session_id == session_id))
+            result = await session.execute(select(MockInterview).filter(MockInterview.session_id == session_id))
             interview = result.scalar_one_or_none()
             if not interview:
                 logger.warning(
@@ -156,7 +158,7 @@ async def complete_mock_interview(
 
             # Decrement credits ONLY upon successful completion
             from backend.models.candidate_portal import CandidateProfile
-            result_profile = await db.execute(select(CandidateProfile).filter(CandidateProfile.id == interview.candidate_id))
+            result_profile = await session.execute(select(CandidateProfile).filter(CandidateProfile.id == interview.candidate_id))
             profile = result_profile.scalar_one_or_none()
             if profile:
                 if profile.mock_interviews_remaining > 0:
@@ -165,14 +167,15 @@ async def complete_mock_interview(
                 else:
                     logger.warning(f"User {profile.user_id} completed interview but has 0 credits?")
             
-            await db.commit()
+            interview_id = interview.id
+            await session.commit()
 
             logger.info(
                 "MockInterview completed",
                 extra={
                     "extra_data": {
                         "session_id": session_id,
-                        "interview_id": interview.id,
+                        "interview_id": interview_id,
                         "overall": avg["overall"],
                         "technical": avg["technical"],
                         "behavioral": avg["behavioral"],
@@ -186,21 +189,31 @@ async def complete_mock_interview(
         except Exception:
             logger.exception("Failed to persist MockInterview for session_id=%s", session_id)
             try:
-                await db.rollback()
+                await session.rollback()
             except Exception:
                 pass
             return False
 
+    if db is not None:
+        return await _run(db)
+    async with AsyncSessionLocal() as session:
+        return await _run(session)
 
-async def fail_mock_interview(session_id: str, reason: str = "error") -> bool:
+
+async def fail_mock_interview(
+    session_id: str,
+    reason: str = "error",
+    db: AsyncSession | None = None,
+) -> bool:
     """
     Mark an in-progress MockInterview row as abandoned.
     """
     from backend.infrastructure.database.database import AsyncSessionLocal
     from sqlalchemy import select
-    async with AsyncSessionLocal() as db:
+
+    async def _run(session):
         try:
-            result = await db.execute(select(MockInterview).filter(MockInterview.session_id == session_id))
+            result = await session.execute(select(MockInterview).filter(MockInterview.session_id == session_id))
             interview = result.scalar_one_or_none()
             if not interview:
                 return False
@@ -218,7 +231,7 @@ async def fail_mock_interview(session_id: str, reason: str = "error") -> bool:
 
             interview.status = "abandoned"
             interview.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
-            await db.commit()
+            await session.commit()
 
             logger.info(
                 "MockInterview marked abandoned",
@@ -229,7 +242,13 @@ async def fail_mock_interview(session_id: str, reason: str = "error") -> bool:
         except Exception:
             logger.exception("Failed to mark MockInterview abandoned for session_id=%s", session_id)
             try:
-                await db.rollback()
+                await session.rollback()
             except Exception:
                 pass
             return False
+
+    if db is not None:
+        return await _run(db)
+    async with AsyncSessionLocal() as session:
+        return await _run(session)
+

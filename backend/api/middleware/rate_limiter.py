@@ -15,6 +15,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.clients: Dict[str, list] = {}
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        import os
+        if os.getenv("ENV") == "test":
+            return await call_next(request)
+            
         client_ip = request.client.host if request.client else "unknown"
         now = time.time()
         

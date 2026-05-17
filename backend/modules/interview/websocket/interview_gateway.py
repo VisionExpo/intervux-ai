@@ -159,6 +159,7 @@ class InterviewGateway:
         # Support resumption if session_id is provided in query params
         provided_session_id = ws.query_params.get("session_id")
         session_id = provided_session_id or str(uuid.uuid4())
+        ws.session_id = session_id
         
         # Identify this specific socket connection
         socket_id = str(uuid.uuid4())
@@ -233,8 +234,25 @@ class InterviewGateway:
             "created_at": time.time(),
             "socket_id": socket_id
         }
+        stale_connections = [
+            conn for conn in self._connections
+            if getattr(conn, "session_id", None) == session_id
+        ]
+
         print(f"DEBUG: Handle called for {session_id}", flush=True)
         await self._registry.register(session_id, metadata)
+
+        for conn in stale_connections:
+            logger.info(
+                "Evicting stale websocket connection",
+                extra={
+                    "session_id": session_id,
+                    "old_socket_id": id(conn),
+                    "new_socket_id": id(ws),
+                },
+            )
+            await self._close_ws(conn, code=4000)
+
         self._connections.add(ws)
         self._active_celery_tasks[session_id] = set()
         
@@ -379,7 +397,7 @@ class InterviewGateway:
                     continue
 
                 # Protocol version gate — reject unsupported client versions
-                client_version = data.get("version")
+                client_version = data.get("version", "v1")
                 if client_version not in SUPPORTED_VERSIONS:
                     await self._send_error(
                         ws,

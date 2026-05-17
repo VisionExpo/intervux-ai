@@ -37,7 +37,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 # -- env must be set before any app imports ----------------------------------
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_ws_interview.db")
+os.environ["DATABASE_URL"] = "sqlite:///./test_ws_interview.db"
+os.environ["RUN_DB_MIGRATIONS"] = "false"
 os.environ.setdefault("JWT_SECRET_KEY", "test-ws-secret-key")
 os.environ.setdefault("DISABLE_STT", "true")          # no Whisper in CI
 os.environ.setdefault("DISABLE_TTS", "true")          # avoid network TTS in CI
@@ -123,8 +124,14 @@ def client() -> Generator[TestClient, None, None]:
     # Mock Redis and Registry
     mock_registry = AsyncMock()
     mock_registry.count.return_value = 0
-    mock_registry.get_metadata.return_value = {"session_id": "test", "candidate_id": 1}
-    mock_registry.register.return_value = None
+    
+    registered_meta = {}
+    async def fake_register(session_id, metadata):
+        registered_meta[session_id] = metadata
+    async def fake_get_metadata(session_id):
+        return registered_meta.get(session_id, {"session_id": session_id, "candidate_id": 1})
+    mock_registry.register.side_effect = fake_register
+    mock_registry.get_metadata.side_effect = fake_get_metadata
     mock_registry.unregister.return_value = None
     
     # Engine setup for DB overrides
@@ -134,16 +141,59 @@ def client() -> Generator[TestClient, None, None]:
     async def override_get_db():
         async with TSession() as session:
             yield session
+    
+    from backend.services.redis_manager import redis_client
+    import backend.modules.interview.sessions.registry as registry_mod
+
+    # Save originals
+    orig_redis = redis_client.redis
+    orig_redis_bin = redis_client.redis_bin
+    orig_get_session_state_obj = redis_client.get_session_state_obj
+    orig_save_session_state_obj = redis_client.save_session_state_obj
+    orig_clear_session_state = redis_client.clear_session_state
+    orig_clear_cache = redis_client.clear_cache
+    orig_publish = redis_client.publish
+    orig_subscribe = redis_client.subscribe
+    
+    orig_registry = registry_mod._registry
+
+    # Replace with mocks
+    redis_client.redis = AsyncMock()
+    redis_client.redis_bin = AsyncMock()
+    redis_client.get_session_state_obj = AsyncMock(return_value=None)
+    redis_client.save_session_state_obj = AsyncMock()
+    redis_client.clear_session_state = AsyncMock()
+    redis_client.clear_cache = AsyncMock()
+    redis_client.publish = AsyncMock()
+    
+    async def fake_subscribe(*args, **kwargs):
+        if False:
+            yield None
+    redis_client.subscribe = fake_subscribe
+
+    registry_mod._registry = mock_registry
+
+    try:
+        with patch("backend.modules.interview.websocket.interview_gateway.get_session_registry", return_value=mock_registry):
+            app = create_app()
+            app.dependency_overrides[get_db] = override_get_db
             
-    with patch("backend.modules.interview.websocket.interview_gateway.get_session_registry", return_value=mock_registry), \
-         patch("backend.services.redis_manager.redis_client", AsyncMock()):
+            with TestClient(app, raise_server_exceptions=True) as c:
+                yield c
+    finally:
+        # Restore originals
+        redis_client.redis = orig_redis
+        redis_client.redis_bin = orig_redis_bin
+        redis_client.get_session_state_obj = orig_get_session_state_obj
+        redis_client.save_session_state_obj = orig_save_session_state_obj
+        redis_client.clear_session_state = orig_clear_session_state
+        redis_client.clear_cache = orig_clear_cache
+        redis_client.publish = orig_publish
+        redis_client.subscribe = orig_subscribe
         
-        app = create_app()
-        app.dependency_overrides[get_db] = override_get_db
+        registry_mod._registry = orig_registry
         
-        with TestClient(app, raise_server_exceptions=True) as c:
-            yield c
-    app.dependency_overrides.clear()
+        app.dependency_overrides.clear()
 
 
 # -- token helpers ------------------------------------------------------------
@@ -166,6 +216,10 @@ def _recv_json(ws, timeout_s: float = 2.0, skip_types=("avatar_visemes", "PHASE_
     start = time.time()
     while time.time() - start < timeout_s:
         data = ws.receive()
+        if isinstance(data, dict):
+            if data.get("type") in ["websocket.disconnect", "websocket.close"]:
+                from starlette.websockets import WebSocketDisconnect
+                raise WebSocketDisconnect(code=data.get("code", 1000))
         if data.get("bytes"):
             continue
         raw = data.get("text") or data.get("data")
@@ -789,7 +843,7 @@ class TestInterviewPersistenceUnit:
             }
         ]
 
-        result = await complete_mock_interview(session_id, {"summary": "good"}, answers)
+        result = await complete_mock_interview(session_id, {"summary": "good"}, answers, db=db_session)
         assert result is True
 
         db_session.expire_all()
@@ -830,7 +884,7 @@ class TestInterviewPersistenceUnit:
         db_session.add(interview)
         await db_session.commit()
 
-        result = await fail_mock_interview(session_id, reason="test_disconnect")
+        result = await fail_mock_interview(session_id, reason="test_disconnect", db=db_session)
         assert result is True
 
         db_session.expire_all()
@@ -868,7 +922,7 @@ class TestInterviewPersistenceUnit:
         db_session.add(interview)
         await db_session.commit()
 
-        result = await fail_mock_interview(session_id)
+        result = await fail_mock_interview(session_id, db=db_session)
         # Should return False because the row is not in_progress
         assert result is False
 

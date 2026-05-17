@@ -68,6 +68,7 @@ async def test_prewarm_uses_fallback_provider_when_primary_fails(monkeypatch):
     monkeypatch.setattr(lb, "_is_circuit_open", lambda provider: False)
     monkeypatch.setattr(lb, "LLM_FALLBACK_ON_ANY_ERROR", False)
 
+    monkeypatch.setenv("ENV", "production")
     lb.prewarm_llm()
 
     assert calls == ["gemini", "qwen"]
