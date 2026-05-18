@@ -5,6 +5,7 @@ import { useAuth } from "./hooks/useAuth";
 import { EnterpriseAppLayout } from "./layouts/EnterpriseAppLayout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoadingScreen } from "./components/ui/LoadingScreen/LoadingScreen";
+import { InterviewSessionProvider } from "./providers/InterviewSessionProvider";
 
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const Login = lazy(() => import("./pages/Login"));
@@ -99,7 +100,9 @@ function AppContent() {
           path="/interview-session"
           element={
             <ProtectedRoute>
-              <InterviewPage />
+              <InterviewSessionProvider>
+                <InterviewPage />
+              </InterviewSessionProvider>
             </ProtectedRoute>
           }
         />

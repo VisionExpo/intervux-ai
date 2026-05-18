@@ -64,6 +64,7 @@ export function useInterview() {
   const reconnectTimerRef = useRef<number | null>(null);
   const connectIdRef = useRef(0);
   const shouldReconnectRef = useRef(true);
+  const reconnectAttemptsRef = useRef(0);
   const inFlightSendRef = useRef(false);
   const socketInitialized = useRef(false);
 
@@ -96,6 +97,7 @@ export function useInterview() {
   const [transcriptMessages, setTranscriptMessages] = useState<TranscriptMessage[]>([]);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const isRecordingRef = useRef(false);
 
   const avatarState: AvatarState = useMemo(() => {
     if (isSpeaking) return "speaking";
@@ -153,7 +155,6 @@ export function useInterview() {
       } catch (err) {
         console.error("Failed to acquire continuous media stream:", err);
         setLastError("Microphone/Camera access blocked. Please allow browser permissions.");
-        dispatch({ type: "ERROR_OCCURRED" });
       }
     }
     void initContinuousStream();
@@ -172,7 +173,10 @@ export function useInterview() {
     connectSocket();
 
     return () => {
-      console.log("useInterview: useEffect cleanup (connectSocket effect)");
+      console.warn("[WS] owner cleanup", {
+        phase: stageRef.current,
+        readyState: socketRef.current?.readyState,
+      });
       shouldReconnectRef.current = false;
       if (reconnectTimerRef.current !== null) {
         window.clearTimeout(reconnectTimerRef.current);
@@ -186,11 +190,8 @@ export function useInterview() {
       }
       // Note: The global mediaStream cleanup is handled by the dedicated useEffect.
       interruptAudio();
-      socketRef.current?.close(1000, "Component unmounted");
+      socketRef.current?.close(1000, "Interview session provider unmounted");
       socketInitialized.current = false;
-
-      // Clean up sessionStorage when the interview page unmounts
-      sessionStorage.removeItem("mock_session_id");
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -211,6 +212,21 @@ export function useInterview() {
       if (mappedPhase === "LISTENING" || mappedPhase === "INTERVIEW_COMPLETE") {
         interruptAudio();
       }
+      return;
+    }
+
+    if (type === "RESUMED") {
+      const phase = msg.phase as InterviewState;
+      let mappedPhase = phase;
+      if (phase as any === "QUESTION") mappedPhase = "ASKING_QUESTION";
+      if (phase as any === "PROCESSING") mappedPhase = "PROCESSING_ANSWER";
+      if (phase as any === "COMPLETE") mappedPhase = "INTERVIEW_COMPLETE";
+
+      if (typeof msg.next_seq === "number" && msg.next_seq > 0) {
+        nextExpectedSeqRef.current = msg.next_seq;
+        incomingBufferRef.current.clear();
+      }
+      dispatch({ type: "SET_PHASE", phase: mappedPhase });
       return;
     }
 
@@ -262,6 +278,14 @@ export function useInterview() {
       dispatch({ type: "ERROR_OCCURRED" });
       if (msg.recoverable === false) {
         shouldReconnectRef.current = false;
+      }
+      return;
+    }
+
+    if (type === "system_message") {
+      const text = typeof msg.text === "string" ? msg.text : "";
+      if (text) {
+        setLastError(text);
       }
       return;
     }
@@ -346,7 +370,7 @@ export function useInterview() {
       socketRef.current.onmessage = null;
       socketRef.current.onerror = null;
       socketRef.current.onclose = null;
-      socketRef.current.close();
+      socketRef.current.close(1000, "Replacing stale interview socket");
       socketRef.current = null;
     }
 
@@ -357,6 +381,7 @@ export function useInterview() {
     ws.onopen = () => {
       console.log("WebSocket connected successfully (connectId:", connectId, ")");
       if (connectId !== connectIdRef.current) return;
+      reconnectAttemptsRef.current = 0;
       setIsConnected(true);
       setLastError("");
       dispatch({ type: "WS_CONNECTED" });
@@ -386,6 +411,11 @@ export function useInterview() {
       } catch {
         setLastError("Received invalid JSON from server.");
         dispatch({ type: "ERROR_OCCURRED" });
+        return;
+      }
+
+      if (msg.type === "RESUMED") {
+        processMessage(msg);
         return;
       }
 
@@ -433,7 +463,13 @@ export function useInterview() {
     };
 
     ws.onclose = (event) => {
-      console.warn(`WebSocket closed: code=${event.code}, reason=${event.reason || "no reason"}, wasClean=${event.wasClean}`);
+      console.warn("[WS] close", {
+        code: event.code,
+        reason: event.reason || "no reason",
+        wasClean: event.wasClean,
+        phase: stageRef.current,
+        readyState: ws.readyState,
+      });
       
       if (heartbeatIntervalRef.current) {
         clearInterval(heartbeatIntervalRef.current);
@@ -446,12 +482,24 @@ export function useInterview() {
       }
       setIsConnected(false);
 
-      if (!shouldReconnectRef.current) return;
-      if (stageRef.current === "INTERVIEW_COMPLETE") return;
+      const intentionalClose = event.code === 1000;
+      const interviewComplete = stageRef.current === "INTERVIEW_COMPLETE";
 
-      shouldReconnectRef.current = false;
-      setLastError("Connection closed. Please refresh to continue.");
-      dispatch({ type: "ERROR_OCCURRED" });
+      if (!shouldReconnectRef.current || intentionalClose || interviewComplete) return;
+
+      if (reconnectAttemptsRef.current >= 5) {
+        setLastError("Connection closed. Please refresh to continue.");
+        dispatch({ type: "ERROR_OCCURRED" });
+        return;
+      }
+
+      reconnectAttemptsRef.current += 1;
+      const delayMs = Math.min(5000, 600 * reconnectAttemptsRef.current);
+      setLastError("Connection interrupted. Reconnecting...");
+      reconnectTimerRef.current = window.setTimeout(() => {
+        if (!shouldReconnectRef.current || stageRef.current === "INTERVIEW_COMPLETE") return;
+        connectSocket();
+      }, delayMs);
     };
   }
 
@@ -495,7 +543,7 @@ export function useInterview() {
       dispatch({ type: "ERROR_OCCURRED" });
       return;
     }
-    if (isRecording) {
+    if (isRecordingRef.current) {
       console.log("Audio stream already recording, skipping start.");
       return;
     }
@@ -534,9 +582,12 @@ export function useInterview() {
       // DO NOT stop the tracks or nullify mediaStreamRef here!
       // This allows the continuous camera feed to persist.
       mediaRecorderRef.current = null;
+      isRecordingRef.current = false;
+      setIsRecording(false);
     };
 
     recorder.start(300);
+    isRecordingRef.current = true;
     if (streamEndTimerRef.current !== null) {
       window.clearTimeout(streamEndTimerRef.current);
     }
@@ -547,12 +598,13 @@ export function useInterview() {
       } else if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(JSON.stringify({ type: "stream_end", version: "v1" }));
       }
+      isRecordingRef.current = false;
       setIsRecording(false);
     }, 5000);
     setIsRecording(true);
     setPartialTranscript("");
     setLastError("");
-  }, [isRecording, dispatch]);
+  }, [dispatch]);
 
   const stopAudioStream = useCallback(() => {
     if (streamEndTimerRef.current !== null) {
@@ -560,10 +612,15 @@ export function useInterview() {
       streamEndTimerRef.current = null;
     }
     const recorder = mediaRecorderRef.current;
-    if (!recorder) return;
+    if (!recorder) {
+      isRecordingRef.current = false;
+      setIsRecording(false);
+      return;
+    }
     if (recorder.state !== "inactive") {
       recorder.stop();
     }
+    isRecordingRef.current = false;
     setIsRecording(false);
   }, []);
 

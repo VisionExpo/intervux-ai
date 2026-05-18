@@ -158,7 +158,7 @@ class InterviewGateway:
 
         # Support resumption if session_id is provided in query params
         provided_session_id = ws.query_params.get("session_id")
-        session_id = provided_session_id or str(uuid.uuid4())
+        session_id = provided_session_id or mock_interview_session_id or str(uuid.uuid4())
         ws.session_id = session_id
         
         # Identify this specific socket connection
@@ -338,25 +338,31 @@ class InterviewGateway:
                     "questions based on your experience."
                 )
                 print(f"DEBUG: Starting greeting flow for {session_id}", flush=True)
-                # Send greeting synchronously to prevent AnyIO stream lockups in TestClient
-                await self._send_avatar_with_audio(ws, session, full_text, 0, 0)
-                
+                await self._send_json(ws, {
+                    "type": "avatar_sync",
+                    "text": full_text,
+                    "question_index": 0,
+                    "total_questions": 0,
+                }, session=session)
+
+                print(f"DEBUG: Greeting queued for {session_id}", flush=True)
+                session.state.greeting_sent = True
+                print(f"DEBUG: Transitioning to WAITING_RESUME for {session_id}", flush=True)
+                session.state.transition_to(InterviewPhase.WAITING_RESUME)
+                await session.persist_state_now()
+                print(f"DEBUG: Transition complete for {session_id}", flush=True)
+
                 if ws.application_state == WebSocketState.CONNECTED and ws.client_state == WebSocketState.CONNECTED:
-                    print(f"DEBUG: Greeting sent for {session_id}", flush=True)
-                    session.state.greeting_sent = True
-                    print(f"DEBUG: Transitioning to WAITING_RESUME for {session_id}", flush=True)
-                    session.state.transition_to(InterviewPhase.WAITING_RESUME)
-                    await session.persist_state_now()
-                    print(f"DEBUG: Transition complete for {session_id}", flush=True)
-                else:
-                    logger.warning(f"Socket disconnected during greeting for {session_id}, aborting state transition.")
+                    self.safe_create_task(self._send_audio_for_text(ws, session, full_text), session=session)
             else:
                 # If resumed, re-broadcast current state to sync UI
                 print(f"DEBUG: Resuming flow for {session_id}", flush=True)
+                next_seq = int(getattr(session.state, "_next_seq", 1)) + 1
                 await self._send_json(ws, {
                     "type": "RESUMED",
                     "phase": session.state.phase.value,
-                    "session_id": session_id
+                    "session_id": session_id,
+                    "next_seq": next_seq,
                 }, session=session)
 
             print(f"DEBUG: Entering while True loop for {session_id}", flush=True)
@@ -473,22 +479,19 @@ class InterviewGateway:
         question_index = question_data.get("question_index", 1)
         total_questions = question_data.get("total_questions", 2)
         await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions}, session=session)
-        audio_chunks = await tts_service.synthesize_chunks(session.session_id, text)
-        for chunk in audio_chunks:
-            if ws.application_state != WebSocketState.CONNECTED or ws.client_state != WebSocketState.CONNECTED:
-                break
-            visemes = chunk.get("visemes", [])
-            audio_bytes = chunk.get("audio_bytes", b"")
-            if not audio_bytes:
-                continue
-            await self._send_json(ws, {"type": "avatar_visemes", "visemes": visemes}, session=session)
-            await self._send_bytes(ws, bytes(audio_bytes))
+        await self._send_audio_for_text(ws, session, text)
         
         session.state.transition_to(InterviewPhase.LISTENING)
         await session.persist_state_now()
 
     async def _send_avatar_with_audio(self, ws: WebSocket, session: InterviewSession, text: str, question_index: int, total_questions: int) -> None:
         await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions}, session=session)
+        await self._send_audio_for_text(ws, session, text)
+        if question_index > 0:
+            session.state.transition_to(InterviewPhase.LISTENING)
+            await session.persist_state_now()
+
+    async def _send_audio_for_text(self, ws: WebSocket, session: InterviewSession, text: str) -> None:
         audio_chunks = await tts_service.synthesize_chunks(session.session_id, text)
         for chunk in audio_chunks:
             if ws.application_state != WebSocketState.CONNECTED or ws.client_state != WebSocketState.CONNECTED:
@@ -499,9 +502,6 @@ class InterviewGateway:
                 continue
             await self._send_json(ws, {"type": "avatar_visemes", "visemes": visemes}, session=session)
             await self._send_bytes(ws, bytes(audio_bytes))
-        if question_index > 0:
-            session.state.transition_to(InterviewPhase.LISTENING)
-            await session.persist_state_now()
 
     async def _send_evaluation_response(self, ws: WebSocket, response: Dict[str, Any], session: InterviewSession) -> None:
         eval_payload = response.get("data")

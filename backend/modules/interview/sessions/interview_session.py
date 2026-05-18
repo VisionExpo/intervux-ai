@@ -181,10 +181,6 @@ class InterviewSession:
             if msg_type == "ping":
                 response = await self._handle_ping()
             elif msg_type == "resume_upload":
-                if getattr(self, "_resume_upload_started", False):
-                    logger.warning("Resume upload already in progress. Dropping duplicate.")
-                    return None
-                self._resume_upload_started = True
                 response = await self._handle_resume_upload(message)
             elif msg_type == "audio_chunk":
                 response = await self._handle_audio_chunk(message)
@@ -300,9 +296,19 @@ class InterviewSession:
         if getattr(self.state, "resume_processed", False):
             logger.info("Resume already processed for this session; ignoring duplicate upload")
             return None
+        if getattr(self.state, "resume_processing", False):
+            logger.info("Resume processing already in progress for this session; ignoring duplicate upload")
+            return {
+                "type": "system_message",
+                "code": "RESUME_PROCESSING",
+                "text": "Your resume is already being processed.",
+                "recoverable": True,
+            }
 
+        self.state.resume_processing = True
         self.state.transition_to(InterviewPhase.PROCESSING_RESUME)
         self._dirty = True
+        await self.persist_state_now()
         
         data = message.get("data", {})
         file_name = data.get("file_name", "")
@@ -330,6 +336,7 @@ class InterviewSession:
                 )
                 SessionTelemetry.record(self.session_id, "RESUME_PARSE_COMPLETED", metadata={"cached": True})
                 self.state.resume_processed = True
+                self.state.resume_processing = False
                 self._dirty = True
                 return result
             except Exception:
@@ -345,12 +352,16 @@ class InterviewSession:
             )
             SessionTelemetry.record(self.session_id, "RESUME_PARSE_COMPLETED", metadata={"cached": False})
             self.state.resume_processed = True
+            self.state.resume_processing = False
             logger.info("Interview engine returned initial question.")
             SessionTelemetry.record(self.session_id, "QUESTION_GENERATED", metadata={"question_index": 0})
             self._dirty = True
         except Exception as e:
             logger.exception("Bootstrap interview failed in session handler")
             self._internal_error = True
+            self.state.resume_processing = False
+            self.state.transition_to(InterviewPhase.WAITING_RESUME)
+            self._dirty = True
             return {
                 "type": "error",
                 "code": "ENGINE_CRASH",

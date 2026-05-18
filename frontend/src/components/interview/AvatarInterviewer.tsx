@@ -30,6 +30,11 @@ export default function AvatarInterviewer({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [pulseEffect, setPulseEffect] = useState(false);
 
+  useEffect(() => {
+    console.log("[AvatarInterviewer] mounted");
+    return () => console.warn("[AvatarInterviewer] unmounted");
+  }, []);
+
   // Handle state transitions with animation
   useEffect(() => {
     if (displayState !== avatarState) {

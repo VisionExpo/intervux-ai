@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useInterview } from "../hooks/useInterview";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useInterviewSession } from "../providers/InterviewSessionProvider";
 import { audioFeedback } from "../utils/audioFeedback";
 import {
   InterviewLayout,
@@ -8,12 +8,14 @@ import {
   CandidateCamera,
   TranscriptPanel,
 } from "../components/interview";
-import { GlassCard } from "../components/ui/GlassCard/GlassCard";
 import { Button } from "../components/ui/Button/Button";
 import { CheckCircle2, ChevronRight, Play, LayoutDashboard } from "lucide-react";
 import styles from "./InterviewOverlay.module.css";
 import { authFetch } from "../hooks/authFetch";
 import { useNavigate } from "react-router-dom";
+import { ErrorBoundary } from "../components/ErrorBoundary";
+
+const DEMO_LIGHT_MODE = import.meta.env.VITE_DEMO_LIGHT_MODE === "true";
 
 export default function InterviewPage() {
   const {
@@ -36,9 +38,10 @@ export default function InterviewPage() {
     stopAudioStream,
     lastError,
     uploadResume,
-  } = useInterview();
+  } = useInterviewSession();
 
   const prevStageRef = useRef(stage);
+  const latestStageRef = useRef(stage);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -65,6 +68,8 @@ export default function InterviewPage() {
   }, [stage, startAudioStream, stopAudioStream]);
 
   useEffect(() => {
+    latestStageRef.current = stage;
+
     if (prevStageRef.current !== stage) {
       console.log(`Stage transition: ${prevStageRef.current} -> ${stage}`);
       switch (stage) {
@@ -87,9 +92,9 @@ export default function InterviewPage() {
   }, [stage]);
 
   useEffect(() => {
-    console.log("InterviewPage mounted");
+    console.log("[InterviewPage] mounted");
     return () => {
-      console.log("InterviewPage unmounted");
+      console.warn("[InterviewPage] unmounted", { stage: latestStageRef.current });
       audioFeedback.dispose();
     };
   }, []);
@@ -170,15 +175,23 @@ export default function InterviewPage() {
             )}
           </div>
         ) : (
-          <AvatarInterviewer
-            isSpeaking={isSpeaking}
-            audioContextRef={audioContextRef}
-            playbackStartTimeRef={playbackStartTimeRef}
-            visemesRef={visemesRef}
-            avatarState={avatarState}
-            emotion={emotion}
-            questionText={currentQuestion}
-          />
+          <ErrorBoundary fallback={<SpeakerOrb isSpeaking={isSpeaking} avatarState={avatarState} questionText={currentQuestion} />}>
+            <Suspense fallback={<SpeakerOrb isSpeaking={isSpeaking} avatarState={avatarState} questionText={currentQuestion} />}>
+              {DEMO_LIGHT_MODE ? (
+                <SpeakerOrb isSpeaking={isSpeaking} avatarState={avatarState} questionText={currentQuestion} />
+              ) : (
+                <AvatarInterviewer
+                  isSpeaking={isSpeaking}
+                  audioContextRef={audioContextRef}
+                  playbackStartTimeRef={playbackStartTimeRef}
+                  visemesRef={visemesRef}
+                  avatarState={avatarState}
+                  emotion={emotion}
+                  questionText={currentQuestion}
+                />
+              )}
+            </Suspense>
+          </ErrorBoundary>
         )
       }
       codingPanel={
@@ -206,6 +219,44 @@ export default function InterviewPage() {
         />
       }
     />
+  );
+}
+
+function SpeakerOrb({
+  isSpeaking,
+  avatarState,
+  questionText,
+}: {
+  isSpeaking: boolean;
+  avatarState: "speaking" | "listening" | "thinking";
+  questionText?: string;
+}) {
+  useEffect(() => {
+    console.log("[SpeakerOrb] mounted");
+    return () => console.warn("[SpeakerOrb] unmounted");
+  }, []);
+
+  const label = isSpeaking
+    ? "Speaking"
+    : avatarState === "listening"
+    ? "Listening"
+    : "Thinking";
+
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-6 bg-slate-50/70 p-8 text-center">
+      <div
+        className={`h-32 w-32 rounded-full bg-gradient-to-br from-cyan-400 via-blue-500 to-emerald-400 shadow-2xl ${
+          isSpeaking ? "animate-pulse" : ""
+        }`}
+        aria-hidden="true"
+      />
+      <div>
+        <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+        <p className="mx-auto max-w-xl text-base leading-7 text-slate-700">
+          {questionText || "Preparing the next interview prompt..."}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -289,7 +340,6 @@ function InterviewOverlay({ finalReport }: { finalReport: any }) {
 
           <Button 
             variant="secondary" 
-            outline
             onClick={() => navigate("/interviews")}
             fullWidth
           >

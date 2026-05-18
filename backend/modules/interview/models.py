@@ -31,7 +31,7 @@ class InterviewPhase(Enum):
 
         transitions = {
             InterviewPhase.WAITING_RESUME: {"resume_upload"},
-            InterviewPhase.PROCESSING_RESUME: set(),
+            InterviewPhase.PROCESSING_RESUME: {"resume_upload"},
             InterviewPhase.LISTENING: {"audio_chunk", "stream_end", "audio_end"},
             InterviewPhase.PROCESSING: set(),  # No messages during processing
             InterviewPhase.QUESTION: {"audio_chunk"},
@@ -110,6 +110,7 @@ class InterviewState:
         self._next_seq: int = 1
         self.greeting_sent: bool = False
         self.resume_processed: bool = False
+        self.resume_processing: bool = False
         self.resume_text: Optional[str] = None
         self.profile: Optional[ResumeData] = None
         self.questions: List[str] = []
