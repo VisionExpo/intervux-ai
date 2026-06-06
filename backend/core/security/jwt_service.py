@@ -552,7 +552,7 @@ DEMO_USERS = {
         "email": "admin@intervux.ai",
         "name": "Admin User",
         "role": Role.ADMIN,
-        "password": "admin123",
+        "password": os.getenv("DEMO_ADMIN_PASS", "admin123"),
         "password_hash": None,
     },
     "recruiter@intervux.ai": {
@@ -560,7 +560,7 @@ DEMO_USERS = {
         "email": "recruiter@intervux.ai",
         "name": "Recruiter User",
         "role": Role.RECRUITER,
-        "password": "recruiter123",
+        "password": os.getenv("DEMO_RECRUITER_PASS", "recruiter123"),
         "password_hash": None,
     },
 }

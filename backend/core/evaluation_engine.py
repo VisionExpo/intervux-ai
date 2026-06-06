@@ -121,7 +121,7 @@ _dual_eval_engine = DualEvaluationEngine()
 _reasoning_analyzer = ReasoningAnalyzer()
 _consistency_checker = ConsistencyChecker()
 _self_consistency = SelfConsistencyEvaluator(
-    passes=int(os.getenv("SELF_CONSISTENCY_PASSES", "3"))
+    passes=int(os.getenv("SELF_CONSISTENCY_PASSES", "1"))
 )
 SELF_CONSISTENCY_THRESHOLD = float(os.getenv("SELF_CONSISTENCY_THRESHOLD", "0.8"))
 SELF_CONSISTENCY_PARALLEL = os.getenv("SELF_CONSISTENCY_PARALLEL", "true").strip().lower() in {

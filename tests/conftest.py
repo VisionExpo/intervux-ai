@@ -37,6 +37,8 @@ os.environ["DATABASE_URL"] = "sqlite:///./tests/data/test_intervux.db"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-testing-only"
 os.environ["RUNTIME_THREADPOOL_WORKERS"] = "2"
 
+os.makedirs("tests/data", exist_ok=True)
+
 # Add backend to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

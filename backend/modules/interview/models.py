@@ -88,6 +88,24 @@ class InterviewMemory:
         self.projects: List[str] = []
         self.last_topics: List[str] = []
 
+    def to_dict(self):
+        return {
+            "answers": self.answers,
+            "key_concepts": list(self.key_concepts),
+            "projects": self.projects,
+            "last_topics": self.last_topics
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        mem = cls()
+        if data:
+            mem.answers = data.get("answers", [])
+            mem.key_concepts = set(data.get("key_concepts", []))
+            mem.projects = data.get("projects", [])
+            mem.last_topics = data.get("last_topics", [])
+        return mem
+
 
 class InterviewState:
     """
@@ -199,6 +217,74 @@ class InterviewState:
         # Re-initialize the list to avoid None or missing key issues
         if "_on_phase_change_callbacks" not in self.__dict__:
             self._on_phase_change_callbacks = []
+
+    def to_dict(self):
+        return {
+            "user_id": self.user_id,
+            "phase": self._phase.value,
+            "next_seq": self._next_seq,
+            "greeting_sent": self.greeting_sent,
+            "resume_processed": self.resume_processed,
+            "resume_processing": self.resume_processing,
+            "resume_text": self.resume_text,
+            "profile": self.profile.model_dump() if self.profile else None,
+            "questions": self.questions,
+            "question_skills": self.question_skills,
+            "question_strategies": self.question_strategies,
+            "topics": self.topics,
+            "concepts": self.concepts,
+            "concept_difficulties": self.concept_difficulties,
+            "current_index": self.current_index,
+            "target_question_count": self.target_question_count,
+            "current_difficulty": self.current_difficulty,
+            "skill_max_difficulty": self.skill_max_difficulty,
+            "skill_map": self.skill_map,
+            "topic_scores": self.topic_scores,
+            "answers": self.answers,
+            "memory": self.memory.to_dict() if hasattr(self, 'memory') else None,
+            "final_report": self.final_report
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        state = cls(user_id=data.get("user_id"))
+        if not data:
+            return state
+            
+        phase_str = data.get("phase")
+        if phase_str:
+            state._phase = InterviewPhase(phase_str)
+            
+        state._next_seq = data.get("next_seq", 1)
+        state.greeting_sent = data.get("greeting_sent", False)
+        state.resume_processed = data.get("resume_processed", False)
+        state.resume_processing = data.get("resume_processing", False)
+        state.resume_text = data.get("resume_text")
+        
+        profile_data = data.get("profile")
+        if profile_data:
+            state.profile = ResumeData.model_validate(profile_data)
+            
+        state.questions = data.get("questions", [])
+        state.question_skills = data.get("question_skills", [])
+        state.question_strategies = data.get("question_strategies", [])
+        state.topics = data.get("topics", [])
+        state.concepts = data.get("concepts", [])
+        state.concept_difficulties = data.get("concept_difficulties", [])
+        state.current_index = data.get("current_index", 0)
+        state.target_question_count = data.get("target_question_count", 0)
+        state.current_difficulty = data.get("current_difficulty", 2)
+        state.skill_max_difficulty = data.get("skill_max_difficulty", {})
+        state.skill_map = data.get("skill_map", {})
+        state.topic_scores = data.get("topic_scores", {})
+        state.answers = data.get("answers", [])
+        
+        mem_data = data.get("memory")
+        if mem_data:
+            state.memory = InterviewMemory.from_dict(mem_data)
+            
+        state.final_report = data.get("final_report")
+        return state
 
 
 # =========================================================

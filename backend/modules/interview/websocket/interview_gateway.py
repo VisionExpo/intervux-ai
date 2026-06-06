@@ -479,17 +479,17 @@ class InterviewGateway:
         question_index = question_data.get("question_index", 1)
         total_questions = question_data.get("total_questions", 2)
         await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions}, session=session)
-        await self._send_audio_for_text(ws, session, text)
         
         session.state.transition_to(InterviewPhase.LISTENING)
         await session.persist_state_now()
+        self.safe_create_task(self._send_audio_for_text(ws, session, text), session=session)
 
     async def _send_avatar_with_audio(self, ws: WebSocket, session: InterviewSession, text: str, question_index: int, total_questions: int) -> None:
         await self._send_json(ws, {"type": "avatar_sync", "text": text, "question_index": question_index, "total_questions": total_questions}, session=session)
-        await self._send_audio_for_text(ws, session, text)
         if question_index > 0:
             session.state.transition_to(InterviewPhase.LISTENING)
             await session.persist_state_now()
+        self.safe_create_task(self._send_audio_for_text(ws, session, text), session=session)
 
     async def _send_audio_for_text(self, ws: WebSocket, session: InterviewSession, text: str) -> None:
         audio_chunks = await tts_service.synthesize_chunks(session.session_id, text)

@@ -595,12 +595,8 @@ export function useInterview() {
       if (stageRef.current !== "LISTENING") return;
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
-      } else if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.send(JSON.stringify({ type: "stream_end", version: "v1" }));
       }
-      isRecordingRef.current = false;
-      setIsRecording(false);
-    }, 5000);
+    }, 90000);
     setIsRecording(true);
     setPartialTranscript("");
     setLastError("");
