@@ -78,7 +78,8 @@ def synthesize_tts_task(self, text: str) -> Dict[str, Any]:
     import wave, io
 
     vs = VisemeService()
-    audio_bytes, visemes = synthesize_speech_with_visemes(text)
+    import asyncio
+    audio_bytes, visemes = asyncio.run(synthesize_speech_with_visemes(text))
 
     if not visemes:
         duration = 0
