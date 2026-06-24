@@ -672,6 +672,7 @@ export function useInterview() {
       playbackStartTimeRef.current = ctx.currentTime;
       
       source.onended = () => {
+        console.log("Audio ended");
         audioSourceRef.current = null;
         isPlayingQueueRef.current = false;
         // Small delay to allow state to settle before next chunk
@@ -680,6 +681,7 @@ export function useInterview() {
         }, 10);
       };
       
+      console.log("Audio started");
       source.start(0);
     } catch (err) {
       console.error("Audio playback error:", err);

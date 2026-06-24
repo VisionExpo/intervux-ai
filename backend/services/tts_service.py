@@ -113,11 +113,18 @@ class TTSService:
 
     async def _edge_tts_synth(self, text: str) -> bytes:
         import edge_tts
-        communicate = edge_tts.Communicate(text, self.edge_voice)
-        buf = io.BytesIO()
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio": buf.write(chunk["data"])
-        return buf.getvalue()
+        logger.info("Generating TTS (edge-tts) for: %s", text[:100])
+        try:
+            communicate = edge_tts.Communicate(text, self.edge_voice)
+            buf = io.BytesIO()
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio": buf.write(chunk["data"])
+            audio_bytes = buf.getvalue()
+            logger.info("TTS audio generated successfully, size: %s bytes", len(audio_bytes))
+            return audio_bytes
+        except Exception:
+            logger.exception("TTS generation (edge-tts) failed")
+            raise
 
     @staticmethod
     def _split_sentences(text: str) -> List[str]:

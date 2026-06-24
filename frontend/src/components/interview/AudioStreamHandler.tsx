@@ -70,12 +70,14 @@ export default function AudioStreamHandler({
       // Data available handler
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0 && onAudioChunk) {
+          console.log(`Audio chunk sent: ${event.data.size} bytes`);
           onAudioChunk(event.data);
         }
       };
 
       // Start recording with small chunks
       recorder.start(300);
+      console.log("MediaRecorder started");
       isListeningRef.current = true;
 
       // Start audio level monitoring for VAD
