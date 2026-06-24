@@ -73,7 +73,7 @@ class InterviewSession:
         self.mock_interview_session_id = mock_interview_session_id
         self.broadcast_callback = broadcast_callback
 
-        self.state = InterviewState(user_id=self.user_id)
+        self.state = InterviewState(user_id=self.user_id, session_id=self.session_id)
         if self.broadcast_callback:
             self.state.subscribe_to_phase_changes(self.broadcast_callback)
 
@@ -132,6 +132,7 @@ class InterviewSession:
                     return False
 
                 self.state, self.eval_context_cache = persisted
+                self.state.session_id = self.session_id
                 # Re-attach broadcast callback after hydration
                 if self.broadcast_callback:
                     self.state.subscribe_to_phase_changes(self.broadcast_callback)
@@ -147,6 +148,11 @@ class InterviewSession:
 
         Returns a response dict to send back, or None.
         """
+        msg_type = self._get_message_type(message)
+
+        if msg_type == "ping":
+            return await self._handle_ping()
+
         if self._processing_lock.locked():
             logger.warning(f"Session {self.session_id} is already processing a message. Dropping concurrent input.")
             return {"type": "error", "message": "Please wait, the interviewer is thinking.", "recoverable": True}
@@ -163,8 +169,6 @@ class InterviewSession:
                 logger.warning(f"Aborting handle_message for {self.session_id}: session no longer in registry.")
                 return None
 
-            msg_type = self._get_message_type(message)
-
             if not self.state.can_proceed(msg_type):
                 logger.warning(
                     f"Invalid message {msg_type} for phase {self.state.phase.value}",
@@ -178,9 +182,7 @@ class InterviewSession:
                 }
                 return response
 
-            if msg_type == "ping":
-                response = await self._handle_ping()
-            elif msg_type == "resume_upload":
+            if msg_type == "resume_upload":
                 response = await self._handle_resume_upload(message)
             elif msg_type == "audio_chunk":
                 response = await self._handle_audio_chunk(message)
@@ -333,6 +335,7 @@ class InterviewSession:
                     state=self.state,
                     profile_data=cached_profile,
                     session_policy=self.session_policy,
+                    session_id=self.session_id,
                 )
                 SessionTelemetry.record(self.session_id, "RESUME_PARSE_COMPLETED", metadata={"cached": True})
                 self.state.resume_processed = True

@@ -49,8 +49,6 @@ class ResumeParser:
         Parses a resume PDF/image into structured JSON.
         """
         client = get_gemini_client()
-        
-        print(f"[INFO] Uploading resume to Gemini: {file_path}")
 
         try:
             # Check if file exists and has size
@@ -58,24 +56,10 @@ class ResumeParser:
                 logger.error(f"File {file_path} is missing or empty")
                 return {}
 
-            uploaded_file = client.files.upload(path=file_path)
-            prompt = self.prompt_manager.get("resume_parser")
-
-            print("[INFO] Analyzing resume...")
-            response = client.models.generate_content(
-                model=self.model_name,
-                contents=[
-                    prompt, 
-                    {"file_data": {"file_uri": uploaded_file.uri, "mime_type": uploaded_file.mime_type}}
-                ],
-                config={"response_mime_type": "application/json"}
-            )
-
-            if not response or not response.text:
-                logger.warning("Gemini returned empty response")
-                return {}
-
-            return json.loads(response.text)
+            file_size = os.path.getsize(file_path)
+            if file_size < 10 * 1024 * 1024:
+                return self._parse_inline(client, file_path)
+            return self._parse_via_upload(client, file_path)
 
         except json.JSONDecodeError:
             print("[WARN] Gemini returned invalid JSON")
@@ -86,13 +70,68 @@ class ResumeParser:
             logger.exception("Resume parsing failed with exception")
             return {}
 
+    def _parse_inline(self, client, file_path: str) -> dict:
+        """
+        Send small resumes inline to avoid the extra Gemini File API upload
+        round trip.
+        """
+        print(f"[INFO] Analyzing resume inline with Gemini: {file_path}")
+
+        suffix = Path(file_path).suffix.lower()
+        mime_map = {
+            ".pdf": "application/pdf",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+        }
+        mime_type = mime_map.get(suffix, "application/pdf")
+        prompt = self.prompt_manager.get("resume_parser")
+
+        with open(file_path, "rb") as file_obj:
+            encoded_file = base64.b64encode(file_obj.read()).decode("utf-8")
+
+        response = client.models.generate_content(
+            model=self.model_name,
+            contents=[
+                prompt,
+                {"inline_data": {"mime_type": mime_type, "data": encoded_file}},
+            ],
+            config={"response_mime_type": "application/json"},
+        )
+
+        if not response or not response.text:
+            logger.warning("Gemini returned empty response")
+            return {}
+
+        return json.loads(response.text)
+
+    def _parse_via_upload(self, client, file_path: str) -> dict:
+        """Send large resumes through the Gemini File API."""
+        print(f"[INFO] Uploading resume to Gemini: {file_path}")
+        uploaded_file = client.files.upload(path=file_path)
+        try:
+            prompt = self.prompt_manager.get("resume_parser")
+
+            print("[INFO] Analyzing resume...")
+            response = client.models.generate_content(
+                model=self.model_name,
+                contents=[
+                    prompt,
+                    {"file_data": {"file_uri": uploaded_file.uri, "mime_type": uploaded_file.mime_type}},
+                ],
+                config={"response_mime_type": "application/json"},
+            )
+
+            if not response or not response.text:
+                logger.warning("Gemini returned empty response")
+                return {}
+
+            return json.loads(response.text)
         finally:
-            # Cleanup uploaded artifact
-            if 'uploaded_file' in locals():
-                try:
-                    client.files.delete(name=uploaded_file.name)
-                except Exception:
-                    logger.warning("Failed to delete uploaded Gemini file artifact")
+            try:
+                client.files.delete(name=uploaded_file.name)
+            except Exception:
+                logger.warning("Failed to delete uploaded Gemini file artifact")
 
 
 def parse_resume(file: UploadFile) -> Tuple[str, dict]:

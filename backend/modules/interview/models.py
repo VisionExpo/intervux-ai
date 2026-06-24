@@ -117,10 +117,11 @@ class InterviewState:
     - Reset on /start
     """
 
-    def __init__(self, user_id: Optional[str] = None):
+    def __init__(self, user_id: Optional[str] = None, session_id: Optional[str] = None):
         self._phase: InterviewPhase = InterviewPhase.CONNECTING
         self._on_phase_change_callbacks: List[callable] = []
         self.user_id = user_id
+        self.session_id = session_id
         self.reset()
 
     def reset(self):
@@ -214,6 +215,8 @@ class InterviewState:
     def __setstate__(self, state):
         """Restore state from pickle."""
         self.__dict__.update(state)
+        if "session_id" not in self.__dict__:
+            self.session_id = None
         # Re-initialize the list to avoid None or missing key issues
         if "_on_phase_change_callbacks" not in self.__dict__:
             self._on_phase_change_callbacks = []

@@ -96,12 +96,17 @@ class InterviewEngine:
             session_policy=session_policy,
         )
 
+    def _session_id(self, state: InterviewState, fallback: Optional[str] = None) -> str:
+        return getattr(state, "session_id", None) or fallback or "unknown_session"
+
     async def start_interview_from_profile(
         self,
         state: InterviewState,
         profile_data: Dict[str, Any],
         session_policy: Dict[str, Any],
+        session_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        resolved_session_id = self._session_id(state, session_id)
         try:
             state.profile = ResumeData(**(profile_data or {}))
         except Exception:
@@ -136,7 +141,7 @@ class InterviewEngine:
             question_temperature=session_policy.get("question_temperature", 0.7),
             memory_context=initial_memory_context,
             start_difficulty=state.current_difficulty,
-            session_id=state.session_id,
+            session_id=resolved_session_id,
         )
         
         state.questions = [first_question]
@@ -219,7 +224,7 @@ class InterviewEngine:
             eval_context_cache=eval_context_cache,
             draft_transcript=draft_transcript,
             early_eval_task=early_eval_task,
-            session_id=state.session_id,
+            session_id=self._session_id(state),
         )
         eval_duration = time.time() - eval_start
         metrics.record_latency("evaluation", eval_duration)
@@ -327,7 +332,7 @@ class InterviewEngine:
             question_temperature=session_policy.get("question_temperature", 0.7),
             memory_context=memory_context,
             current_concept=current_concept,
-            session_id=state.session_id,
+            session_id=self._session_id(state),
         )
         
         state.questions.append(generated_question)
@@ -356,7 +361,7 @@ class InterviewEngine:
         report = await self._generate_report(
             profile=state.profile.model_dump(),
             answers=state.answers,
-            session_id=state.session_id,
+            session_id=self._session_id(state),
         )
         if isinstance(report, dict):
             report["skill_performance"] = self._build_skill_performance_summary(state)
