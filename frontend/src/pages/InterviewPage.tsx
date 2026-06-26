@@ -36,6 +36,7 @@ export default function InterviewPage() {
     mediaStream,
     startAudioStream,
     stopAudioStream,
+    endAnswer,
     lastError,
     uploadResume,
   } = useInterviewSession();
@@ -44,6 +45,13 @@ export default function InterviewPage() {
   const latestStageRef = useRef(stage);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // DB-4: Initialize or resume AudioContext on user interaction to prevent iOS/Chrome autoplay blocks
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContext();
+    } else if (audioContextRef.current.state === "suspended") {
+      audioContextRef.current.resume().catch((err) => console.warn("Failed to resume AudioContext", err));
+    }
+
     const file = e.target.files?.[0];
     if (file) {
       await uploadResume(file);
@@ -208,6 +216,7 @@ export default function InterviewPage() {
         <TranscriptPanel
           messages={transcriptMessages}
           isListening={isListening}
+          onEndAnswer={endAnswer}
         />
       }
       cameraPanel={

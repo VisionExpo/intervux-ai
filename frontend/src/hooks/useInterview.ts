@@ -732,6 +732,7 @@ export function useInterview() {
       uploadResume,
       startAudioStream,
       stopAudioStream,
+      endAnswer: stopAudioStream,
     };
 }
 

@@ -477,13 +477,33 @@ class InterviewSession:
         audio_bytes = self.audio_buffer.bytes()
         SessionTelemetry.record(self.session_id, "STREAM_END", metadata={"buffer_bytes": len(audio_bytes)})
 
+        transcript = self._partial_transcript or ""
+        
+        if not transcript and len(audio_bytes) > 44:
+            try:
+                logger.info("Using direct STT fallback because no partial transcript was generated.")
+                import asyncio
+                from backend.services.stt_service import transcribe_audio_bytes
+                
+                suffix = self.engine._detect_audio_suffix(audio_bytes)
+                loop = asyncio.get_running_loop()
+                transcript = await loop.run_in_executor(
+                    None, 
+                    transcribe_audio_bytes, 
+                    audio_bytes, 
+                    suffix
+                )
+                logger.info(f"Fallback STT got transcript of length {len(transcript)}")
+            except Exception as e:
+                logger.error(f"Fallback STT failed: {e}")
+
         # Evaluate the answer
         try:
             SessionTelemetry.record(self.session_id, "EVALUATION_STARTED", metadata={"question_index": self.state.current_index})
             eval_result = await self.engine.evaluate_answer(
                 state=self.state,
                 audio_bytes=audio_bytes,
-                transcript=self._partial_transcript or "",
+                transcript=transcript,
                 question=question,
                 session_policy=self.session_policy,
                 eval_context_cache=self.eval_context_cache,

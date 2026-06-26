@@ -10,9 +10,10 @@ export interface TranscriptMessage {
 interface TranscriptPanelProps {
   messages: TranscriptMessage[];
   isListening?: boolean;
+  onEndAnswer?: () => void;
 }
 
-export default function TranscriptPanel({ messages, isListening = false }: TranscriptPanelProps) {
+export default function TranscriptPanel({ messages, isListening = false, onEndAnswer }: TranscriptPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new messages arrive
@@ -58,6 +59,25 @@ export default function TranscriptPanel({ messages, isListening = false }: Trans
               <span></span>
               <span></span>
             </div>
+            {onEndAnswer && (
+              <div style={{ marginTop: "10px", textAlign: "right" }}>
+                <button 
+                  onClick={onEndAnswer}
+                  style={{
+                    padding: "6px 12px",
+                    backgroundColor: "#3b82f6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  Done Speaking
+                </button>
+              </div>
+            )}
           </div>
         )}
         
