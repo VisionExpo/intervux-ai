@@ -6,6 +6,8 @@ import { EnterpriseAppLayout } from "./layouts/EnterpriseAppLayout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoadingScreen } from "./components/ui/LoadingScreen/LoadingScreen";
 import { InterviewSessionProvider } from "./providers/InterviewSessionProvider";
+import { DashboardPreview } from "./pages/DashboardPreview";
+import { ComponentPreview } from "./pages/ComponentPreview";
 
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const Login = lazy(() => import("./pages/Login"));
@@ -94,6 +96,10 @@ function AppContent() {
           <Route path="/rbac" element={<RbacAccessControlPage />} />
           <Route path="/audit-logs" element={<AdminAuditLogsPage />} />
           <Route path="/experiments" element={<AdminExperimentsPage />} />
+          
+          {/* New OS Shell Previews */}
+          <Route path="/dashboard-preview" element={<DashboardPreview />} />
+          <Route path="/components" element={<ComponentPreview />} />
         </Route>
 
         <Route

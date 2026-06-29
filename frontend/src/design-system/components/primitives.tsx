@@ -6,8 +6,8 @@ import { theme } from '../tokens/theme';
 // Extremely generic building blocks for the Interview Dashboard
 // ============================================================================
 
-export const AppShell = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-    <div className={`app-shell ${className}`} style={{ backgroundColor: theme.surface.default, color: theme.text.primary, height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+export const AppShell = ({ children, className = '', style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
+    <div className={`app-shell ${className}`} style={{ backgroundColor: theme.surface.default, color: theme.text.primary, height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', overflow: 'hidden', ...style }}>
         {children}
     </div>
 );
@@ -30,14 +30,14 @@ export const Panel = ({ children, className = '', style = {} }: { children: Reac
     </div>
 );
 
-export const Card = ({ children, padding = '16px', className = '' }: { children: React.ReactNode; padding?: string; className?: string }) => (
-    <div className={`card ${className}`} style={{ backgroundColor: theme.card.background, border: `1px solid ${theme.card.border}`, borderRadius: '6px', padding }}>
+export const Card = ({ children, padding = '16px', className = '', style = {} }: { children: React.ReactNode; padding?: string; className?: string; style?: React.CSSProperties }) => (
+    <div className={`card ${className}`} style={{ backgroundColor: theme.card.background, border: `1px solid ${theme.card.border}`, borderRadius: '6px', padding, ...style }}>
         {children}
     </div>
 );
 
-export const Stack = ({ children, gap = '16px', direction = 'column', className = '' }: { children: React.ReactNode; gap?: string; direction?: 'column' | 'row'; className?: string }) => (
-    <div className={`stack ${className}`} style={{ display: 'flex', flexDirection: direction, gap }}>
+export const Stack = ({ children, gap = '16px', direction = 'column', className = '', style = {} }: { children: React.ReactNode; gap?: string; direction?: 'column' | 'row'; className?: string; style?: React.CSSProperties }) => (
+    <div className={`stack ${className}`} style={{ display: 'flex', flexDirection: direction, gap, ...style }}>
         {children}
     </div>
 );
