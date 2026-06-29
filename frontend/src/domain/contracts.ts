@@ -4,36 +4,39 @@ import React from 'react';
 // State Machines
 // ============================================================================
 
-export enum InterviewState {
-    IDLE = 'IDLE',
-    RESUME_UPLOAD = 'RESUME_UPLOAD',
-    GREETING = 'GREETING',
-    QUESTION_ASKED = 'QUESTION_ASKED',
-    LISTENING = 'LISTENING',
-    PROCESSING = 'PROCESSING',
-    EVALUATING = 'EVALUATING',
-    THINKING = 'THINKING',
-    SPEAKING = 'SPEAKING',
-    NEXT_QUESTION = 'NEXT_QUESTION',
-    FINISHED = 'FINISHED'
-}
+export const InterviewState = {
+    IDLE: 'IDLE',
+    RESUME_UPLOAD: 'RESUME_UPLOAD',
+    GREETING: 'GREETING',
+    QUESTION_ASKED: 'QUESTION_ASKED',
+    LISTENING: 'LISTENING',
+    PROCESSING: 'PROCESSING',
+    EVALUATING: 'EVALUATING',
+    THINKING: 'THINKING',
+    SPEAKING: 'SPEAKING',
+    NEXT_QUESTION: 'NEXT_QUESTION',
+    FINISHED: 'FINISHED'
+} as const;
+export type InterviewState = typeof InterviewState[keyof typeof InterviewState];
 
-export enum AIState {
-    IDLE = 'IDLE',
-    THINKING = 'THINKING',
-    GENERATING = 'GENERATING',
-    EVALUATING = 'EVALUATING',
-    SYNTHESIZING = 'SYNTHESIZING',
-    SPEAKING = 'SPEAKING',
-    WAITING = 'WAITING'
-}
+export const AIState = {
+    IDLE: 'IDLE',
+    THINKING: 'THINKING',
+    GENERATING: 'GENERATING',
+    EVALUATING: 'EVALUATING',
+    SYNTHESIZING: 'SYNTHESIZING',
+    SPEAKING: 'SPEAKING',
+    WAITING: 'WAITING'
+} as const;
+export type AIState = typeof AIState[keyof typeof AIState];
 
-export enum ConnectionState {
-    DISCONNECTED = 'DISCONNECTED',
-    CONNECTING = 'CONNECTING',
-    CONNECTED = 'CONNECTED',
-    ERROR = 'ERROR'
-}
+export const ConnectionState = {
+    DISCONNECTED: 'DISCONNECTED',
+    CONNECTING: 'CONNECTING',
+    CONNECTED: 'CONNECTED',
+    ERROR: 'ERROR'
+} as const;
+export type ConnectionState = typeof ConnectionState[keyof typeof ConnectionState];
 
 // ============================================================================
 // Core Entities
