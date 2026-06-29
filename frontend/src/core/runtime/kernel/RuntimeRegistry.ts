@@ -20,6 +20,10 @@ export class RuntimeRegistry {
         return module as T;
     }
 
+    public getModules(): RuntimeModule[] {
+        return Array.from(this.modules.values());
+    }
+
     public async initializeAll(context: RuntimeContext): Promise<void> {
         context.logger.info("Initializing all modules...");
         for (const module of this.modules.values()) {

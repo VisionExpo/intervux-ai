@@ -1,11 +1,23 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 import { useInterview } from "../hooks/useInterview";
 
+import { RuntimeProvider } from "./RuntimeProvider";
+
 type InterviewSessionValue = ReturnType<typeof useInterview>;
 
 const InterviewSessionContext = createContext<InterviewSessionValue | null>(null);
 
 export function InterviewSessionProvider({ children }: { children: ReactNode }) {
+  return (
+    <RuntimeProvider>
+       <InterviewSessionInnerProvider>
+          {children}
+       </InterviewSessionInnerProvider>
+    </RuntimeProvider>
+  );
+}
+
+function InterviewSessionInnerProvider({ children }: { children: ReactNode }) {
   const session = useInterview();
   const latestSessionRef = useRef(session);
 

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback, useReducer, useMemo } from "r
 import type { VisemeCue } from "../avatar/LipSyncController";
 import { interviewReducer, initialState } from "./useInterviewStateMachine";
 import type { InterviewState } from "./useInterviewStateMachine";
+import { useRuntime } from "../providers/RuntimeProvider";
+import { LegacyBridge } from "../core/runtime/LegacyBridge";
 
 export type AvatarState = "speaking" | "listening" | "thinking";
 
@@ -58,6 +60,17 @@ function getWebSocketUrl(): string {
 }
 
 export function useInterview() {
+  const kernel = useRuntime();
+  const bridgeRef = useRef<LegacyBridge | null>(null);
+  if (!bridgeRef.current) {
+      bridgeRef.current = new LegacyBridge(kernel, "legacy-session-id");
+  }
+  const bridge = bridgeRef.current;
+
+  useEffect(() => {
+      void bridge.startIfNeeded();
+  }, [bridge]);
+
   const socketRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -197,6 +210,7 @@ export function useInterview() {
   }, []);
 
   const processMessage = useCallback((msg: any) => {
+    bridge.handleSocketMessage(msg);
     const type = typeof msg.type === "string" ? msg.type : "";
     const normalizedType = type.toLowerCase();
 
@@ -384,6 +398,7 @@ export function useInterview() {
       reconnectAttemptsRef.current = 0;
       setIsConnected(true);
       setLastError("");
+      bridge.handleConnectionChange(true);
       dispatch({ type: "WS_CONNECTED" });
 
       // Start heartbeat to prevent timeouts
@@ -481,6 +496,7 @@ export function useInterview() {
         return;
       }
       setIsConnected(false);
+      bridge.handleConnectionChange(false);
 
       const intentionalClose = event.code === 1000;
       const interviewComplete = stageRef.current === "INTERVIEW_COMPLETE";
@@ -706,6 +722,15 @@ export function useInterview() {
       audioSourceRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+      bridge.verifyDivergence({
+          questionIndex,
+          totalQuestions,
+          lastEvaluation,
+          stage
+      });
+  }, [bridge, questionIndex, totalQuestions, lastEvaluation, stage]);
 
 
     return {

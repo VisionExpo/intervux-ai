@@ -41,4 +41,25 @@ export class RuntimeKernel {
         await this.context.registry.disposeAll(this.context.logger);
         this.context.logger.info("RuntimeKernel stopped.");
     }
+
+    public snapshot(): any {
+        const snap: any = {};
+        for (const module of this.context.registry.getModules()) {
+            if (module.snapshot) {
+                snap[module.id] = module.snapshot();
+            }
+        }
+        return snap;
+    }
+
+    public inspect(): any {
+        return {
+            version: "1.0.0",
+            modules: this.context.registry.getModules().map(m => ({
+                id: m.id,
+                health: m.health(),
+                hasSnapshot: !!m.snapshot
+            }))
+        };
+    }
 }

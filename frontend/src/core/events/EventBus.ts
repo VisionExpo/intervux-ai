@@ -4,6 +4,7 @@ type EventHandler<T extends DomainEvent> = (event: T) => void | Promise<void>;
 
 export class EventBus {
     private handlers: Map<string, Set<EventHandler<any>>> = new Map();
+    private globalHandlers: Set<EventHandler<any>> = new Set();
 
     public subscribe<T extends DomainEvent>(eventType: string, handler: EventHandler<T>): () => void {
         if (!this.handlers.has(eventType)) {
@@ -22,18 +23,31 @@ export class EventBus {
         };
     }
 
+    public subscribeAll(handler: EventHandler<any>): () => void {
+        this.globalHandlers.add(handler);
+        return () => {
+            this.globalHandlers.delete(handler);
+        };
+    }
+
     public async publish(event: DomainEvent): Promise<void> {
+        const promises: Promise<void>[] = [];
+
         const typeHandlers = this.handlers.get(event.type);
         if (typeHandlers) {
-            const promises = Array.from(typeHandlers).map(handler => {
-                try {
-                    return Promise.resolve(handler(event));
-                } catch (e) {
+            Array.from(typeHandlers).forEach(handler => {
+                promises.push(Promise.resolve(handler(event)).catch(e => {
                     console.error(`Error in event handler for ${event.type}:`, e);
-                    return Promise.resolve();
-                }
+                }));
             });
-            await Promise.allSettled(promises);
         }
+
+        this.globalHandlers.forEach(handler => {
+            promises.push(Promise.resolve(handler(event)).catch(e => {
+                console.error(`Error in global event handler for ${event.type}:`, e);
+            }));
+        });
+
+        await Promise.allSettled(promises);
     }
 }
