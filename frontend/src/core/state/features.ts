@@ -4,6 +4,7 @@
 
 export const features = {
     // Advanced Interview Modes
+    newDashboard: false,
     developerWorkspace: true,
     systemDesignWorkspace: false,
     

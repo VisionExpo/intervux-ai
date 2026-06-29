@@ -2,6 +2,7 @@ import type { RefObject } from "react";
 import { useEffect, useState } from "react";
 import Avatar3D from "../Avatar3D";
 import type { VisemeCue } from "../../avatar/LipSyncController";
+import { isFeatureEnabled } from "../../core/state/features";
 
 type AvatarState = "speaking" | "listening" | "thinking";
 
@@ -120,26 +121,27 @@ export default function AvatarInterviewer({
       </div>
 
       {/* Question Display */}
-      <div 
-        className="question-display"
-        style={{
-          transition: "all 0.5s ease",
-          opacity: questionText ? 1 : 0.7,
-        }}
-      >
-        {questionText ? (
-          <p style={{ margin: 0, fontSize: "0.95rem", lineHeight: 1.6, color: "#334155" }}>
-            {questionText}
-          </p>
-        ) : (
-          <div className="typing-indicator">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-        )}
-      </div>
+      {!isFeatureEnabled('newDashboard') && (
+        <div 
+          className="question-display"
+          style={{
+            transition: "all 0.5s ease",
+            opacity: questionText ? 1 : 0.7,
+          }}
+        >
+          {questionText ? (
+            <p style={{ margin: 0, fontSize: "0.95rem", lineHeight: 1.6, color: "#334155" }}>
+              {questionText}
+            </p>
+          ) : (
+            <div className="typing-indicator">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
-

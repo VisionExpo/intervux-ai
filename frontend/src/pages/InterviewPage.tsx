@@ -14,10 +14,21 @@ import styles from "./InterviewOverlay.module.css";
 import { authFetch } from "../hooks/authFetch";
 import { useNavigate } from "react-router-dom";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { QuestionCardAdapter } from "../dashboard/adapters/QuestionCardAdapter";
+import { TimelineAdapter } from "../dashboard/adapters/TimelineAdapter";
+import { CandidateMonitorAdapter } from "../dashboard/adapters/CandidateMonitorAdapter";
+import { InterviewerViewAdapter } from "../dashboard/adapters/InterviewerViewAdapter";
+import { VoiceControlAdapter } from "../dashboard/adapters/VoiceControlAdapter";
+import { CandidateInfoAdapter } from "../dashboard/adapters/CandidateInfoAdapter";
+import { InterviewProgressAdapter } from "../dashboard/adapters/InterviewProgressAdapter";
+import { DashboardShell } from "../dashboard/layouts/DashboardShell";
+import { theme } from "../design-system/tokens/theme";
+import { isFeatureEnabled } from "../core/state/features";
 
 const DEMO_LIGHT_MODE = import.meta.env.VITE_DEMO_LIGHT_MODE === "true";
 
 export default function InterviewPage() {
+  const navigate = useNavigate();
   const {
     stage,
     avatarState,
@@ -147,6 +158,87 @@ export default function InterviewPage() {
     return "Please upload your resume to start the interview. The AI will use it to personalize questions.";
   };
   
+  if (isFeatureEnabled('newDashboard')) {
+    const [dashboardLayout, setDashboardLayout] = useState<'conversation' | 'coding'>('conversation');
+
+    const TopRegion = (
+      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
+        <div style={{ fontWeight: 600, fontSize: '1.25rem' }}>Intervux <span style={{ color: theme.brand.primary }}>OS</span></div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={() => setDashboardLayout('conversation')} style={{ padding: '6px 12px', background: dashboardLayout === 'conversation' ? theme.surface.overlay : 'transparent', color: theme.text.primary, border: '1px solid ' + theme.border.default, borderRadius: '4px', cursor: 'pointer' }}>Conversation</button>
+            <button onClick={() => setDashboardLayout('coding')} style={{ padding: '6px 12px', background: dashboardLayout === 'coding' ? theme.surface.overlay : 'transparent', color: theme.text.primary, border: '1px solid ' + theme.border.default, borderRadius: '4px', cursor: 'pointer' }}>Coding</button>
+        </div>
+        <button onClick={() => navigate("/")} style={{ padding: '8px 16px', background: theme.status.error, color: 'white', border: 'none', borderRadius: '4px', fontWeight: 600, cursor: 'pointer' }}>End Interview</button>
+      </div>
+    );
+
+    const LeftRegion = (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%', overflowY: 'auto' }}>
+        <CandidateInfoAdapter />
+        <InterviewProgressAdapter />
+      </div>
+    );
+
+    const RightRegion = (
+      <TimelineAdapter />
+    );
+
+    const BottomRegion = (
+      <div style={{ height: '100%', display: 'flex', alignItems: 'center', padding: '0 24px', color: theme.text.secondary, fontSize: '0.875rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="motion-loading">🔄</span> System Operational
+        </div>
+      </div>
+    );
+
+    const WorkspaceRegion = (
+      <div style={{ padding: '24px', height: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {dashboardLayout === 'conversation' ? (
+          <div style={{ display: 'flex', gap: '24px', flex: 1 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <InterviewerViewAdapter />
+              <QuestionCardAdapter />
+            </div>
+            <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <CandidateMonitorAdapter />
+              <VoiceControlAdapter />
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: '24px', flex: 1 }}>
+            <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ flex: 1, backgroundColor: theme.surface.elevated, borderRadius: theme.radius.md, border: `1px solid ${theme.border.default}`, overflow: 'hidden' }}>
+                <CodingSandbox
+                  language="python"
+                  problemDescription={
+                    lastEvaluation?.question?.includes("code")
+                      ? lastEvaluation.question
+                      : "Implement a function that finds two numbers that add up to a target."
+                  }
+                />
+              </div>
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <QuestionCardAdapter />
+              <CandidateMonitorAdapter />
+              <VoiceControlAdapter />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+
+    return (
+      <DashboardShell 
+        topRegion={TopRegion}
+        leftRegion={LeftRegion}
+        workspaceRegion={WorkspaceRegion}
+        rightRegion={RightRegion}
+        bottomRegion={BottomRegion}
+      />
+    );
+  }
+
   return (
     <InterviewLayout
       connectionStatus={connectionStatus}
@@ -183,23 +275,36 @@ export default function InterviewPage() {
             )}
           </div>
         ) : (
-          <ErrorBoundary fallback={<SpeakerOrb isSpeaking={isSpeaking} avatarState={avatarState} questionText={currentQuestion} />}>
-            <Suspense fallback={<SpeakerOrb isSpeaking={isSpeaking} avatarState={avatarState} questionText={currentQuestion} />}>
-              {DEMO_LIGHT_MODE ? (
-                <SpeakerOrb isSpeaking={isSpeaking} avatarState={avatarState} questionText={currentQuestion} />
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: isFeatureEnabled('newDashboard') ? '16px' : '0' }}>
+            <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: '300px' }}>
+              {isFeatureEnabled('newDashboard') ? (
+                  <InterviewerViewAdapter />
               ) : (
-                <AvatarInterviewer
-                  isSpeaking={isSpeaking}
-                  audioContextRef={audioContextRef}
-                  playbackStartTimeRef={playbackStartTimeRef}
-                  visemesRef={visemesRef}
-                  avatarState={avatarState}
-                  emotion={emotion}
-                  questionText={currentQuestion}
-                />
+                  <ErrorBoundary fallback={<SpeakerOrb isSpeaking={isSpeaking} avatarState={avatarState} questionText={currentQuestion} />}>
+                    <Suspense fallback={<SpeakerOrb isSpeaking={isSpeaking} avatarState={avatarState} questionText={currentQuestion} />}>
+                      {DEMO_LIGHT_MODE ? (
+                        <SpeakerOrb isSpeaking={isSpeaking} avatarState={avatarState} questionText={currentQuestion} />
+                      ) : (
+                        <AvatarInterviewer
+                          isSpeaking={isSpeaking}
+                          audioContextRef={audioContextRef}
+                          playbackStartTimeRef={playbackStartTimeRef}
+                          visemesRef={visemesRef}
+                          avatarState={avatarState}
+                          emotion={emotion}
+                          questionText={currentQuestion}
+                        />
+                      )}
+                    </Suspense>
+                  </ErrorBoundary>
               )}
-            </Suspense>
-          </ErrorBoundary>
+            </div>
+            {isFeatureEnabled('newDashboard') && (
+              <div style={{ flexShrink: 0 }}>
+                <QuestionCardAdapter />
+              </div>
+            )}
+          </div>
         )
       }
       codingPanel={
@@ -213,19 +318,32 @@ export default function InterviewPage() {
         />
       }
       transcriptPanel={
-        <TranscriptPanel
-          messages={transcriptMessages}
-          isListening={isListening}
-          onEndAnswer={endAnswer}
-        />
+        isFeatureEnabled('newDashboard') ? (
+          <TimelineAdapter />
+        ) : (
+          <TranscriptPanel
+            messages={transcriptMessages}
+            isListening={isListening}
+            onEndAnswer={endAnswer}
+          />
+        )
       }
       cameraPanel={
-        <CandidateCamera 
-          isEnabled={true} 
-          stream={mediaStream} 
-          isListening={isListening} 
-          isSpeaking={isSpeaking} 
-        />
+        isFeatureEnabled('newDashboard') ? (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '16px' }}>
+            <CandidateMonitorAdapter />
+            <div style={{ flexShrink: 0 }}>
+              <VoiceControlAdapter />
+            </div>
+          </div>
+        ) : (
+          <CandidateCamera 
+            isEnabled={true} 
+            stream={mediaStream} 
+            isListening={isListening} 
+            isSpeaking={isSpeaking} 
+          />
+        )
       }
     />
   );
@@ -259,12 +377,14 @@ function SpeakerOrb({
         }`}
         aria-hidden="true"
       />
-      <div>
-        <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-        <p className="mx-auto max-w-xl text-base leading-7 text-slate-700">
-          {questionText || "Preparing the next interview prompt..."}
-        </p>
-      </div>
+      {!isFeatureEnabled('newDashboard') && (
+        <div>
+          <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="mx-auto max-w-xl text-base leading-7 text-slate-700">
+            {questionText || "Preparing the next interview prompt..."}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

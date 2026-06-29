@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { DashboardShell } from '../dashboard/layouts/DashboardShell';
-import { SidebarCandidateInfo } from '../dashboard/widgets/SidebarCandidateInfo';
+import { CandidateInfoWidget } from '../dashboard/widgets/CandidateInfoWidget';
+import { InterviewProgressWidget } from '../dashboard/widgets/InterviewProgressWidget';
 import { EventTimelineWidget } from '../dashboard/widgets/EventTimelineWidget';
 import { QuestionCard } from '../dashboard/widgets/QuestionCard';
 import { VoiceControlPanel } from '../dashboard/widgets/VoiceControlPanel';
@@ -28,15 +29,19 @@ export const DashboardPreview = () => {
     );
 
     const LeftRegion = (
-        <SidebarCandidateInfo 
-            currentQuestion={2}
-            totalQuestions={8}
-            timeElapsed="18:42"
-            difficulty="Medium"
-            candidateName="Vishal Gorule"
-            role="AI/ML Engineer"
-            skills={['Python', 'FastAPI', 'Docker', 'Redis']}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%', overflowY: 'auto' }}>
+            <CandidateInfoWidget 
+                candidateName="Vishal Gorule"
+                role="AI/ML Engineer"
+                skills={['Python', 'FastAPI', 'Docker', 'Redis']}
+            />
+            <InterviewProgressWidget 
+                currentQuestion={2}
+                totalQuestions={8}
+                timeElapsed="18:42"
+                difficulty="Medium"
+            />
+        </div>
     );
 
     const RightRegion = (
@@ -65,7 +70,7 @@ export const DashboardPreview = () => {
                     </div>
                     <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
                         <CandidateMonitor />
-                        <VoiceControlPanel />
+                        <VoiceControlPanel isListening={true} />
                     </div>
                 </div>
             ) : (
@@ -81,7 +86,7 @@ export const DashboardPreview = () => {
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
                         <QuestionCard />
                         <CandidateMonitor />
-                        <VoiceControlPanel />
+                        <VoiceControlPanel isListening={true} />
                     </div>
                 </div>
             )}

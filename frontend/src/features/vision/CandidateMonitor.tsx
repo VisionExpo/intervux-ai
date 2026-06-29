@@ -3,8 +3,8 @@ import { Panel, Stack } from '../../design-system/components/primitives';
 import { theme } from '../../design-system/tokens/theme';
 import { isFeatureEnabled } from '../../core/state/features';
 
-export const CandidateMonitor = () => (
-    <Panel className="candidate-monitor" style={{ flex: 1, position: 'relative' }}>
+export const CandidateMonitor = ({ children }: { children?: React.ReactNode }) => (
+    <Panel className="candidate-monitor" style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         <div style={{ 
             position: 'absolute', 
             top: '16px', left: '16px', 
@@ -18,9 +18,9 @@ export const CandidateMonitor = () => (
             Candidate Camera
         </div>
 
-        {/* Camera Feed Placeholder */}
-        <div style={{ width: '100%', height: '100%', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: theme.text.muted }}>[ Camera Feed ]</span>
+        {/* Camera Feed Container */}
+        <div style={{ width: '100%', height: '100%', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+            {children || <span style={{ color: theme.text.muted }}>[ Camera Feed ]</span>}
         </div>
 
         {/* Vision Analytics Overlay (Future) */}
