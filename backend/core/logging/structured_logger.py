@@ -132,19 +132,35 @@ class StructuredLogger:
         message: str = "",
         **kwargs
     ) -> Dict[str, Any]:
-        """Build structured log dict."""
+        """Build structured log dict conforming strictly to the observability schema."""
+        if not hasattr(self, "_sequence"):
+            self._sequence = 0
+        self._sequence += 1
+
+        # Extract strict fields from context or kwargs
+        context = getattr(self._local, "context", {})
+        session_id = kwargs.pop("session_id", context.get("session_id", "unknown"))
+        event_id = kwargs.pop("event_id", context.get("event_id", "unknown"))
+        module = kwargs.pop("module", context.get("module", "unknown"))
+        latency_ms = kwargs.pop("latency_ms", context.get("latency_ms", 0.0))
+
         log = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "level": level,
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "session_id": session_id,
+            "event_id": event_id,
+            "module": module,
             "event": event,
-            "message": message,
-            "service": self.name,
-            "version": self.version,
-            "environment": self.environment,
+            "sequence": self._sequence,
+            "latency_ms": latency_ms,
+            "metadata": {
+                "level": level,
+                "message": message,
+                "service": self.name,
+                "version": self.version,
+                "environment": self.environment,
+                **kwargs
+            }
         }
-        
-        # Add any additional fields
-        log.update(kwargs)
         
         return log
     

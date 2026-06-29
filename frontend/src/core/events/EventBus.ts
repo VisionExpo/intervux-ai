@@ -1,3 +1,4 @@
+import { StructuredLogger } from '../utils/StructuredLogger';
 import { DomainEvent } from './DomainEvent';
 
 type EventHandler<T extends DomainEvent> = (event: T) => void | Promise<void>;
@@ -31,6 +32,7 @@ export class EventBus {
     }
 
     public async publish(event: DomainEvent): Promise<void> {
+        const startTime = performance.now();
         const promises: Promise<void>[] = [];
 
         const typeHandlers = this.handlers.get(event.type);
@@ -49,5 +51,16 @@ export class EventBus {
         });
 
         await Promise.allSettled(promises);
+        
+        const latencyMs = performance.now() - startTime;
+        
+        // Ensure EventBus observability constraint
+        StructuredLogger.log(
+            "EventBus",
+            event.type,
+            (event as any).id || "unknown-id",
+            latencyMs,
+            { payload: (event as any).payload }
+        );
     }
 }

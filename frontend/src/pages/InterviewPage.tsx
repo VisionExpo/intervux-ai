@@ -158,234 +158,112 @@ export default function InterviewPage() {
     return "Please upload your resume to start the interview. The AI will use it to personalize questions.";
   };
   
-  if (isFeatureEnabled('newDashboard')) {
-    const [dashboardLayout, setDashboardLayout] = useState<'conversation' | 'coding'>('conversation');
+  const [dashboardLayout, setDashboardLayout] = useState<'conversation' | 'coding'>('conversation');
 
-    const TopRegion = (
-      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
-        <div style={{ fontWeight: 600, fontSize: '1.25rem' }}>Intervux <span style={{ color: theme.brand.primary }}>OS</span></div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={() => setDashboardLayout('conversation')} style={{ padding: '6px 12px', background: dashboardLayout === 'conversation' ? theme.surface.overlay : 'transparent', color: theme.text.primary, border: '1px solid ' + theme.border.default, borderRadius: '4px', cursor: 'pointer' }}>Conversation</button>
-            <button onClick={() => setDashboardLayout('coding')} style={{ padding: '6px 12px', background: dashboardLayout === 'coding' ? theme.surface.overlay : 'transparent', color: theme.text.primary, border: '1px solid ' + theme.border.default, borderRadius: '4px', cursor: 'pointer' }}>Coding</button>
-        </div>
-        <button onClick={() => navigate("/")} style={{ padding: '8px 16px', background: theme.status.error, color: 'white', border: 'none', borderRadius: '4px', fontWeight: 600, cursor: 'pointer' }}>End Interview</button>
+  const TopRegion = (
+    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
+      <div style={{ fontWeight: 600, fontSize: '1.25rem' }}>Intervux <span style={{ color: theme.brand.primary }}>OS</span></div>
+      <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={() => setDashboardLayout('conversation')} style={{ padding: '6px 12px', background: dashboardLayout === 'conversation' ? theme.surface.overlay : 'transparent', color: theme.text.primary, border: '1px solid ' + theme.border.default, borderRadius: '4px', cursor: 'pointer' }}>Conversation</button>
+          <button onClick={() => setDashboardLayout('coding')} style={{ padding: '6px 12px', background: dashboardLayout === 'coding' ? theme.surface.overlay : 'transparent', color: theme.text.primary, border: '1px solid ' + theme.border.default, borderRadius: '4px', cursor: 'pointer' }}>Coding</button>
       </div>
-    );
+      <button onClick={() => navigate("/")} style={{ padding: '8px 16px', background: theme.status.error, color: 'white', border: 'none', borderRadius: '4px', fontWeight: 600, cursor: 'pointer' }}>End Interview</button>
+    </div>
+  );
 
-    const LeftRegion = (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%', overflowY: 'auto' }}>
-        <CandidateInfoAdapter />
-        <InterviewProgressAdapter />
+  const LeftRegion = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%', overflowY: 'auto' }}>
+      <CandidateInfoAdapter />
+      <InterviewProgressAdapter />
+    </div>
+  );
+
+  const RightRegion = (
+    <TimelineAdapter />
+  );
+
+  const BottomRegion = (
+    <div style={{ height: '100%', display: 'flex', alignItems: 'center', padding: '0 24px', color: theme.text.secondary, fontSize: '0.875rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span className="motion-loading">🔄</span> System Operational
       </div>
-    );
+    </div>
+  );
 
-    const RightRegion = (
-      <TimelineAdapter />
-    );
-
-    const BottomRegion = (
-      <div style={{ height: '100%', display: 'flex', alignItems: 'center', padding: '0 24px', color: theme.text.secondary, fontSize: '0.875rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span className="motion-loading">🔄</span> System Operational
-        </div>
-      </div>
-    );
-
-    const WorkspaceRegion = (
-      <div style={{ padding: '24px', height: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        {dashboardLayout === 'conversation' ? (
-          <div style={{ display: 'flex', gap: '24px', flex: 1 }}>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <InterviewerViewAdapter />
-              <QuestionCardAdapter />
-            </div>
-            <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <CandidateMonitorAdapter />
-              <VoiceControlAdapter />
-            </div>
-          </div>
+  const WorkspaceRegion = showResumeUpload ? (
+    <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-slate-50/50 backdrop-blur-sm rounded-xl m-6 border border-slate-200">
+      <div className="text-5xl mb-4">
+        {stage === "PROCESSING_RESUME" ? (
+          <span className="inline-block animate-spin">⏳</span>
         ) : (
-          <div style={{ display: 'flex', gap: '24px', flex: 1 }}>
-            <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div style={{ flex: 1, backgroundColor: theme.surface.elevated, borderRadius: theme.radius.md, border: `1px solid ${theme.border.default}`, overflow: 'hidden' }}>
-                <CodingSandbox
-                  language="python"
-                  problemDescription={
-                    lastEvaluation?.question?.includes("code")
-                      ? lastEvaluation.question
-                      : "Implement a function that finds two numbers that add up to a target."
-                  }
-                />
-              </div>
-            </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <QuestionCardAdapter />
-              <CandidateMonitorAdapter />
-              <VoiceControlAdapter />
-            </div>
-          </div>
+          "📄"
         )}
       </div>
-    );
-
-    return (
-      <DashboardShell 
-        topRegion={TopRegion}
-        leftRegion={LeftRegion}
-        workspaceRegion={WorkspaceRegion}
-        rightRegion={RightRegion}
-        bottomRegion={BottomRegion}
-      />
-    );
-  }
-
-  return (
-    <InterviewLayout
-      connectionStatus={connectionStatus}
-      questionNumber={questionIndex}
-      totalQuestions={totalQuestions}
-      avatarPanel={
-        showResumeUpload ? (
-          <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-slate-50/50 backdrop-blur-sm rounded-xl">
-            <div className="text-5xl mb-4">
-              {stage === "PROCESSING_RESUME" ? (
-                <span className="inline-block animate-spin">⏳</span>
-              ) : (
-                "📄"
-              )}
-            </div>
-            <h2 className="text-slate-800 text-2xl font-bold mb-4">
-              {stage === "PROCESSING_RESUME" ? "Processing Resume" : "Upload Your Resume"}
-            </h2>
-            <p className="text-slate-600 mb-6 max-w-md mx-auto">
-              {getResumeUploadText()}
-            </p>
-            {stage === "WAITING_RESUME" && (
-              <div className="mb-4">
-                <label className="cursor-pointer bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 transition-colors rounded-lg px-6 py-3 flex items-center justify-center shadow-sm">
-                  <span className="text-blue-600 font-medium">Select Resume File (.pdf, .doc)</span>
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: isFeatureEnabled('newDashboard') ? '16px' : '0' }}>
-            <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: '300px' }}>
-              {isFeatureEnabled('newDashboard') ? (
-                  <InterviewerViewAdapter />
-              ) : (
-                  <ErrorBoundary fallback={<SpeakerOrb isSpeaking={isSpeaking} avatarState={avatarState} questionText={currentQuestion} />}>
-                    <Suspense fallback={<SpeakerOrb isSpeaking={isSpeaking} avatarState={avatarState} questionText={currentQuestion} />}>
-                      {DEMO_LIGHT_MODE ? (
-                        <SpeakerOrb isSpeaking={isSpeaking} avatarState={avatarState} questionText={currentQuestion} />
-                      ) : (
-                        <AvatarInterviewer
-                          isSpeaking={isSpeaking}
-                          audioContextRef={audioContextRef}
-                          playbackStartTimeRef={playbackStartTimeRef}
-                          visemesRef={visemesRef}
-                          avatarState={avatarState}
-                          emotion={emotion}
-                          questionText={currentQuestion}
-                        />
-                      )}
-                    </Suspense>
-                  </ErrorBoundary>
-              )}
-            </div>
-            {isFeatureEnabled('newDashboard') && (
-              <div style={{ flexShrink: 0 }}>
-                <QuestionCardAdapter />
-              </div>
-            )}
-          </div>
-        )
-      }
-      codingPanel={
-        <CodingSandbox
-          language="python"
-          problemDescription={
-            lastEvaluation?.question?.includes("code")
-              ? lastEvaluation.question
-              : "Implement a function that finds two numbers that add up to a target."
-          }
-        />
-      }
-      transcriptPanel={
-        isFeatureEnabled('newDashboard') ? (
-          <TimelineAdapter />
-        ) : (
-          <TranscriptPanel
-            messages={transcriptMessages}
-            isListening={isListening}
-            onEndAnswer={endAnswer}
-          />
-        )
-      }
-      cameraPanel={
-        isFeatureEnabled('newDashboard') ? (
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '16px' }}>
-            <CandidateMonitorAdapter />
-            <div style={{ flexShrink: 0 }}>
-              <VoiceControlAdapter />
-            </div>
-          </div>
-        ) : (
-          <CandidateCamera 
-            isEnabled={true} 
-            stream={mediaStream} 
-            isListening={isListening} 
-            isSpeaking={isSpeaking} 
-          />
-        )
-      }
-    />
-  );
-}
-
-function SpeakerOrb({
-  isSpeaking,
-  avatarState,
-  questionText,
-}: {
-  isSpeaking: boolean;
-  avatarState: "speaking" | "listening" | "thinking";
-  questionText?: string;
-}) {
-  useEffect(() => {
-    console.log("[SpeakerOrb] mounted");
-    return () => console.warn("[SpeakerOrb] unmounted");
-  }, []);
-
-  const label = isSpeaking
-    ? "Speaking"
-    : avatarState === "listening"
-    ? "Listening"
-    : "Thinking";
-
-  return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-6 bg-slate-50/70 p-8 text-center">
-      <div
-        className={`h-32 w-32 rounded-full bg-gradient-to-br from-cyan-400 via-blue-500 to-emerald-400 shadow-2xl ${
-          isSpeaking ? "animate-pulse" : ""
-        }`}
-        aria-hidden="true"
-      />
-      {!isFeatureEnabled('newDashboard') && (
-        <div>
-          <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-          <p className="mx-auto max-w-xl text-base leading-7 text-slate-700">
-            {questionText || "Preparing the next interview prompt..."}
-          </p>
+      <h2 className="text-slate-800 text-2xl font-bold mb-4">
+        {stage === "PROCESSING_RESUME" ? "Processing Resume" : "Upload Your Resume"}
+      </h2>
+      <p className="text-slate-600 mb-6 max-w-md mx-auto">
+        {getResumeUploadText()}
+      </p>
+      {stage === "WAITING_RESUME" && (
+        <div className="mb-4">
+          <label className="cursor-pointer bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 transition-colors rounded-lg px-6 py-3 flex items-center justify-center shadow-sm">
+            <span className="text-blue-600 font-medium">Select Resume File (.pdf, .doc)</span>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </label>
         </div>
       )}
     </div>
+  ) : (
+    <div style={{ padding: '24px', height: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {dashboardLayout === 'conversation' ? (
+        <div style={{ display: 'flex', gap: '24px', flex: 1 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <InterviewerViewAdapter />
+            <QuestionCardAdapter />
+          </div>
+          <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <CandidateMonitorAdapter />
+            <VoiceControlAdapter />
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: '24px', flex: 1 }}>
+          <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div style={{ flex: 1, backgroundColor: theme.surface.elevated, borderRadius: theme.radius.md, border: `1px solid ${theme.border.default}`, overflow: 'hidden' }}>
+              <CodingSandbox
+                language="python"
+                problemDescription={
+                  lastEvaluation?.question?.includes("code")
+                    ? lastEvaluation.question
+                    : "Implement a function that finds two numbers that add up to a target."
+                }
+              />
+            </div>
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <QuestionCardAdapter />
+            <CandidateMonitorAdapter />
+            <VoiceControlAdapter />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <DashboardShell 
+      topRegion={TopRegion}
+      leftRegion={LeftRegion}
+      workspaceRegion={WorkspaceRegion}
+      rightRegion={RightRegion}
+      bottomRegion={BottomRegion}
+    />
   );
 }
 
