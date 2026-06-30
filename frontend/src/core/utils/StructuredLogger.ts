@@ -1,3 +1,5 @@
+import { EventCollector } from './EventCollector';
+
 export interface LogEntry {
     timestamp: string;
     session_id: string;
@@ -38,5 +40,8 @@ export class StructuredLogger {
 
         // Write structured JSON to console for Observability
         console.log(JSON.stringify(entry));
+        
+        // Push to in-memory EventCollector for Developer Overlay
+        EventCollector.addEvent(entry);
     }
 }

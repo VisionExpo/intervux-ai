@@ -129,11 +129,14 @@ function AppContent() {
   );
 }
 
+import { RuntimeInspector } from "./features/developer/RuntimeInspector/RuntimeInspector";
+
 export default function App() {
   return (
     <ErrorBoundary>
       <HashRouter>
         <AppContent />
+        <RuntimeInspector />
       </HashRouter>
     </ErrorBoundary>
   );
