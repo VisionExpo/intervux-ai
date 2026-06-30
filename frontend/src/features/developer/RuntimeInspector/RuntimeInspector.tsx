@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { isCapabilityEnabled } from '../../../core/config/PlatformCapabilities';
 import { EventStreamWidget } from './widgets/EventStreamWidget';
 import { ExportWidget } from './widgets/ExportWidget';
+import { RuntimeWidget } from './widgets/RuntimeWidget';
+import { ConnectionWidget } from './widgets/ConnectionWidget';
+import { AudioWidget } from './widgets/AudioWidget';
+import { PerformanceWidget } from './widgets/PerformanceWidget';
+import { DiagnosticsWidget } from './widgets/DiagnosticsWidget';
 
 export const RuntimeInspector: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -10,7 +15,6 @@ export const RuntimeInspector: React.FC = () => {
         if (!isCapabilityEnabled('developer')) return;
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Ctrl + Shift + D
             if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
                 e.preventDefault();
                 setIsOpen(prev => !prev);
@@ -52,29 +56,23 @@ export const RuntimeInspector: React.FC = () => {
                     <ExportWidget />
                     <button 
                         onClick={() => setIsOpen(false)}
-                        style={{ background: 'transparent', border: 'none', color: '#d4d4d4', cursor: 'pointer' }}
+                        style={{ background: 'transparent', border: 'none', color: '#d4d4d4', cursor: 'pointer', fontWeight: 'bold' }}
                     >
-                        ✕
+                        ✕ Close
                     </button>
                 </div>
             </div>
             
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                 <div style={{ flex: 1, borderRight: '1px solid #3c3c3c', overflowY: 'auto', padding: '16px' }}>
-                    {/* Event Stream Widget */}
                     <EventStreamWidget />
                 </div>
-                <div style={{ width: '300px', padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {/* Other Widgets */}
-                    <div>
-                        <h4 style={{ margin: '0 0 8px 0', color: '#ce9178' }}>Diagnostics</h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                            <div style={{ color: '#4ec9b0' }}>● Runtime</div>
-                            <div style={{ color: '#4ec9b0' }}>● EventBus</div>
-                            <div style={{ color: '#4ec9b0' }}>● Managers</div>
-                            <div style={{ color: '#4ec9b0' }}>● Connection</div>
-                        </div>
-                    </div>
+                <div style={{ width: '400px', padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <RuntimeWidget />
+                    <ConnectionWidget />
+                    <AudioWidget />
+                    <PerformanceWidget />
+                    <DiagnosticsWidget />
                 </div>
             </div>
         </div>

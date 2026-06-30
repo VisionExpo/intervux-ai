@@ -9,13 +9,18 @@ const RuntimeContext = createContext<RuntimeKernel | null>(null);
 export function RuntimeProvider({ children }: { children: ReactNode }) {
   const kernelRef = useRef<RuntimeKernel | null>(null);
 
-  if (!kernelRef.current) {
-    const kernel = new RuntimeKernel({});
-    kernel.context.registry.register(new StateModule());
-    kernel.context.registry.register(new SessionModule());
-    kernel.context.registry.register(new EventRecorder());
-    kernelRef.current = kernel;
-  }
+    if (!kernelRef.current) {
+        const kernel = new RuntimeKernel({});
+        kernel.context.registry.register(new StateModule());
+        kernel.context.registry.register(new SessionModule());
+        kernel.context.registry.register(new EventRecorder());
+        kernelRef.current = kernel;
+        
+        // Expose to Developer Inspector
+        if (typeof window !== 'undefined') {
+            (window as any).__runtimeKernel = kernel;
+        }
+    }
 
   return (
     <RuntimeContext.Provider value={kernelRef.current}>

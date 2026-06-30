@@ -4,12 +4,32 @@ import { EventCollector } from '../../../../core/utils/EventCollector';
 export const ExportWidget: React.FC = () => {
     const handleExport = () => {
         const events = EventCollector.getEvents();
+        const kernel = (window as any).__runtimeKernel;
+        let snapshot = {};
+        if (kernel) {
+            try {
+                const stateModule = kernel.context.registry.getModule('StateModule');
+                if (stateModule) {
+                    snapshot = (stateModule as any).getSnapshot();
+                }
+            } catch (e) {}
+        }
+
         const data = {
-            timestamp: new Date().toISOString(),
+            runtime: kernel ? { status: "Active", context: "Available" } : { status: "Inactive" },
+            snapshot,
             events,
-            // In a real app we'd fetch snapshot from RuntimeProvider directly, 
-            // but for now we export events to prove observability works.
-            snapshot: { version: "1.0", status: "mock_snapshot" }
+            logs: events, // Currently structured logger pushes to EventCollector
+            performance: {
+                memory: (window.performance as any).memory || "Unavailable",
+                navigation: performance.getEntriesByType("navigation")[0]
+            },
+            environment: {
+                browser: navigator.userAgent,
+                build: process.env.REACT_APP_VERSION || "1.0.0",
+                commit: process.env.REACT_APP_COMMIT || "local",
+                featureFlags: { developer: true } // Extracted from config in real app
+            }
         };
 
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
