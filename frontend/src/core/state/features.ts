@@ -18,6 +18,9 @@ export const features = {
     vision: false, // Eye tracking, cheating detection, etc.
     replay: false, // Interview timeline replay
     liveScoring: false,
+    
+    // Platform Capabilities
+    demo: true, // Deterministic scenario-driven presentation mode
 };
 
 export type Features = typeof features;

@@ -1,13 +1,12 @@
-export class Clock {
-    public now(): number {
-        return Date.now();
-    }
+export interface Disposable {
+    dispose(): void;
+}
 
-    public elapsed(since: number): number {
-        return this.now() - since;
-    }
-
-    public timestamp(): number {
-        return this.now();
-    }
+export interface Clock {
+    now(): number;
+    elapsed(): number;
+    schedule(delay: number, callback: () => void): Disposable;
+    pause(): void;
+    resume(): void;
+    speed(multiplier: number): void;
 }

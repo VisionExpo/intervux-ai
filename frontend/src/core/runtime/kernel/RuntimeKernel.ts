@@ -2,7 +2,7 @@ import { RuntimeContext, type RuntimeConfig } from './RuntimeContext';
 import { RuntimeRegistry } from './RuntimeRegistry';
 import { EventBus } from '../../events/EventBus';
 import { Logger } from './Logger';
-import { Clock } from './Clock';
+import { RealClock } from './RealClock';
 import { Coordinator } from '../coordinator/Coordinator';
 
 export class RuntimeKernel {
@@ -13,7 +13,7 @@ export class RuntimeKernel {
         const registry = new RuntimeRegistry();
         const eventBus = new EventBus();
         const logger = new Logger();
-        const clock = new Clock();
+        const clock = new RealClock();
 
         this.context = new RuntimeContext(
             registry,

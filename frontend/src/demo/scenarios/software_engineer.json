@@ -1,0 +1,83 @@
+{
+  "id": "software_engineer",
+  "title": "Software Engineer (Mid-Level)",
+  "candidate": {
+    "name": "Vishal",
+    "roleTarget": "Backend Engineer",
+    "experienceLevel": "Mid-Level"
+  },
+  "chapters": [
+    {
+      "id": "resume",
+      "title": "Resume Review",
+      "workspace": "system",
+      "estimatedDuration": 0,
+      "status": "completed"
+    },
+    {
+      "id": "preparation",
+      "title": "Preparation",
+      "workspace": "system",
+      "estimatedDuration": 15000,
+      "status": "upcoming"
+    },
+    {
+      "id": "intro",
+      "title": "Introduction",
+      "workspace": "conversation",
+      "estimatedDuration": 60000,
+      "status": "upcoming"
+    }
+  ],
+  "steps": [
+    {
+      "id": "start-prep",
+      "chapterId": "preparation",
+      "command": {
+        "type": "StartPreparationCommand",
+        "payload": {
+          "tasks": ["Analyzing Resume", "Building Knowledge Graph", "Generating Questions"]
+        }
+      }
+    },
+    {
+      "id": "wait-websocket",
+      "chapterId": "preparation",
+      "waitFor": "WebSocketConnected",
+      "command": {
+        "type": "EmitEventCommand",
+        "payload": {
+          "eventName": "PreparationTaskCompleted",
+          "data": { "task": "Connecting Voice" }
+        }
+      }
+    },
+    {
+      "id": "transition-intro",
+      "chapterId": "intro",
+      "waitFor": "PreparationFinished",
+      "command": {
+        "type": "TransitionWorkspaceCommand",
+        "payload": {
+          "to": "conversation",
+          "reason": "chapter"
+        }
+      }
+    },
+    {
+      "id": "greeting-speech",
+      "chapterId": "intro",
+      "waitFor": "WorkspaceTransitionCompleted",
+      "command": {
+        "type": "SpeakCommand",
+        "payload": {
+          "text": "Hello Vishal. I've analyzed your resume. Today's interview will focus on Python and FastAPI. Let's begin."
+        }
+      }
+    }
+  ],
+  "completionReport": {
+    "overall_score": 85,
+    "summary": "Solid mid-level backend capabilities."
+  }
+}
