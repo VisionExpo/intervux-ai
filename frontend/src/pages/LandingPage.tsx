@@ -68,8 +68,8 @@ export default function LandingPage() {
           </p>
 
           <div className={styles.heroCta}>
-            <Link to="/signup" className={styles.primaryCta}>
-              Launch workspace
+            <Link to="/dashboard-preview" className={styles.primaryCta}>
+              Experience AI Interview
               <ArrowRight size={18} />
             </Link>
             <button 
