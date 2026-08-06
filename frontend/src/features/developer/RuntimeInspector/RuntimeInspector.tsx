@@ -7,6 +7,7 @@ import { ConnectionWidget } from './widgets/ConnectionWidget';
 import { AudioWidget } from './widgets/AudioWidget';
 import { PerformanceWidget } from './widgets/PerformanceWidget';
 import { DiagnosticsWidget } from './widgets/DiagnosticsWidget';
+import { ProjectionWidget } from './widgets/ProjectionWidget';
 
 export const RuntimeInspector: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -69,6 +70,7 @@ export const RuntimeInspector: React.FC = () => {
                 </div>
                 <div style={{ width: '400px', padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <RuntimeWidget />
+                    <ProjectionWidget />
                     <ConnectionWidget />
                     <AudioWidget />
                     <PerformanceWidget />

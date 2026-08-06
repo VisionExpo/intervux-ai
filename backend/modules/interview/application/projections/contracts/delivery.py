@@ -2,12 +2,12 @@ from typing import Protocol
 from backend.modules.interview.domain.events import DomainEvent
 from .envelope import ProjectionEnvelope
 
-class ProjectionPublisher(Protocol):
+class ProjectionDelivery(Protocol):
     """
     Infrastructure interface to push completed projection envelopes 
     to external transports (e.g., WebSockets, SSE, REST Cache).
     """
-    def publish(self, envelope: ProjectionEnvelope) -> None:
+    def deliver(self, envelope: ProjectionEnvelope) -> None:
         ...
 
 

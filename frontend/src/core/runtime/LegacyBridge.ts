@@ -5,6 +5,8 @@ import {
     EvaluationUpdatedEvent, 
 } from '../events/interview/InterviewEvents';
 import { ConnectionStateChangedEvent } from '../events/system/ConnectionEvents';
+import { EnvelopeDeserializer } from '../transport/EnvelopeDeserializer';
+import { candidateRepository } from '../repositories/CandidateProjectionRepository';
 
 export class LegacyBridge {
     private isStarted = false;
@@ -23,9 +25,31 @@ export class LegacyBridge {
         }
     }
 
+    private deserializer = new EnvelopeDeserializer();
+
     public handleSocketMessage(msg: any) {
         const type = typeof msg.type === "string" ? msg.type : "";
         const normalizedType = type.toLowerCase();
+
+        // New Backend Projection Pipeline
+        if (type === "projection") {
+            const rawEnvelope = msg.projection;
+            if (rawEnvelope) {
+                // Publish raw envelope globally for Inspector tooling
+                this.kernel.context.eventBus.publish({
+                    type: 'ProjectionReceived',
+                    payload: rawEnvelope,
+                    timestamp: Date.now()
+                } as any);
+
+                // Deserialize to Domain Model and route to Repository
+                const domainModel = this.deserializer.deserialize(rawEnvelope);
+                if (domainModel && rawEnvelope.schema === 'candidate-insights') {
+                    candidateRepository.update(domainModel);
+                }
+            }
+            return; // Projections don't fall through to legacy handlers
+        }
 
         if (type === "PHASE_CHANGE" || type === "RESUMED") {
             const phase = msg.phase;

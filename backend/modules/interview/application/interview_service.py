@@ -47,11 +47,13 @@ class InterviewService:
         elif isinstance(command, CompleteInterviewCommand):
             aggregate.complete_interview(command.summary)
 
-        # 3. Save Aggregate (Optimistic concurrency enforced here)
+        # 3. Extract Domain Events
+        pending_events = aggregate.pull_pending_events()
+
+        # 4. Save Aggregate (Optimistic concurrency enforced here)
         self.repository.save(aggregate)
 
-        # 4. Extract and Dispatch Domain Events
-        pending_events = aggregate.pull_pending_events()
+        # 5. Dispatch Domain Events
         if pending_events:
             self.dispatcher.publish(pending_events)
             
