@@ -1,5 +1,5 @@
-from modules.interview.domain.aggregate import InterviewAggregate
-from modules.interview.application.interfaces.interview_repository import InterviewRepository
+from backend.modules.interview.domain.aggregate import InterviewAggregate
+from backend.modules.interview.application.interfaces.interview_repository import InterviewRepository
 
 class RedisInterviewRepository(InterviewRepository):
     """

@@ -1,5 +1,5 @@
 from typing import Protocol, List
-from modules.interview.domain.events import DomainEvent
+from backend.modules.interview.domain.events import DomainEvent
 
 class DomainEventDispatcher(Protocol):
     """

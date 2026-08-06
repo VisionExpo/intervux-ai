@@ -1,7 +1,7 @@
 import copy
 from typing import Dict, List
-from modules.interview.application.interfaces.event_dispatcher import DomainEventDispatcher
-from modules.interview.domain.events import DomainEvent
+from backend.modules.interview.application.interfaces.event_dispatcher import DomainEventDispatcher
+from backend.modules.interview.domain.events import DomainEvent
 
 class NullEventDispatcher(DomainEventDispatcher):
     """

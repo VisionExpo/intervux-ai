@@ -1,13 +1,13 @@
 import pytest
-from modules.interview.application.interview_service import InterviewService
-from modules.interview.infrastructure.repositories.in_memory_interview_repository import InMemoryInterviewRepository
-from modules.interview.infrastructure.event_dispatcher import InMemoryEventDispatcher
-from modules.interview.application.commands import (
+from backend.modules.interview.application.interview_service import InterviewService
+from backend.modules.interview.infrastructure.repositories.in_memory_interview_repository import InMemoryInterviewRepository
+from backend.modules.interview.infrastructure.event_dispatcher import InMemoryEventDispatcher
+from backend.modules.interview.application.commands import (
     StartInterviewCommand,
     ParseResumeCommand,
     GenerateGreetingCommand
 )
-from modules.interview.domain.events import InterviewStarted, ResumeParsed, GreetingGenerated
+from backend.modules.interview.domain.events import InterviewStarted, ResumeParsed, GreetingGenerated
 
 
 def test_interview_service_start_and_mutate():
@@ -28,7 +28,7 @@ def test_interview_service_start_and_mutate():
     service.execute(parse_cmd)
     
     agg = repo.load(interview_id)
-    assert agg.version == 2
+    assert agg.metadata.version == 2
     assert len(dispatcher.published_events) == 2
     assert isinstance(dispatcher.published_events[1], ResumeParsed)
     
@@ -37,6 +37,6 @@ def test_interview_service_start_and_mutate():
     service.execute(greet_cmd)
     
     agg = repo.load(interview_id)
-    assert agg.version == 3
+    assert agg.metadata.version == 3
     assert len(dispatcher.published_events) == 3
     assert isinstance(dispatcher.published_events[2], GreetingGenerated)

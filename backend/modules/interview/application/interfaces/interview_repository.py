@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from modules.interview.domain.aggregate import InterviewAggregate
+from backend.modules.interview.domain.aggregate import InterviewAggregate
 
 class InterviewRepository(Protocol):
     """

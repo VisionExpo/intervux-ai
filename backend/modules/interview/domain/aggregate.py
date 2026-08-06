@@ -1,6 +1,5 @@
 import uuid
 from typing import List, Optional
-from datetime import datetime, timezone
 from enum import Enum
 
 from .events import (
@@ -14,6 +13,7 @@ from .events import (
     InterviewCompleted
 )
 from .exceptions import InvalidStateTransitionException, InvariantViolationException
+from .value_objects import AggregateMetadata
 
 
 class InterviewState(Enum):
@@ -32,9 +32,8 @@ class InterviewAggregate:
     Enforces all invariants and state transitions.
     """
 
-    def __init__(self, id: str):
-        self.id = id
-        self.version = 0
+    def __init__(self, metadata: AggregateMetadata):
+        self.metadata = metadata
         self.state = InterviewState.CREATED
         
         # Candidate Info
@@ -57,12 +56,18 @@ class InterviewAggregate:
 
     # --- Optimistic Versioning ---
     def _increment_version(self):
-        self.version += 1
+        self.metadata = self.metadata.increment_version()
 
     # --- Event Queuing ---
-    def _apply(self, event: DomainEvent):
-        self._pending_events.append(event)
+    def _apply(self, event_class, **kwargs):
+        """Helper to append an event with aggregate metadata."""
         self._increment_version()
+        event = event_class(
+            aggregate_id=self.metadata.id,
+            version=self.metadata.version,
+            **kwargs
+        )
+        self._pending_events.append(event)
 
     def pull_pending_events(self) -> List[DomainEvent]:
         events = self._pending_events.copy()
@@ -73,16 +78,17 @@ class InterviewAggregate:
 
     @classmethod
     def start(cls, candidate_name: str, role_target: str) -> "InterviewAggregate":
-        aggregate = cls(id=str(uuid.uuid4()))
+        metadata = AggregateMetadata()
+        aggregate = cls(metadata=metadata)
         aggregate.candidate_name = candidate_name
         aggregate.role_target = role_target
         aggregate.state = InterviewState.CREATED
         
-        aggregate._apply(InterviewStarted(
-            interview_id=aggregate.id,
+        aggregate._apply(
+            InterviewStarted,
             candidate_name=candidate_name,
             role_target=role_target
-        ))
+        )
         return aggregate
 
     def parse_resume(self, extracted_skills: List[str]):
@@ -90,20 +96,14 @@ class InterviewAggregate:
             raise InvalidStateTransitionException(f"Cannot parse resume from {self.state}")
         
         self.state = InterviewState.RESUME_PARSED
-        self._apply(ResumeParsed(
-            interview_id=self.id,
-            extracted_skills=extracted_skills
-        ))
+        self._apply(ResumeParsed, extracted_skills=extracted_skills)
 
     def generate_greeting(self, greeting_text: str):
         if self.state != InterviewState.RESUME_PARSED:
             raise InvalidStateTransitionException(f"Cannot generate greeting from {self.state}")
         
         self.state = InterviewState.GREETING
-        self._apply(GreetingGenerated(
-            interview_id=self.id,
-            greeting_text=greeting_text
-        ))
+        self._apply(GreetingGenerated, greeting_text=greeting_text)
 
     def ask_question(self, question_text: str):
         if self.state not in [InterviewState.GREETING, InterviewState.EVALUATION]:
@@ -113,11 +113,11 @@ class InterviewAggregate:
         self.total_questions_asked += 1
         self.state = InterviewState.QUESTION
         
-        self._apply(QuestionAsked(
-            interview_id=self.id,
+        self._apply(
+            QuestionAsked,
             question_index=self.current_question_index,
             question_text=question_text
-        ))
+        )
 
     def record_answer(self, transcript: str):
         if self.state != InterviewState.QUESTION:
@@ -126,11 +126,11 @@ class InterviewAggregate:
         self.answers[self.current_question_index] = transcript
         self.state = InterviewState.RECORDING
         
-        self._apply(AnswerRecorded(
-            interview_id=self.id,
+        self._apply(
+            AnswerRecorded,
             question_index=self.current_question_index,
             transcript=transcript
-        ))
+        )
 
     def complete_evaluation(self, score: float, feedback: str):
         if self.state != InterviewState.RECORDING:
@@ -143,12 +143,12 @@ class InterviewAggregate:
         self.evaluations[self.current_question_index] = {"score": score, "feedback": feedback}
         self.state = InterviewState.EVALUATION
         
-        self._apply(EvaluationCompleted(
-            interview_id=self.id,
+        self._apply(
+            EvaluationCompleted,
             question_index=self.current_question_index,
             score=score,
             feedback=feedback
-        ))
+        )
 
     def complete_interview(self, summary: str):
         if self.state != InterviewState.EVALUATION:
@@ -162,8 +162,8 @@ class InterviewAggregate:
         self.summary = summary
         self.state = InterviewState.COMPLETED
         
-        self._apply(InterviewCompleted(
-            interview_id=self.id,
+        self._apply(
+            InterviewCompleted,
             overall_score=self.overall_score,
             summary=summary
-        ))
+        )

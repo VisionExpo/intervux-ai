@@ -1,8 +1,8 @@
 from typing import Union
-from modules.interview.domain.aggregate import InterviewAggregate
-from modules.interview.application.interfaces.interview_repository import InterviewRepository
-from modules.interview.application.interfaces.event_dispatcher import DomainEventDispatcher
-from modules.interview.application.commands import (
+from backend.modules.interview.domain.aggregate import InterviewAggregate
+from backend.modules.interview.application.interfaces.interview_repository import InterviewRepository
+from backend.modules.interview.application.interfaces.event_dispatcher import DomainEventDispatcher
+from backend.modules.interview.application.commands import (
     StartInterviewCommand,
     ParseResumeCommand,
     GenerateGreetingCommand,
@@ -55,4 +55,4 @@ class InterviewService:
         if pending_events:
             self.dispatcher.publish(pending_events)
             
-        return aggregate.id
+        return aggregate.metadata.id
