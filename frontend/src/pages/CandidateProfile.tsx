@@ -7,7 +7,6 @@ import {
   Sparkles, 
   UserRound, 
   FileText, 
-  CheckCircle2, 
   Mail, 
   Briefcase, 
   GraduationCap,
@@ -283,7 +282,7 @@ export default function CandidateProfile() {
                             const fullUrl = profile.resume_url!.startsWith('http') 
                               ? profile.resume_url 
                               : `${API_BASE}${profile.resume_url}`;
-                            window.open(fullUrl, '_blank');
+                            window.open(fullUrl ?? undefined, '_blank');
                           }}
                         >
                           View
@@ -375,7 +374,7 @@ export default function CandidateProfile() {
               </div>
               <div className={styles.editActions}>
                 <Button type="submit">Save Identity</Button>
-                <Button variant="secondary" outline onClick={() => setIsEditing(false)}>Cancel</Button>
+                <Button variant="secondary" onClick={() => setIsEditing(false)}>Cancel</Button>
               </div>
             </form>
           </GlassCard>

@@ -4,7 +4,6 @@ import { authFetch } from "../hooks/authFetch";
 import { GlassCard } from "../components/ui/GlassCard/GlassCard";
 import { Button } from "../components/ui/Button/Button";
 import { 
-  Users, 
   Mic2, 
   Calendar, 
   ChevronRight, 
@@ -38,7 +37,7 @@ export default function Interviews() {
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
-  const [error, setError] = useState("");
+  const [_error, setError] = useState("");
   const startSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -111,7 +110,7 @@ export default function Interviews() {
 
   // Priority ordered evaluation for labels and actions
   let buttonText = isStarting ? "Starting..." : "Start Interview";
-  let buttonAction = startInterview;
+  let buttonAction: (() => void) | (() => Promise<void>) = startInterview;
   let variant: "primary" | "secondary" = "primary";
 
   if (!hasResume) {
@@ -225,7 +224,7 @@ export default function Interviews() {
               <p className={styles.emptyText}>
                 No interviews yet — start your first AI-powered interview and get instant feedback
               </p>
-              <Button onClick={scrollToStart} variant="secondary" outline>
+              <Button onClick={scrollToStart} variant="secondary">
                 Start Interview
               </Button>
             </div>

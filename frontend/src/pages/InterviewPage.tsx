@@ -1,19 +1,14 @@
-import { Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useInterviewSession } from "../providers/InterviewSessionProvider";
 import { audioFeedback } from "../utils/audioFeedback";
 import {
-  InterviewLayout,
-  AvatarInterviewer,
   CodingSandbox,
-  CandidateCamera,
-  TranscriptPanel,
 } from "../components/interview";
 import { Button } from "../components/ui/Button/Button";
 import { CheckCircle2, ChevronRight, Play, LayoutDashboard } from "lucide-react";
 import styles from "./InterviewOverlay.module.css";
 import { authFetch } from "../hooks/authFetch";
 import { useNavigate } from "react-router-dom";
-import { ErrorBoundary } from "../components/ErrorBoundary";
 import { QuestionCardAdapter } from "../dashboard/adapters/QuestionCardAdapter";
 import { TimelineAdapter } from "../dashboard/adapters/TimelineAdapter";
 import { CandidateMonitorAdapter } from "../dashboard/adapters/CandidateMonitorAdapter";
@@ -23,9 +18,6 @@ import { CandidateInfoAdapter } from "../dashboard/adapters/CandidateInfoAdapter
 import { InterviewProgressAdapter } from "../dashboard/adapters/InterviewProgressAdapter";
 import { DashboardShell } from "../dashboard/layouts/DashboardShell";
 import { theme } from "../design-system/tokens/theme";
-import { isFeatureEnabled } from "../core/state/features";
-
-const DEMO_LIGHT_MODE = import.meta.env.VITE_DEMO_LIGHT_MODE === "true";
 
 export default function InterviewPage() {
   const navigate = useNavigate();
@@ -42,12 +34,8 @@ export default function InterviewPage() {
     audioContextRef,
     playbackStartTimeRef,
     visemesRef,
-    emotion,
-    transcriptMessages,
-    mediaStream,
     startAudioStream,
     stopAudioStream,
-    endAnswer,
     lastError,
     uploadResume,
   } = useInterviewSession();
@@ -69,14 +57,12 @@ export default function InterviewPage() {
     }
   };
 
-  const connectionStatus = isConnected
+  const _connectionStatus = isConnected
     ? "connected"
     : stage === "CONNECTING"
     ? "connecting"
     : "disconnected";
-
-  const isListening = stage === "LISTENING";
-  const currentQuestion = lastEvaluation?.question || avatarText;
+  void _connectionStatus; // Used in future telemetry integration
 
   useEffect(() => {
     if (stage === "LISTENING") {

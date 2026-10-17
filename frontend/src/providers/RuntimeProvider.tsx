@@ -24,6 +24,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
             (window as any).__runtimeKernel = kernel;
         }
     }
+  }, []);
 
   return (
     <RuntimeContext.Provider value={kernelRef.current}>
