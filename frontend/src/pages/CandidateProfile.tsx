@@ -279,10 +279,21 @@ export default function CandidateProfile() {
                           size="sm"
                           onClick={() => {
                             const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
-                            const fullUrl = profile.resume_url!.startsWith('http') 
-                              ? profile.resume_url 
-                              : `${API_BASE}${profile.resume_url}`;
-                            window.open(fullUrl ?? undefined, '_blank');
+                            const resumePath = profile.resume_url!.replace(
+                              /^\/uploads\/resumes\//,
+                              "/api/resume/files/",
+                            );
+                            const preview = window.open("about:blank", "_blank");
+                            if (!preview) return;
+                            const token = localStorage.getItem("auth_token");
+                            void fetch(`${API_BASE}${resumePath}`, {
+                              headers: token ? { Authorization: `Bearer ${token}` } : {},
+                            }).then(async (response) => {
+                              if (!response.ok) throw new Error("Unable to load resume");
+                              const resumeUrl = URL.createObjectURL(await response.blob());
+                              preview.location.href = resumeUrl;
+                              window.setTimeout(() => URL.revokeObjectURL(resumeUrl), 60_000);
+                            }).catch(() => preview.close());
                           }}
                         >
                           View

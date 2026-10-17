@@ -4,7 +4,7 @@ services:
     container_name: intervux-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Vishal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       POSTGRES_DB: ${POSTGRES_DB:-intervux}
     volumes:
       - ./backend:/app/backend
@@ -54,7 +54,7 @@ services:
     entrypoint: ["/app/entrypoint.sh"]
     command: ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--reload"]
     env_file:
-      - backend/.env
+      - .env.docker
     environment:
       RUN_DB_MIGRATIONS: "true"
       AUTO_STAMP_DB: "true"
@@ -87,7 +87,7 @@ services:
     entrypoint: ["/app/entrypoint.sh"]
     command: celery -A backend.core.celery_app:celery_app worker -l info --concurrency=2
     env_file:
-      - backend/.env
+      - .env.docker
     environment:
       RUN_DB_MIGRATIONS: "false"
     depends_on:
@@ -116,7 +116,7 @@ services:
     container_name: intervux-beat
     command: celery -A backend.core.celery_app:celery_app beat -l info
     env_file:
-      - backend/.env
+      - .env.docker
     environment:
       RUN_DB_MIGRATIONS: "false"
     depends_on:
@@ -138,10 +138,10 @@ services:
       { echo 'FLOWER_BASIC_AUTH must be set'; exit 1; };
       celery -A backend.core.celery_app:celery_app flower --port=5555 --basic_auth=$$FLOWER_BASIC_AUTH"
     env_file:
-      - backend/.env
+      - .env.docker
     environment:
       RUN_DB_MIGRATIONS: "false"
-      FLOWER_BASIC_AUTH: "admin:admin"
+      FLOWER_BASIC_AUTH: ${FLOWER_BASIC_AUTH:?FLOWER_BASIC_AUTH must be set}
     ports:
       - "5555:5555"
     depends_on:

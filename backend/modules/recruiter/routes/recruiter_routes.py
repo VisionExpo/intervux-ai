@@ -43,22 +43,36 @@ async def get_recruiter_dashboard(
     from sqlalchemy import func
 
     # Jobs count
-    jobs_count = db.query(func.count(JobPostModel.id)).filter(JobPostModel.status == JobPostStatus.ACTIVE.value).scalar()
+    jobs_count = db.query(func.count(JobPostModel.id)).filter(
+        JobPostModel.status == JobPostStatus.ACTIVE.value,
+        JobPostModel.recruiter_id == user.user_id,
+    ).scalar()
     
     # Candidates count
-    candidates_count = db.query(func.count(CandidateModel.id)).scalar()
+    candidates_count = db.query(CandidateModel).join(
+        JobPostModel, CandidateModel.job_post_id == JobPostModel.id
+    ).filter(JobPostModel.recruiter_id == user.user_id).count()
 
     # Pipeline stats
     pipeline_stats = []
     for status in [CandidateStatus.INVITED, CandidateStatus.IN_PROGRESS, CandidateStatus.COMPLETED]:
-        count = db.query(func.count(CandidateModel.id)).filter(CandidateModel.status == status.value).scalar()
+        count = db.query(CandidateModel).join(
+            JobPostModel, CandidateModel.job_post_id == JobPostModel.id
+        ).filter(
+            JobPostModel.recruiter_id == user.user_id,
+            CandidateModel.status == status.value,
+        ).count()
         pipeline_stats.append({"stage": status.value.capitalize(), "count": str(count)})
 
     # Recent candidates
-    candidates_list = await list_candidates(db, limit=5)
+    candidates_list = await list_candidates(db, limit=5, recruiter_id=user.user_id)
     
     # Activity stream (mock for now as there is no activity table, but pulling from latest completions)
-    recent_interviews = db.query(InterviewModel).order_by(InterviewModel.completed_at.desc()).limit(5).all()
+    recent_interviews = db.query(InterviewModel).join(
+        CandidateModel, CandidateModel.id == InterviewModel.candidate_id
+    ).join(JobPostModel, CandidateModel.job_post_id == JobPostModel.id).filter(
+        JobPostModel.recruiter_id == user.user_id
+    ).order_by(InterviewModel.completed_at.desc()).limit(5).all()
     activity = []
     for interview in recent_interviews:
         if interview.completed_at:
@@ -87,7 +101,10 @@ async def get_candidates(
     search: str | None = None,
     db: Session = Depends(get_db),
 ):
-    return await list_candidates(db, page=page, limit=limit, role=role, search=search)
+    return await list_candidates(
+        db, page=page, limit=limit, role=role, search=search,
+        recruiter_id=user.user_id if user.role != "admin" else None,
+    )
 
 
 @router.get("/interview/{interview_id}", response_model=CandidateInterviewReport)
@@ -96,7 +113,7 @@ async def get_interview(
     user=Depends(require_recruiter),
     db: Session = Depends(get_db),
 ):
-    return await get_interview_report(db, interview_id)
+    return await get_interview_report(db, interview_id, user=user)
 
 
 @router.get("/interview/{interview_id}/analytics", response_model=SkillAnalytics)
@@ -105,7 +122,7 @@ async def get_interview_analytics(
     user=Depends(require_recruiter),
     db: Session = Depends(get_db),
 ):
-    return await get_skill_analytics(db, interview_id)
+    return await get_skill_analytics(db, interview_id, user=user)
 
 
 @router.get("/candidates/compare", response_model=list[CandidateComparisonRow])
@@ -113,7 +130,7 @@ async def get_candidate_comparison(
     user=Depends(require_recruiter),
     db: Session = Depends(get_db),
 ):
-    return await compare_candidates(db)
+    return await compare_candidates(db, recruiter_id=user.user_id if user.role != "admin" else None)
 
 
 
@@ -124,7 +141,7 @@ async def get_interview_decision(
     db: Session = Depends(get_db),
 ):
     """Get decision support for an interview."""
-    interview = await get_interview_report(db, interview_id)
+    interview = await get_interview_report(db, interview_id, user=user)
 
     if hasattr(interview, "model_dump"):
         interview_data = interview.model_dump()

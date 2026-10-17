@@ -209,6 +209,54 @@ def _make_token(role: str = Role.CANDIDATE) -> str:
     ).access_token
 
 
+def _make_user_token(user_id: str, role: str = Role.CANDIDATE) -> str:
+    return create_token_pair(
+        {
+            "user_id": user_id,
+            "email": f"{user_id}@example.com",
+            "name": "Test User",
+            "role": role,
+        }
+    ).access_token
+
+
+def _create_mock_interview(user_id: str, status: str = "in_progress") -> str:
+    from backend.infrastructure.database.database import AsyncSessionLocal
+    from backend.models.candidate_portal import CandidateProfile, MockInterview
+
+    session_id = f"mock-{uuid.uuid4().hex}"
+
+    async def create():
+        async with AsyncSessionLocal() as db:
+            profile = CandidateProfile(user_id=user_id, name="Test Candidate", mock_interviews_remaining=3)
+            db.add(profile)
+            await db.flush()
+            db.add(
+                MockInterview(
+                    candidate_id=profile.id,
+                    session_id=session_id,
+                    status=status,
+                    interview_number=1,
+                )
+            )
+            await db.commit()
+
+    asyncio.run(create())
+    return session_id
+
+
+def _mock_interview_status(session_id: str) -> str | None:
+    from backend.infrastructure.database.database import AsyncSessionLocal
+    from backend.models.candidate_portal import MockInterview
+
+    async def read():
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(MockInterview.status).where(MockInterview.session_id == session_id))
+            return result.scalar_one_or_none()
+
+    return asyncio.run(read())
+
+
 # -- helpers -------------------------------------------------------------------
 
 def _recv_json(ws, timeout_s: float = 2.0, skip_types=("avatar_visemes", "PHASE_CHANGE")):
@@ -296,6 +344,132 @@ class TestWebSocketAuthentication:
         with client.websocket_connect(f"/ws/interview?token={token}") as ws:
             msg = _drain_until(ws, "avatar_sync")
             assert msg["type"] == "avatar_sync"
+
+
+@pytest.mark.websocket
+class TestMockInterviewOwnership:
+    """Mock interview records are candidate-owned and checked before session setup."""
+
+    def _connect_and_read_error(self, client: TestClient, url: str) -> dict:
+        with client.websocket_connect(url) as ws:
+            return _recv_json(ws)
+
+    def test_owner_can_connect_to_in_progress_mock_interview(self, client: TestClient):
+        owner_id = f"owner-{uuid.uuid4().hex}"
+        session_id = _create_mock_interview(owner_id)
+        token = _make_user_token(owner_id)
+
+        with client.websocket_connect(
+            f"/ws/interview?token={token}&mock_session_id={session_id}&session_id={session_id}"
+        ) as ws:
+            assert _drain_until(ws, "avatar_sync")["type"] == "avatar_sync"
+
+    @pytest.mark.parametrize("role", [Role.RECRUITER, "viewer", Role.ADMIN])
+    def test_non_candidate_roles_cannot_connect_to_candidate_mock_interview(
+        self, client: TestClient, role: str
+    ):
+        owner_id = f"owner-{uuid.uuid4().hex}"
+        session_id = _create_mock_interview(owner_id)
+        token = _make_user_token(owner_id, role)
+
+        msg = self._connect_and_read_error(
+            client,
+            f"/ws/interview?token={token}&mock_session_id={session_id}",
+        )
+        assert msg["type"] == "ERROR"
+        assert msg["code"] == "INTERVIEW_UNAVAILABLE"
+        assert msg["recoverable"] is True
+        assert _mock_interview_status(session_id) == "in_progress"
+
+    def test_candidate_cannot_connect_to_another_candidates_interview(self, client: TestClient):
+        owner_id = f"owner-{uuid.uuid4().hex}"
+        session_id = _create_mock_interview(owner_id)
+        token = _make_user_token(f"other-{uuid.uuid4().hex}")
+
+        msg = self._connect_and_read_error(
+            client,
+            f"/ws/interview?token={token}&mock_session_id={session_id}",
+        )
+        assert msg["type"] == "ERROR"
+        assert msg["code"] == "INTERVIEW_UNAVAILABLE"
+        assert _mock_interview_status(session_id) == "in_progress"
+        assert client.app.state.interview_gateway._registry.register.await_count == 0
+
+        from backend.services.redis_manager import redis_client
+        redis_client.get_session_state_obj.assert_not_awaited()
+        redis_client.save_session_state_obj.assert_not_awaited()
+
+    @pytest.mark.parametrize("role", [Role.RECRUITER, "viewer"])
+    def test_recruiter_or_viewer_without_candidate_ownership_cannot_connect(
+        self, client: TestClient, role: str
+    ):
+        owner_id = f"owner-{uuid.uuid4().hex}"
+        session_id = _create_mock_interview(owner_id)
+        token = _make_user_token(f"unassigned-{uuid.uuid4().hex}", role)
+
+        msg = self._connect_and_read_error(
+            client,
+            f"/ws/interview?token={token}&mock_session_id={session_id}",
+        )
+        assert msg["code"] == "INTERVIEW_UNAVAILABLE"
+        assert client.app.state.interview_gateway._registry.register.await_count == 0
+        assert _mock_interview_status(session_id) == "in_progress"
+
+    @pytest.mark.parametrize("status", ["completed", "abandoned"])
+    def test_non_in_progress_interviews_cannot_be_reconnected(
+        self, client: TestClient, status: str
+    ):
+        owner_id = f"owner-{uuid.uuid4().hex}"
+        session_id = _create_mock_interview(owner_id, status=status)
+        token = _make_user_token(owner_id)
+
+        msg = self._connect_and_read_error(
+            client,
+            f"/ws/interview?token={token}&mock_session_id={session_id}",
+        )
+        assert msg["code"] == "INTERVIEW_UNAVAILABLE"
+        assert _mock_interview_status(session_id) == status
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "mock_session_id=mock-does-not-exist",
+            "mock_session_id=malformed",
+            "mock_session_id=",
+            "mock_session_id=mock-00000000000000000000000000000001&session_id=mock-00000000000000000000000000000002",
+            "session_id=mock-00000000000000000000000000000001",
+        ],
+    )
+    def test_invalid_or_conflicting_identifiers_are_rejected(self, client: TestClient, query: str):
+        token = _make_user_token(f"candidate-{uuid.uuid4().hex}")
+        msg = self._connect_and_read_error(client, f"/ws/interview?token={token}&{query}")
+        assert msg["type"] == "ERROR"
+        assert msg["code"] == "INTERVIEW_UNAVAILABLE"
+
+    def test_authorization_database_failure_fails_closed(self, client: TestClient, monkeypatch):
+        owner_id = f"owner-{uuid.uuid4().hex}"
+        session_id = _create_mock_interview(owner_id)
+        token = _make_user_token(owner_id)
+
+        class FailedSessionFactory:
+            def __call__(self):
+                raise RuntimeError("database unavailable")
+
+        with monkeypatch.context() as patcher:
+            patcher.setattr(
+                "backend.modules.interview.persistence.AsyncSessionLocal",
+                FailedSessionFactory(),
+            )
+            msg = self._connect_and_read_error(
+                client,
+                f"/ws/interview?token={token}&mock_session_id={session_id}",
+            )
+        assert msg["code"] == "INTERVIEW_UNAVAILABLE"
+        assert client.app.state.interview_gateway._registry.register.await_count == 0
+
+        from backend.services.redis_manager import redis_client
+        redis_client.save_session_state_obj.assert_not_awaited()
+        assert _mock_interview_status(session_id) == "in_progress"
 
 
 # =============================================================================

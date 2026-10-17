@@ -103,6 +103,28 @@ def patched_metrics_client(db_session):
 
 
 class TestMetricsWebSocketAuth:
+    def test_authentication_token_is_not_logged(self, caplog, monkeypatch):
+        from backend.core.security.jwt_service import TokenData
+        from backend.modules.analytics.websocket import metrics_socket
+
+        token = _make_token()
+        monkeypatch.setattr(
+            metrics_socket,
+            "verify_token",
+            _AsyncMock(return_value=TokenData(
+                user_id="metrics-test-user",
+                email="metrics-test@example.com",
+                role=Role.RECRUITER,
+            )),
+        )
+
+        client = TestClient(app, raise_server_exceptions=True)
+        with client.websocket_connect(f"/ws/metrics?token={token}"):
+            pass
+
+        assert token not in caplog.text
+        assert "token=" not in caplog.text
+
     def test_connection_rejected_without_token(self, test_client: TestClient):
         with test_client.websocket_connect("/ws/metrics") as ws:
             msg = _recv_json(ws)

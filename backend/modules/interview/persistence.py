@@ -12,10 +12,37 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from backend.infrastructure.database.database import AsyncSessionLocal
-from backend.models.candidate_portal import MockInterview
+from backend.models.candidate_portal import CandidateProfile, MockInterview
 from backend.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+async def can_access_mock_interview(session_id: str, user_id: str, role: str) -> bool:
+    """Return whether a principal may connect to an in-progress mock interview.
+
+    Mock interviews are created by the candidate-only start endpoint and are
+    owned through MockInterview.candidate_id -> CandidateProfile.user_id.
+    This deliberately does not infer recruiter access: MockInterview has no
+    recruiter assignment relationship.
+    """
+    import re
+    from sqlalchemy import select
+
+    if role != "candidate" or not re.fullmatch(r"mock-[0-9a-f]{32}", session_id or ""):
+        return False
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(MockInterview.status)
+            .join(CandidateProfile, MockInterview.candidate_id == CandidateProfile.id)
+            .where(
+                MockInterview.session_id == session_id,
+                CandidateProfile.user_id == user_id,
+            )
+        )
+        status = result.scalar_one_or_none()
+        return status == "in_progress"
 
 
 def _add_dim(
@@ -251,4 +278,3 @@ async def fail_mock_interview(
         return await _run(db)
     async with AsyncSessionLocal() as session:
         return await _run(session)
-

@@ -84,12 +84,12 @@ Copy-Item .env.docker.example .env.docker
 # Mac / Linux
 cp .env.docker.example .env.docker
 ```
-Open `.env.docker` in your text editor and add your AI credentials (e.g., set `GOOGLE_API_KEY=your_gemini_api_key_here`). The rest of the settings are already perfectly configured for Docker!
+Open `.env.docker` and supply a strong `POSTGRES_PASSWORD`, a matching `DATABASE_URL`, a generated `JWT_SECRET_KEY`, and non-default `FLOWER_BASIC_AUTH` credentials. Add your AI provider key (for example, `GOOGLE_API_KEY`) if you want model-backed interview features. Do not commit this file.
 
 ### Step 3: Run the Application!
 Open Docker Desktop, then run the build command in your terminal:
 ```bash
-docker-compose up --build
+docker-compose --env-file .env.docker up --build
 ```
 *Note: The first time you run this, it may take 3-5 minutes to download Linux packages and build the databases.*
 

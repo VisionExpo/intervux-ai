@@ -5,9 +5,8 @@ from contextlib import asynccontextmanager
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import FastAPI, WebSocket, Query
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 # Ensure absolute imports like `from backend...` work
 if __package__ in (None, ""):
@@ -172,11 +171,6 @@ def create_app() -> FastAPI:
     app.include_router(admin_compat_router, prefix="/api")
     app.include_router(metrics_router, prefix="/api")
     app.include_router(diagnostics_router, prefix="/api/diagnostics", tags=["diagnostics"])
-
-    # --- Static Files ---
-    uploads_dir = os.path.join(os.path.dirname(__file__), "..", "uploads")
-    os.makedirs(uploads_dir, exist_ok=True)
-    app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
     return app
 

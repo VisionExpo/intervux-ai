@@ -31,6 +31,7 @@ from backend.models.recruiter_dashboard_models import (
     CandidateStatus,
     ExperienceLevel,
 )
+from backend.core.security.rbac import can_access_interview
 
 
 async def list_candidates(
@@ -39,6 +40,7 @@ async def list_candidates(
     limit: int = 20,
     role: str | None = None,
     search: str | None = None,
+    recruiter_id: str | None = None,
 ) -> list[dict]:
     safe_page = max(page, 1)
     safe_limit = max(1, min(limit, 100))
@@ -49,6 +51,11 @@ async def list_candidates(
     interview_ids = {row.candidate_id: row.id for row in interview_rows}
     
     query = select(Candidate)
+
+    if recruiter_id is not None:
+        query = query.join(JobPostModel, Candidate.job_post_id == JobPostModel.id).filter(
+            JobPostModel.recruiter_id == recruiter_id
+        )
 
     if role:
         query = query.filter(Candidate.role == role)
@@ -87,11 +94,35 @@ async def get_candidates(
     limit: int = 20,
     role: str | None = None,
     search: str | None = None,
+    recruiter_id: str | None = None,
 ) -> list[dict]:
-    return await list_candidates(db, page=page, limit=limit, role=role, search=search)
+    return await list_candidates(
+        db, page=page, limit=limit, role=role, search=search, recruiter_id=recruiter_id
+    )
 
 
-async def get_interview_report(db: AsyncSession, interview_id: str) -> CandidateInterviewReport:
+async def ensure_interview_access(db: AsyncSession, interview_id: str, user) -> None:
+    """Raise 404 unless the user is an admin or owns the assigned job post."""
+    if user.role == "admin":
+        return
+
+    assignment_res = await db.execute(
+        select(JobPostModel.recruiter_id)
+        .select_from(Interview)
+        .join(Candidate, Candidate.id == Interview.candidate_id)
+        .join(JobPostModel, Candidate.job_post_id == JobPostModel.id)
+        .where(Interview.id == interview_id)
+    )
+    recruiter_id = assignment_res.scalar_one_or_none()
+    if not can_access_interview(user.role, recruiter_id or "", user.user_id):
+        raise HTTPException(status_code=404, detail="Interview not found")
+
+
+async def get_interview_report(
+    db: AsyncSession, interview_id: str, user=None
+) -> CandidateInterviewReport:
+    if user is not None:
+        await ensure_interview_access(db, interview_id, user)
     # Intentionally ignoring types on scalar mapping due to dynamic structure
     interview_res = await db.execute(select(Interview).filter(Interview.id == interview_id))
     interview: Optional[Interview] = interview_res.scalar_one_or_none()
@@ -169,7 +200,9 @@ async def get_interview(db: AsyncSession, interview_id: str) -> Interview | None
     return res.scalar_one_or_none()
 
 
-async def get_skill_analytics(db: AsyncSession, interview_id: str) -> SkillAnalytics:
+async def get_skill_analytics(db: AsyncSession, interview_id: str, user=None) -> SkillAnalytics:
+    if user is not None:
+        await ensure_interview_access(db, interview_id, user)
     interview = await get_interview(db, interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
@@ -209,18 +242,21 @@ async def get_interview_analytics(db: AsyncSession, interview_id: str) -> SkillA
     return await get_skill_analytics(db, interview_id)
 
 
-async def compare_candidates(db: AsyncSession) -> list[CandidateComparisonRow]:
-    res = await db.execute(
-        select(
-            Candidate.id.label("candidate_id"),
-            Candidate.name.label("candidate_name"),
-            Interview.technical_score.label("technical"),
-            Interview.communication_score.label("communication"),
-            Interview.overall_score.label("overall"),
-        )
-        .join(Interview, Candidate.id == Interview.candidate_id)
-        .order_by(Interview.overall_score.desc())
+async def compare_candidates(db: AsyncSession, recruiter_id: str | None = None) -> list[CandidateComparisonRow]:
+    query = select(
+        Candidate.id.label("candidate_id"),
+        Candidate.name.label("candidate_name"),
+        Interview.technical_score.label("technical"),
+        Interview.communication_score.label("communication"),
+        Interview.overall_score.label("overall"),
+    ).join(Interview, Candidate.id == Interview.candidate_id).order_by(
+        Interview.overall_score.desc()
     )
+    if recruiter_id is not None:
+        query = query.join(JobPostModel, Candidate.job_post_id == JobPostModel.id).filter(
+            JobPostModel.recruiter_id == recruiter_id
+        )
+    res = await db.execute(query)
     rows = res.all()
     
     return [

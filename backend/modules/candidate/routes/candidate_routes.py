@@ -288,7 +288,7 @@ async def upload_resume(
 
         resume_score, strengths, weaknesses = calculate_resume_score(parsed)
 
-        resume_url = f"/uploads/resumes/{current_user.user_id}/{unique_filename}"
+        resume_url = f"/api/resume/files/{current_user.user_id}/{unique_filename}"
 
         profile.resume_url = resume_url
         profile.resume_score = resume_score

@@ -139,6 +139,40 @@ class InterviewGateway:
             return
 
         mock_interview_session_id = ws.query_params.get("mock_session_id")
+        mock_interview_requested = "mock_session_id" in ws.query_params
+
+        # A mock interview's identifier is not proof of ownership. Keep the
+        # runtime and durable identifiers aligned, and authorize the durable
+        # row before registering or hydrating any session state.
+        provided_session_id = ws.query_params.get("session_id")
+        if (
+            (mock_interview_requested and provided_session_id and provided_session_id != mock_interview_session_id)
+            or (provided_session_id and provided_session_id.startswith("mock-") and not mock_interview_session_id)
+        ):
+            await ws.accept()
+            await self._send_error(ws, "INTERVIEW_UNAVAILABLE", "Interview is unavailable.", recoverable=True)
+            await self._close_ws(ws, code=1008)
+            return
+
+        if mock_interview_requested:
+            try:
+                from backend.modules.interview.persistence import can_access_mock_interview
+
+                authorized = await can_access_mock_interview(
+                    mock_interview_session_id,
+                    user_data.user_id,
+                    user_data.role,
+                )
+            except Exception:
+                logger.exception("Mock interview authorization check failed")
+                authorized = False
+
+            if not authorized:
+                await ws.accept()
+                # Do not reveal whether the identifier exists or who owns it.
+                await self._send_error(ws, "INTERVIEW_UNAVAILABLE", "Interview is unavailable.", recoverable=True)
+                await self._close_ws(ws, code=1008)
+                return
 
         client_ip = self._client_ip(ws)
         if not await self._allow_ip(client_ip):
@@ -157,7 +191,6 @@ class InterviewGateway:
             return
 
         # Support resumption if session_id is provided in query params
-        provided_session_id = ws.query_params.get("session_id")
         session_id = provided_session_id or mock_interview_session_id or str(uuid.uuid4())
         ws.session_id = session_id
         

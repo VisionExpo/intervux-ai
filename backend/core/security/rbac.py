@@ -214,17 +214,15 @@ def can_access_interview(user_role: str, interview_owner_id: str, current_user_i
     Returns:
         True if user can access
     """
-    # Admins can access all interviews
     if user_role == Role.ADMIN:
         return True
-    
-    # Recruiters can access interviews they're assigned to
-    if user_role == Role.RECRUITER:
-        # In production, check if recruiter is assigned to this interview
-        return True
-    
-    # Viewers can only view (not modify)
-    return True
+
+    # For non-admin users, interview_owner_id must be the assigned recruiter
+    # (or the candidate owner for candidate-scoped access).
+    if user_role in {Role.RECRUITER, Role.CANDIDATE, "viewer"}:
+        return bool(interview_owner_id) and interview_owner_id == current_user_id
+
+    return False
 
 
 def can_modify_candidate(user_role: str, candidate_owner_id: str, current_user_id: str) -> bool:

@@ -106,7 +106,7 @@ class MetricsSocket:
             return
         
         try:
-            logger.info(f"Auth check: ENV={os.getenv('ENV')}, token={token}")
+            logger.info("Metrics WebSocket authentication check", extra={"environment": os.getenv("ENV")})
             if os.getenv("ENV") == "test" and token == "test-token":
                 from backend.core.security.jwt_service import TokenData
                 user_data = TokenData(user_id="test-user", email="test@example.com", role="admin")
