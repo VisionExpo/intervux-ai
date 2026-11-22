@@ -13,7 +13,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from backend.infrastructure.database.database import Base
 from backend.infrastructure.database.database import User, RevokedToken, APIKey, LLMMetrics, Experiment
-from backend.models.recruiter_dashboard_models import JobPost, Candidate, Interview
+from backend.models.recruiter_dashboard_models import (  # noqa: F401  (register tables)
+    JobPost,
+    Candidate,
+    Interview,
+    InterviewQuestion,
+    InterviewReplaySegment,
+)
+from backend.models.candidate_portal import CandidateProfile, MockInterview, Notification  # noqa: F401
 
 
 # this is the Alembic Config object
