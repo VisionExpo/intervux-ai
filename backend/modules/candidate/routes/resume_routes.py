@@ -10,13 +10,21 @@ from typing import List, Optional
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from backend.core.logging.logger import get_logger
 from backend.core.security.jwt_service import Role, TokenData, get_current_user
-from backend.services.resume_parser_service import parse_resume_from_upload
+from backend.core.security.upload_validation import (
+    read_validated_upload,
+    reject_oversized_request,
+    safe_stored_filename,
+)
+from backend.services.resume_parser_service import parse_resume_from_bytes
 import asyncio
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 RESUME_ROOT = Path(__file__).resolve().parents[2] / "uploads" / "resumes"
@@ -36,6 +44,7 @@ class ResumeProfile(BaseModel):
 
 @router.post("/upload", response_model=ResumeProfile)
 async def upload_resume(
+    request: Request,
     file: UploadFile = File(...),
     current_user: TokenData = Depends(get_current_user),
 ):
@@ -48,20 +57,16 @@ async def upload_resume(
     if current_user.role != Role.CANDIDATE:
         raise HTTPException(status_code=403, detail="Only candidates can upload resumes")
 
-    allowed_extensions = {".pdf", ".docx", ".txt"}
-    filename = file.filename or ""
-    file_ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-
-    if f".{file_ext}" not in allowed_extensions:
-        raise HTTPException(
-            status_code=400,
-            detail="Unsupported file type. Please upload a PDF, DOCX, or TXT file.",
-        )
+    reject_oversized_request(request)
+    upload = await read_validated_upload(file, {".pdf", ".docx", ".txt"})
 
     try:
-        parsed = await asyncio.to_thread(parse_resume_from_upload, file)
+        parsed = await asyncio.to_thread(
+            parse_resume_from_bytes, safe_stored_filename(upload.extension), upload.content
+        )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Parsing failed: {exc}") from exc
+        logger.exception("Legacy resume parsing failed")
+        raise HTTPException(status_code=500, detail="Resume parsing failed.") from exc
 
     return ResumeProfile(
         name=parsed.name,

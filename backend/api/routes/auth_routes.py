@@ -173,7 +173,7 @@ async def logout(
 ):
     from backend.infrastructure.database.database import RevokedToken
     from backend.core.security.jwt_service import SECRET_KEY, ALGORITHM
-    from jose import jwt as _jwt
+    import jwt as _jwt
 
     try:
         payload = _jwt.decode(

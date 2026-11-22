@@ -30,6 +30,11 @@ config = context.config
 _db_url = os.getenv("DATABASE_URL")
 if _db_url:
     config.set_main_option("sqlalchemy.url", _db_url)
+elif not (config.get_main_option("sqlalchemy.url") or "").strip():
+    raise RuntimeError(
+        "DATABASE_URL is not set. Export it (or put it in .env) before running Alembic; "
+        "alembic.ini intentionally carries no credentials."
+    )
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:

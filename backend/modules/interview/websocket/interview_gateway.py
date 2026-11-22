@@ -334,7 +334,7 @@ class InterviewGateway:
             if getattr(conn, "session_id", None) == session_id
         ]
 
-        print(f"DEBUG: Handle called for {session_id}", flush=True)
+        logger.debug(f"Handle called for {session_id}")
         registered = True if claim else await self._registry.register(session_id, metadata)
         if not registered:
             await self._send_error(
@@ -367,10 +367,10 @@ class InterviewGateway:
             metadata={"user_id": user_data.user_id, "mock_id": mock_interview_session_id}
         )
         
-        print(f"DEBUG: Registry registered for {session_id}", flush=True)
+        logger.debug(f"Registry registered for {session_id}")
         ping_task = self.safe_create_task(self._ping_loop(ws, session_id, session), session=session)
         pubsub_task = self.safe_create_task(self._pubsub_listener(ws, session_id, session), session=session)
-        print(f"DEBUG: Background tasks created for {session_id}", flush=True)
+        logger.debug(f"Background tasks created for {session_id}")
 
         async def _process_and_respond(msg: Dict[str, Any], orig_socket_id: str):
             try:
@@ -442,7 +442,7 @@ class InterviewGateway:
                     "Before we begin, please upload your resume so I can tailor "
                     "questions based on your experience."
                 )
-                print(f"DEBUG: Starting greeting flow for {session_id}", flush=True)
+                logger.debug(f"Starting greeting flow for {session_id}")
                 await self._send_json(ws, {
                     "type": "avatar_sync",
                     "text": full_text,
@@ -450,18 +450,18 @@ class InterviewGateway:
                     "total_questions": 0,
                 }, session=session)
 
-                print(f"DEBUG: Greeting queued for {session_id}", flush=True)
+                logger.debug(f"Greeting queued for {session_id}")
                 session.state.greeting_sent = True
-                print(f"DEBUG: Transitioning to WAITING_RESUME for {session_id}", flush=True)
+                logger.debug(f"Transitioning to WAITING_RESUME for {session_id}")
                 session.state.transition_to(InterviewPhase.WAITING_RESUME)
                 await session.persist_state_now()
-                print(f"DEBUG: Transition complete for {session_id}", flush=True)
+                logger.debug(f"Transition complete for {session_id}")
 
                 if ws.application_state == WebSocketState.CONNECTED and ws.client_state == WebSocketState.CONNECTED:
                     self.safe_create_task(self._send_audio_for_text(ws, session, full_text), session=session)
             else:
                 # If resumed, re-broadcast current state to sync UI
-                print(f"DEBUG: Resuming flow for {session_id}", flush=True)
+                logger.debug(f"Resuming flow for {session_id}")
                 next_seq = int(getattr(session.state, "_next_seq", 1)) + 1
                 await self._send_json(ws, {
                     "type": "RESUMED",
@@ -470,11 +470,10 @@ class InterviewGateway:
                     "next_seq": next_seq,
                 }, session=session)
 
-            print(f"DEBUG: Entering while True loop for {session_id}", flush=True)
+            logger.debug(f"Entering while True loop for {session_id}")
             while True:
-                print(f"DEBUG: Awaiting message for {session_id}", flush=True)
+                logger.debug(f"Awaiting message for {session_id}")
                 message = await self._recv_with_timeout(ws)
-                print(f"DEBUG: Received message for {session_id}: {message}", flush=True)
                 
                 # Risk 1: Stop processing immediately if socket closed during recv or just after
                 if ws.application_state != WebSocketState.CONNECTED or ws.client_state != WebSocketState.CONNECTED:
@@ -484,7 +483,7 @@ class InterviewGateway:
                 m_type = message.get("type") if message else "None"
                 m_text_len = len(message.get("text", "")) if message and message.get("text") else 0
                 m_bytes_len = len(message.get("bytes", b"")) if message and message.get("bytes") else 0
-                logger.error(f"WS RAW: type={m_type}, text_len={m_text_len}, bytes_len={m_bytes_len}", extra={"extra_data": {"session_id": session_id}})
+                logger.debug(f"WS frame: type={m_type}, text_len={m_text_len}, bytes_len={m_bytes_len}", extra={"extra_data": {"session_id": session_id}})
 
                 # CRITICAL: Validate session still exists in registry before processing
                 if not await session.owns_current_connection():

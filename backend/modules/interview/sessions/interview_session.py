@@ -25,6 +25,19 @@ from backend.utils.metrics import metrics
 from backend.services.redis_manager import redis_client
 from backend.infrastructure.database.database import AsyncSessionLocal
 from backend.models.candidate_portal import CandidateProfile
+import base64
+import binascii
+from backend.core.security.upload_validation import (
+    MAX_RESUME_BYTES,
+    UploadRejected,
+    file_extension,
+    max_base64_length,
+    safe_stored_filename,
+    validate_upload_bytes,
+)
+
+# Types the interview page accepts (frontend InterviewPage: .pdf,.doc,.docx).
+WS_RESUME_EXTENSIONS = {".pdf", ".doc", ".docx"}
 
 logger = get_logger(__name__)
 
@@ -521,24 +534,42 @@ class InterviewSession:
                 "recoverable": True,
             }
 
-        self.state.resume_processing = True
-        self.state.transition_to(InterviewPhase.PROCESSING_RESUME)
-        self._dirty = True
-        await self.persist_state_now()
-
         data = message.get("data", {})
+        if not isinstance(data, dict):
+            data = {}
         file_name = data.get("file_name", "")
         file_bytes = data.get("file_bytes", "")
 
-        SessionTelemetry.record(self.session_id, "RESUME_UPLOAD_STARTED", metadata={"file_name": file_name})
-
-        if not file_name or not file_bytes:
+        if not file_name or not file_bytes or not isinstance(file_bytes, str):
             return {
                 "type": "error",
                 "code": "INVALID_PAYLOAD",
                 "message": "Missing file_name or file_bytes",
                 "recoverable": True,
             }
+
+        # Validate before changing phase, so a rejected file leaves the session
+        # in WAITING_RESUME and the candidate can simply try again.
+        rejection = self._validate_resume_payload(file_name, file_bytes)
+        if rejection is not None:
+            return {
+                "type": "error",
+                "code": "INVALID_RESUME",
+                "message": rejection,
+                "recoverable": True,
+            }
+        stored_name = safe_stored_filename(file_extension(file_name))
+
+        self.state.resume_processing = True
+        self.state.transition_to(InterviewPhase.PROCESSING_RESUME)
+        self._dirty = True
+        await self.persist_state_now()
+
+        SessionTelemetry.record(
+            self.session_id,
+            "RESUME_UPLOAD_STARTED",
+            metadata={"file_type": file_extension(file_name), "b64_length": len(file_bytes)},
+        )
 
         # Cost-safety guard: if profile resume is already parsed, reuse it.
         cached_profile = await self._load_profile_resume_data()
@@ -563,7 +594,7 @@ class InterviewSession:
         try:
             result = await self.engine.start_interview(
                 state=self.state,
-                file_name=file_name,
+                file_name=stored_name,
                 file_bytes_b64=file_bytes,
                 session_policy=self.session_policy,
             )
@@ -582,11 +613,26 @@ class InterviewSession:
             return {
                 "type": "error",
                 "code": "ENGINE_CRASH",
-                "message": f"Interview engine failed: {str(e)}",
+                "message": "The interview could not be started. Please try again.",
                 "recoverable": False,
             }
 
         return result
+
+    @staticmethod
+    def _validate_resume_payload(file_name: str, file_bytes_b64: str) -> Optional[str]:
+        """Return a user-safe rejection message, or None when the resume is acceptable."""
+        if len(file_bytes_b64) > max_base64_length(MAX_RESUME_BYTES):
+            return f"File too large. Maximum size is {MAX_RESUME_BYTES // (1024 * 1024)}MB."
+        try:
+            content = base64.b64decode(file_bytes_b64, validate=True)
+        except (binascii.Error, ValueError):
+            return "Resume data is not valid base64."
+        try:
+            validate_upload_bytes(file_name, content, WS_RESUME_EXTENSIONS)
+        except UploadRejected as exc:
+            return str(exc)
+        return None
 
     async def _load_profile_resume_data(self) -> Optional[Dict[str, Any]]:
         """

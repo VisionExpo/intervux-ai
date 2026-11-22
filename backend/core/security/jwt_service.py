@@ -23,7 +23,8 @@ from typing import Any, Dict, Optional, Set
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError as JWTError
 from passlib.context import CryptContext
 from pydantic import BaseModel, ConfigDict
 from backend.infrastructure.database.database import RevokedToken, AsyncSessionLocal
@@ -40,6 +41,10 @@ if not SECRET_KEY:
         "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
     )
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+# Tokens are signed with a shared secret; only HMAC algorithms are valid. This
+# also rules out "none" and asymmetric/HMAC confusion via a mis-set variable.
+if ALGORITHM not in {"HS256", "HS384", "HS512"}:
+    raise RuntimeError(f"Unsupported JWT_ALGORITHM {ALGORITHM!r}; use HS256, HS384 or HS512.")
 ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_HOURS", "12"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
@@ -193,7 +198,9 @@ async def verify_token(token: str, expected_type: str = "access") -> TokenData:
     )
     
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token, SECRET_KEY, algorithms=[ALGORITHM], options={"require": ["exp"]}
+        )
         
         user_id: str = payload.get("user_id")
         email: str = payload.get("email")

@@ -91,3 +91,6 @@ htmlcov/
 *.wav
 
 alembic.ini
+# User uploads (resumes contain personal data) - never commit
+/uploads/
+/backend/modules/uploads/

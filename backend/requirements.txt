@@ -1,7 +1,7 @@
 # Web framework
-fastapi==0.111.0
+fastapi==0.162.5
 uvicorn[standard]==0.30.1
-starlette==0.37.2
+starlette==1.7.0
 
 # Database
 sqlalchemy==2.0.31
@@ -11,13 +11,14 @@ psycopg2-binary==2.9.9
 # Authentication
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
-python-jose[cryptography]==3.3.0
+# python-jose replaced: unfixed advisories (PYSEC-2025-185, PYSEC-2026-4298)
+PyJWT==2.15.1
 
 # Data models
-pydantic==2.8.2
+pydantic==2.13.3
 
 # HTTP clients
-httpx==0.27.0
+httpx==0.28.1
 
 # AI / LLM
 google-genai==0.1.0
@@ -40,7 +41,7 @@ pdfplumber==0.11.4
 python-docx==1.1.2
 
 # Configuration
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 pyyaml==6.0.1
 
 # Task Queue and Message Broker
@@ -52,8 +53,8 @@ flower==2.0.1
 asyncpg==0.30.0
 
 # FastAPI form/file parsing
-python-multipart==0.0.9
+python-multipart==0.0.32
 
 # Observability
-sentry-sdk==2.5.1
+sentry-sdk==2.75.0
 python-json-logger==2.0.7

@@ -29,7 +29,12 @@ from backend.core.security.jwt_service import (
 from backend.infrastructure.database.database import AsyncSessionLocal
 from sqlalchemy import select
 from backend.models.candidate_portal import CandidateProfile, MockInterview, Notification
-from backend.services.resume_parser_service import ParsedResume, parse_resume_from_upload
+from backend.services.resume_parser_service import ParsedResume, parse_resume_from_bytes
+from backend.core.security.upload_validation import (
+    read_validated_upload,
+    reject_oversized_request,
+    safe_stored_filename,
+)
 from backend.core.logging.logger import get_logger
 from backend.modules.candidate.schemas import (
     CandidateSignup,
@@ -238,24 +243,10 @@ async def upload_resume(
             detail=f"Too many resume uploads. Maximum {RESUME_RATE_LIMIT_MAX_ATTEMPTS} per {RESUME_RATE_LIMIT_WINDOW_S}s.",
         )
 
-    allowed_extensions = {".pdf", ".docx", ".doc", ".png", ".jpg", ".jpeg"}
-    file_ext = os.path.splitext(file.filename)[1].lower()
-
-    if file_ext not in allowed_extensions:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid file type. Allowed: PDF, DOCX, DOC, PNG, JPG",
-        )
-
-    file.file.seek(0, 2)
-    file_size = file.file.tell()
-    file.file.seek(0)
-
-    if file_size > 10 * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File too large. Maximum size is 10MB.",
-        )
+    reject_oversized_request(request)
+    upload = await read_validated_upload(
+        file, {".pdf", ".docx", ".doc", ".png", ".jpg", ".jpeg"}
+    )
 
     async with AsyncSessionLocal() as db:
         res = await db.execute(select(CandidateProfile).filter(
@@ -271,17 +262,18 @@ async def upload_resume(
         )
         os.makedirs(upload_dir, exist_ok=True)
 
-        unique_filename = f"{uuid.uuid4().hex}_{file.filename}"
+        # Never use the client's filename on disk (path traversal on Windows/POSIX).
+        unique_filename = safe_stored_filename(upload.extension)
         file_path = os.path.join(upload_dir, unique_filename)
 
-        content = await file.read()
         with open(file_path, "wb") as f:
-            f.write(content)
+            f.write(upload.content)
 
         # Parse via unified service in threadpool to avoid blocking event loop.
-        file.file.seek(0)
         try:
-            parsed: ParsedResume = await asyncio.to_thread(parse_resume_from_upload, file)
+            parsed: ParsedResume = await asyncio.to_thread(
+                parse_resume_from_bytes, unique_filename, upload.content
+            )
         except Exception:
             logger.exception("Resume parsing failed in candidate upload")
             parsed = ParsedResume()
