@@ -120,6 +120,7 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
     else:
         expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
     
+    to_encode.setdefault("jti", str(uuid.uuid4()))
     to_encode.update({"exp": expire, "type": "access"})
     
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -138,6 +139,7 @@ def create_refresh_token(data: Dict[str, Any]) -> str:
     """
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.setdefault("jti", str(uuid.uuid4()))
     to_encode.update({"exp": expire, "type": "refresh"})
     
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -154,8 +156,12 @@ def create_token_pair(user_data: Dict[str, Any]) -> Token:
     Returns:
         Token object with both tokens
     """
-    access_token = create_access_token(user_data)
-    refresh_token = create_refresh_token(user_data)
+    access_data = {k: v for k, v in user_data.items() if k != "jti"}
+    access_data["jti"] = user_data.get("jti") or str(uuid.uuid4())
+    refresh_data = {k: v for k, v in user_data.items() if k != "jti"}
+    refresh_data["jti"] = str(uuid.uuid4())
+    access_token = create_access_token(access_data)
+    refresh_token = create_refresh_token(refresh_data)
     
     return Token(
         access_token=access_token,
@@ -165,12 +171,14 @@ def create_token_pair(user_data: Dict[str, Any]) -> Token:
     )
 
 
-async def verify_token(token: str) -> TokenData:
+async def verify_token(token: str, expected_type: str = "access") -> TokenData:
     """
     Verify and decode a JWT token.
     
     Args:
         token: JWT token string
+        expected_type: Required ``type`` claim ("access" or "refresh").
+            Refresh tokens are never accepted where an access token is required.
         
     Returns:
         TokenData if valid
@@ -195,7 +203,12 @@ async def verify_token(token: str) -> TokenData:
         if user_id is None or email is None:
             raise credentials_exception
 
-        jti = payload.get("jti") or payload.get("user_id", "")
+        if payload.get("type") != expected_type:
+            raise credentials_exception
+
+        # Revocation is per token (jti). Never fall back to user_id: that would
+        # revoke every token the user ever receives.
+        jti = payload.get("jti")
         if jti:
             from backend.infrastructure.database.database import AsyncSessionLocal, RevokedToken
             from sqlalchemy import select
@@ -514,26 +527,14 @@ async def refresh_access_token(refresh_token: str) -> Token:
     Raises:
         HTTPException: If refresh token is invalid
     """
-    token_data = await verify_token(refresh_token)
-    
-    # Verify it's a refresh token
-    payload = jwt.decode(
-        refresh_token, 
-        SECRET_KEY, 
-        algorithms=[ALGORITHM],
-        options={"verify_type": False}
-    )
-    
-    if payload.get("type") != "refresh":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type. Expected refresh token."
-        )
+    # verify_token rejects anything that is not a valid, unrevoked refresh token
+    token_data = await verify_token(refresh_token, expected_type="refresh")
     
     # Create new token pair
     user_data = {
         "user_id": token_data.user_id,
         "email": token_data.email,
+        "name": token_data.name,
         "role": token_data.role,
     }
     
@@ -544,26 +545,50 @@ async def refresh_access_token(refresh_token: str) -> Token:
 # Demo Users (Development Only)
 # Only admin and recruiter are provided as demo accounts.
 # Candidates must register via POST /api/candidate/signup
+#
+# Demo accounts are OFF unless ENABLE_DEMO_USERS=true, ENV is not
+# "production", and the password is supplied via DEMO_ADMIN_PASS /
+# DEMO_RECRUITER_PASS. There are no built-in default passwords.
 # =========================================================
 
-DEMO_USERS = {
-    "admin@intervux.ai": {
-        "id": "admin-001",
-        "email": "admin@intervux.ai",
-        "name": "Admin User",
-        "role": Role.ADMIN,
-        "password": os.getenv("DEMO_ADMIN_PASS", "admin123"),
-        "password_hash": None,
-    },
-    "recruiter@intervux.ai": {
-        "id": "recruiter-001",
-        "email": "recruiter@intervux.ai",
-        "name": "Recruiter User",
-        "role": Role.RECRUITER,
-        "password": os.getenv("DEMO_RECRUITER_PASS", "recruiter123"),
-        "password_hash": None,
-    },
-}
+_DEMO_ACCOUNT_SPECS = (
+    ("admin@intervux.ai", "admin-001", "Admin User", Role.ADMIN, "DEMO_ADMIN_PASS"),
+    ("recruiter@intervux.ai", "recruiter-001", "Recruiter User", Role.RECRUITER, "DEMO_RECRUITER_PASS"),
+)
+
+
+def demo_users_enabled() -> bool:
+    """Demo accounts require an explicit opt-in and are never allowed in production."""
+    if os.getenv("ENV", "").strip().lower() in {"prod", "production"}:
+        return False
+    return os.getenv("ENABLE_DEMO_USERS", "").strip().lower() in {"1", "true", "yes"}
+
+
+def build_demo_users() -> Dict[str, Dict[str, Any]]:
+    """Return the enabled demo accounts (empty when demo mode is off)."""
+    if not demo_users_enabled():
+        return {}
+    users: Dict[str, Dict[str, Any]] = {}
+    for email, user_id, name, role, password_env in _DEMO_ACCOUNT_SPECS:
+        password = os.getenv(password_env, "")
+        if not password:
+            continue
+        users[email] = {
+            "id": user_id,
+            "email": email,
+            "name": name,
+            "role": role,
+            "password": password,
+            "password_hash": None,
+        }
+    return users
+
+
+DEMO_USERS: Dict[str, Dict[str, Any]] = build_demo_users()
+if DEMO_USERS:
+    logger.warning(
+        "Demo accounts enabled (ENABLE_DEMO_USERS=true): %s", ", ".join(sorted(DEMO_USERS))
+    )
 
 
 def _get_demo_password_hash(user: Dict[str, Any]) -> str:
@@ -683,7 +708,7 @@ def revoke_token(token: str) -> bool:
             algorithms=[ALGORITHM],
             options={"verify_signature": False}
         )
-        jti = payload.get("jti") or payload.get("user_id")
+        jti = payload.get("jti")
         if jti:
             _revoked_tokens.add(jti)
             return True
@@ -709,7 +734,7 @@ def revoke_refresh_token(token: str) -> bool:
             algorithms=[ALGORITHM],
             options={"verify_signature": False}
         )
-        jti = payload.get("jti") or payload.get("user_id")
+        jti = payload.get("jti")
         if jti:
             _revoked_refresh_tokens.add(jti)
             return True
@@ -735,7 +760,7 @@ def is_token_revoked(token: str) -> bool:
             algorithms=[ALGORITHM],
             options={"verify_signature": False}
         )
-        jti = payload.get("jti") or payload.get("user_id")
+        jti = payload.get("jti")
         return jti in _revoked_tokens
     except Exception:
         return False
@@ -758,7 +783,7 @@ def is_refresh_token_revoked(token: str) -> bool:
             algorithms=[ALGORITHM],
             options={"verify_signature": False}
         )
-        jti = payload.get("jti") or payload.get("user_id")
+        jti = payload.get("jti")
         return jti in _revoked_refresh_tokens
     except Exception:
         return False
@@ -820,21 +845,7 @@ async def refresh_access_token_with_rotation(refresh_token: str) -> Token:
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    token_data = await verify_token(refresh_token)
-    
-    # Verify it's a refresh token
-    payload = jwt.decode(
-        refresh_token, 
-        SECRET_KEY, 
-        algorithms=[ALGORITHM],
-        options={"verify_type": False}
-    )
-    
-    if payload.get("type") != "refresh":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type. Expected refresh token."
-        )
+    token_data = await verify_token(refresh_token, expected_type="refresh")
     
     # Revoke the old refresh token (rotation)
     revoke_refresh_token(refresh_token)
@@ -843,6 +854,7 @@ async def refresh_access_token_with_rotation(refresh_token: str) -> Token:
     user_data = {
         "user_id": token_data.user_id,
         "email": token_data.email,
+        "name": token_data.name,
         "role": token_data.role,
     }
     
@@ -925,12 +937,4 @@ def revoke_api_key(api_key: str) -> bool:
         return True
     return False
 
-
-# Initialize demo API key for testing
-_demo_api_key = create_api_key(
-    name="Demo API Key",
-    user_id="demo-api-user",
-    role="recruiter",
-    expires_days=365
-)
 

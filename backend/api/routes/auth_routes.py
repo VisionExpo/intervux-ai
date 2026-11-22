@@ -41,6 +41,7 @@ from backend.core.security.jwt_service import (
     hash_password,
     oauth2_scheme,
     refresh_access_token,
+    require_role,
     verify_password,
     verify_token,
     Role,
@@ -121,10 +122,11 @@ async def refresh_token(request: RefreshRequest):
         return await refresh_access_token(request.refresh_token)
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
+        logger.exception("Unexpected error during token refresh")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid refresh token: {str(e)}",
+            detail="Invalid refresh token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -180,7 +182,11 @@ async def logout(
             algorithms=[ALGORITHM],
             options={"verify_exp": False},
         )
-        jti = payload.get("jti") or payload.get("user_id", "")
+        # Revoke only this token. Tokens without a jti (issued before per-token
+        # IDs existed) cannot be revoked individually and simply expire.
+        jti = payload.get("jti")
+        if not jti:
+            return {"message": "Successfully logged out", "user_id": current_user.user_id}
         exp_ts = payload.get("exp")
         expires_at = (
             datetime.fromtimestamp(exp_ts, timezone.utc)
@@ -220,24 +226,39 @@ async def change_password(
     Requires the current password to be verified before
     setting the new password.
     """
-    user = await get_user_by_email(current_user.email)
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    # Verify old password
-    # In production, this would check against database
-    if not verify_password(request.old_password, user.get("password_hash", "")):
+    from backend.core.security.jwt_service import DEMO_USERS
+
+    if current_user.email in DEMO_USERS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect old password"
+            detail="Demo account passwords are configured by environment variables",
         )
-    
-    # In production, update password in database
-    # For demo, just return success
+
+    if len(request.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 8 characters",
+        )
+
+    from backend.infrastructure.database.database import AsyncSessionLocal, User
+    from sqlalchemy import select
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).filter(User.email == current_user.email))
+        db_user = result.scalar_one_or_none()
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        if not verify_password(request.old_password, db_user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Incorrect old password"
+            )
+        db_user.password_hash = hash_password(request.new_password)
+        await db.commit()
+
     return {
         "message": "Password changed successfully",
         "user_id": current_user.user_id,
@@ -251,7 +272,7 @@ async def change_password(
 
 @router.get("/users", response_model=list[UserResponse])
 async def list_users(
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_role(Role.ADMIN))
 ):
     """
     List all users (admin only in production).

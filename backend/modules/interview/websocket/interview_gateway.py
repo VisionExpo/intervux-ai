@@ -189,6 +189,21 @@ class InterviewGateway:
                 await self._close_ws(ws, code=1008)
                 return
 
+        elif provided_session_id:
+            # Non-mock sessions have no durable owner row. A client-supplied
+            # identifier may only replace the caller's own live session;
+            # otherwise it could evict and take over another user's session.
+            try:
+                owner_metadata = await self._registry.get_metadata(provided_session_id)
+            except Exception:
+                logger.exception("Session ownership lookup failed")
+                owner_metadata = None
+            if not owner_metadata or owner_metadata.get("user_id") != user_data.user_id:
+                await ws.accept()
+                await self._send_error(ws, "INTERVIEW_UNAVAILABLE", "Interview is unavailable.", recoverable=True)
+                await self._close_ws(ws, code=1008)
+                return
+
         client_ip = self._client_ip(ws)
         if not await self._allow_ip(client_ip):
             await ws.accept()

@@ -196,7 +196,7 @@ async def get_job_posts(
     status: str | None = None,
 ):
     """Get list of job posts."""
-    return await list_job_posts(db, page=page, limit=limit, status=status)
+    return await list_job_posts(db, page=page, limit=limit, status=status, user=user)
 
 
 @router.post("/job-posts", response_model=JobPost)
@@ -216,7 +216,7 @@ async def get_job(
     db: Session = Depends(get_db),
 ):
     """Get a single job post."""
-    job = await get_job_post(db, job_post_id)
+    job = await get_job_post(db, job_post_id, user=user)
     if not job:
         raise HTTPException(status_code=404, detail="Job post not found")
     return job
@@ -230,7 +230,7 @@ async def update_job(
     db: Session = Depends(get_db),
 ):
     """Update a job post."""
-    job = await update_job_post(db, job_post_id, job_data)
+    job = await update_job_post(db, job_post_id, job_data, user=user)
     if not job:
         raise HTTPException(status_code=404, detail="Job post not found")
     return job
@@ -243,7 +243,7 @@ async def delete_job(
     db: Session = Depends(get_db),
 ):
     """Delete a job post."""
-    success = await delete_job_post(db, job_post_id)
+    success = await delete_job_post(db, job_post_id, user=user)
     if not success:
         raise HTTPException(status_code=404, detail="Job post not found")
     return {"message": "Job post deleted successfully"}
@@ -259,7 +259,7 @@ async def invite_new_candidate(
     db: Session = Depends(get_db),
 ):
     """Invite a candidate to a job."""
-    candidate = await invite_candidate(db, candidate_data)
+    candidate = await invite_candidate(db, candidate_data, user=user)
     return {
         "id": candidate.id,
         "name": candidate.name,
@@ -277,7 +277,7 @@ async def create_interview_link(
     expires_days: int = 7,
 ):
     """Generate an interview link for a candidate."""
-    interview_link, expires_at = await generate_interview_link(db, candidate_id, expires_days)
+    interview_link, expires_at = await generate_interview_link(db, candidate_id, expires_days, user=user)
     return {
         "interview_link": interview_link,
         "expires_at": expires_at.isoformat(),
@@ -292,7 +292,7 @@ async def change_candidate_status(
     db: Session = Depends(get_db),
 ):
     """Update candidate status."""
-    candidate = await update_candidate_status(db, candidate_id, status)
+    candidate = await update_candidate_status(db, candidate_id, status, user=user)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return candidate

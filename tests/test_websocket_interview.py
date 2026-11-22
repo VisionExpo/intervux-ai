@@ -1744,3 +1744,53 @@ class TestSQLSocketOwnershipProtocol:
             assert row.status == "completed"
             assert '"summary": "current"' in row.evaluation
             assert profile.mock_interviews_remaining == 2
+
+
+# =============================================================================
+# Phase 1 security regressions: token type and client-supplied session IDs
+# =============================================================================
+
+
+class TestWebSocketSessionTakeover:
+    def _read_first(self, client: TestClient, url: str) -> dict:
+        with client.websocket_connect(url) as ws:
+            return _recv_json(ws)
+
+    def test_refresh_token_cannot_open_interview_socket(self, client: TestClient):
+        refresh_token = create_token_pair(
+            {
+                "user_id": f"candidate-{uuid.uuid4().hex}",
+                "email": "refresh@example.com",
+                "name": "Refresh Only",
+                "role": Role.CANDIDATE,
+            }
+        ).refresh_token
+        msg = self._read_first(client, f"/ws/interview?token={refresh_token}")
+        assert msg["type"] == "ERROR"
+        assert msg["code"] == "UNAUTHORIZED"
+
+    def test_session_id_owned_by_another_user_is_rejected(self, client: TestClient):
+        registry = client.app.state.interview_gateway._registry
+        session_id = str(uuid.uuid4())
+        victim_meta = {"user_id": "victim-user", "socket_id": "victim-socket"}
+        asyncio.run(registry.register(session_id, dict(victim_meta)))
+        register_calls_before = registry.register.await_count
+
+        attacker_token = _make_user_token(f"attacker-{uuid.uuid4().hex}")
+        msg = self._read_first(
+            client, f"/ws/interview?token={attacker_token}&session_id={session_id}"
+        )
+
+        assert msg["type"] == "ERROR"
+        assert msg["code"] == "INTERVIEW_UNAVAILABLE"
+        # The victim's registry entry was neither replaced nor evicted.
+        assert registry.register.await_count == register_calls_before
+        assert asyncio.run(registry.get_metadata(session_id)) == victim_meta
+
+    def test_unknown_client_session_id_is_rejected(self, client: TestClient):
+        token = _make_user_token(f"candidate-{uuid.uuid4().hex}")
+        msg = self._read_first(
+            client, f"/ws/interview?token={token}&session_id={uuid.uuid4()}"
+        )
+        assert msg["type"] == "ERROR"
+        assert msg["code"] == "INTERVIEW_UNAVAILABLE"

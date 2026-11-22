@@ -118,6 +118,40 @@ async def ensure_interview_access(db: AsyncSession, interview_id: str, user) -> 
         raise HTTPException(status_code=404, detail="Interview not found")
 
 
+def _is_admin(user) -> bool:
+    return getattr(user, "role", None) == "admin"
+
+
+def _owns_job(user, job: JobPostModel | None) -> bool:
+    """Admins see every job post; recruiters only their own."""
+    if job is None:
+        return False
+    if _is_admin(user):
+        return True
+    return bool(job.recruiter_id) and job.recruiter_id == user.user_id
+
+
+async def _get_owned_job(db: AsyncSession, job_post_id: str, user) -> JobPostModel | None:
+    """Load a job post the user may act on; None when missing or not theirs (callers 404)."""
+    res = await db.execute(select(JobPostModel).filter(JobPostModel.id == job_post_id))
+    job = res.scalar_one_or_none()
+    return job if _owns_job(user, job) else None
+
+
+async def _get_owned_candidate(db: AsyncSession, candidate_id: str, user) -> Candidate | None:
+    """Load a candidate whose job post the user owns; None when missing or not theirs."""
+    res = await db.execute(select(Candidate).filter(Candidate.id == candidate_id))
+    candidate = res.scalar_one_or_none()
+    if candidate is None:
+        return None
+    if _is_admin(user):
+        return candidate
+    if not candidate.job_post_id:
+        return None
+    job_res = await db.execute(select(JobPostModel).filter(JobPostModel.id == candidate.job_post_id))
+    return candidate if _owns_job(user, job_res.scalar_one_or_none()) else None
+
+
 async def get_interview_report(
     db: AsyncSession, interview_id: str, user=None
 ) -> CandidateInterviewReport:
@@ -328,13 +362,18 @@ async def list_job_posts(
     page: int = 1,
     limit: int = 20,
     status: str | None = None,
+    *,
+    user,
 ) -> list[JobPost]:
-    """List all job posts."""
+    """List job posts visible to the user (admins: all; recruiters: their own)."""
     safe_page = max(page, 1)
     safe_limit = max(1, min(limit, 100))
     offset = (safe_page - 1) * safe_limit
 
     query = select(JobPostModel)
+
+    if not _is_admin(user):
+        query = query.filter(JobPostModel.recruiter_id == user.user_id)
 
     if status:
         query = query.filter(JobPostModel.status == status)
@@ -370,10 +409,9 @@ async def list_job_posts(
     return result
 
 
-async def get_job_post(db: AsyncSession, job_post_id: str) -> JobPost | None:
-    """Get a single job post by ID."""
-    res = await db.execute(select(JobPostModel).filter(JobPostModel.id == job_post_id))
-    job = res.scalar_one_or_none()
+async def get_job_post(db: AsyncSession, job_post_id: str, *, user) -> JobPost | None:
+    """Get a single job post by ID (None if missing or not owned by the user)."""
+    job = await _get_owned_job(db, job_post_id, user)
     
     if not job:
         return None
@@ -403,10 +441,11 @@ async def update_job_post(
     db: AsyncSession,
     job_post_id: str,
     job_data: JobPostUpdate,
+    *,
+    user,
 ) -> JobPost | None:
-    """Update an existing job post."""
-    res = await db.execute(select(JobPostModel).filter(JobPostModel.id == job_post_id))
-    job = res.scalar_one_or_none()
+    """Update an existing job post (None if missing or not owned by the user)."""
+    job = await _get_owned_job(db, job_post_id, user)
     if not job:
         return None
 
@@ -462,10 +501,9 @@ async def update_job_post(
     )
 
 
-async def delete_job_post(db: AsyncSession, job_post_id: str) -> bool:
-    """Delete a job post."""
-    res = await db.execute(select(JobPostModel).filter(JobPostModel.id == job_post_id))
-    job = res.scalar_one_or_none()
+async def delete_job_post(db: AsyncSession, job_post_id: str, *, user) -> bool:
+    """Delete a job post (False if missing or not owned by the user)."""
+    job = await _get_owned_job(db, job_post_id, user)
     if not job:
         return False
 
@@ -475,10 +513,13 @@ async def delete_job_post(db: AsyncSession, job_post_id: str) -> bool:
     return True
 
 
-async def generate_interview_link(db: AsyncSession, candidate_id: str, expires_in_days: int = 7) -> tuple[str, datetime]:
-    """Generate an expiring interview link for a candidate."""
-    res = await db.execute(select(Candidate).filter(Candidate.id == candidate_id))
-    candidate = res.scalar_one_or_none()
+async def generate_interview_link(
+    db: AsyncSession, candidate_id: str, expires_in_days: int = 7, *, user
+) -> tuple[str, datetime]:
+    """Generate an expiring interview link for a candidate the user owns."""
+    if not 1 <= expires_in_days <= 30:
+        raise HTTPException(status_code=422, detail="expires_days must be between 1 and 30")
+    candidate = await _get_owned_candidate(db, candidate_id, user)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
@@ -498,8 +539,12 @@ async def generate_interview_link(db: AsyncSession, candidate_id: str, expires_i
 async def invite_candidate(
     db: AsyncSession,
     candidate_data: CandidateCreate,
+    *,
+    user,
 ) -> Candidate:
-    """Invite a candidate to a job post."""
+    """Invite a candidate, optionally to a job post the user owns."""
+    if candidate_data.job_post_id and await _get_owned_job(db, candidate_data.job_post_id, user) is None:
+        raise HTTPException(status_code=404, detail="Job post not found")
     db_candidate = Candidate(
         name=candidate_data.name,
         email=candidate_data.email,
@@ -526,10 +571,17 @@ async def invite_candidate(
     )
 
 
-async def update_candidate_status(db: AsyncSession, candidate_id: str, status: str) -> Candidate | None:
-    """Update candidate status."""
-    res = await db.execute(select(Candidate).filter(Candidate.id == candidate_id))
-    candidate = res.scalar_one_or_none()
+async def update_candidate_status(
+    db: AsyncSession, candidate_id: str, status: str, *, user
+) -> Candidate | None:
+    """Update candidate status (None if missing or not owned by the user)."""
+    allowed = {member.value for member in CandidateStatus}
+    if status not in allowed:
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid status. Allowed: " + ", ".join(sorted(allowed)),
+        )
+    candidate = await _get_owned_candidate(db, candidate_id, user)
     if not candidate:
         return None
 

@@ -36,6 +36,14 @@ os.environ["ENV"] = "test"
 os.environ["DATABASE_URL"] = "sqlite:///./tests/data/test_intervux.db"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-testing-only"
 os.environ["RUNTIME_THREADPOOL_WORKERS"] = "2"
+# Tests build the schema with create_all (setup_database); never shell out to
+# Alembic at app startup. Previously only test_websocket_interview.py set this,
+# so other test files failed when run on their own.
+os.environ.setdefault("RUN_DB_MIGRATIONS", "false")
+# Demo accounts are opt-in (no built-in passwords); the login tests use them.
+os.environ["ENABLE_DEMO_USERS"] = "true"
+os.environ["DEMO_ADMIN_PASS"] = "admin123"
+os.environ["DEMO_RECRUITER_PASS"] = "recruiter123"
 
 os.makedirs("tests/data", exist_ok=True)
 
