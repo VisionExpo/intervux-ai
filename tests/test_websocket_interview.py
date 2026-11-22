@@ -120,19 +120,60 @@ def client() -> Generator[TestClient, None, None]:
     
     from unittest.mock import AsyncMock, patch
     from backend.main import create_app
+    import backend.modules.interview.websocket.interview_gateway as gateway_mod
     
     # Mock Redis and Registry
     mock_registry = AsyncMock()
-    mock_registry.count.return_value = 0
-    
     registered_meta = {}
+    async def fake_count():
+        return len(registered_meta)
+    mock_registry.count.side_effect = fake_count
+
     async def fake_register(session_id, metadata):
         registered_meta[session_id] = metadata
+        return True
+    async def fake_begin_claim(session_id, metadata):
+        current = registered_meta.get(session_id)
+        if current and current.get("generation", -1) > metadata.get("generation", -1):
+            return False
+        registered_meta[session_id] = {**metadata, "lifecycle_state": "claiming"}
+        return True
+    async def fake_activate_claim(session_id, socket_id, generation, claim_id):
+        current = registered_meta.get(session_id)
+        if not current or current.get("socket_id") != socket_id or current.get("generation") != generation or current.get("claim_id") != claim_id:
+            return False
+        current["lifecycle_state"] = "active"
+        return True
     async def fake_get_metadata(session_id):
-        return registered_meta.get(session_id, {"session_id": session_id, "candidate_id": 1})
+        return registered_meta.get(session_id)
+    async def fake_unregister(session_id, expected_socket_id, generation=None, claim_id=None):
+        metadata = registered_meta.get(session_id)
+        if (
+            metadata
+            and metadata.get("socket_id") == expected_socket_id
+            and (generation is None or metadata.get("generation") == generation)
+            and (claim_id is None or metadata.get("claim_id") == claim_id)
+        ):
+            del registered_meta[session_id]
+            return True
+        return False
     mock_registry.register.side_effect = fake_register
+    mock_registry.begin_claim.side_effect = fake_begin_claim
+    mock_registry.activate_claim.side_effect = fake_activate_claim
     mock_registry.get_metadata.side_effect = fake_get_metadata
-    mock_registry.unregister.return_value = None
+    mock_registry.unregister.side_effect = fake_unregister
+
+    async def fake_owns_session(session_id, socket_id, user_id=None, generation=None, claim_id=None):
+        metadata = registered_meta.get(session_id)
+        return bool(
+            metadata
+            and metadata.get("socket_id") == socket_id
+            and (user_id is None or metadata.get("user_id") == user_id)
+            and (generation is None or metadata.get("generation") == generation)
+            and (claim_id is None or metadata.get("claim_id") == claim_id)
+            and (generation is None or metadata.get("lifecycle_state") == "active")
+        )
+    mock_registry.owns_session.side_effect = fake_owns_session
     
     # Engine setup for DB overrides
     engine = create_async_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
@@ -151,11 +192,13 @@ def client() -> Generator[TestClient, None, None]:
     orig_get_session_state_obj = redis_client.get_session_state_obj
     orig_save_session_state_obj = redis_client.save_session_state_obj
     orig_clear_session_state = redis_client.clear_session_state
+    orig_clear_session_state_obj_if_owner = redis_client.clear_session_state_obj_if_owner
     orig_clear_cache = redis_client.clear_cache
     orig_publish = redis_client.publish
     orig_subscribe = redis_client.subscribe
     
     orig_registry = registry_mod._registry
+    orig_synthesize_chunks = gateway_mod.tts_service.synthesize_chunks
 
     # Replace with mocks
     redis_client.redis = AsyncMock()
@@ -165,6 +208,8 @@ def client() -> Generator[TestClient, None, None]:
     redis_client.clear_session_state = AsyncMock()
     redis_client.clear_cache = AsyncMock()
     redis_client.publish = AsyncMock()
+    redis_client.clear_session_state_obj_if_owner = AsyncMock(return_value=True)
+    gateway_mod.tts_service.synthesize_chunks = AsyncMock(return_value=[])
     
     async def fake_subscribe(*args, **kwargs):
         if False:
@@ -187,9 +232,11 @@ def client() -> Generator[TestClient, None, None]:
         redis_client.get_session_state_obj = orig_get_session_state_obj
         redis_client.save_session_state_obj = orig_save_session_state_obj
         redis_client.clear_session_state = orig_clear_session_state
+        redis_client.clear_session_state_obj_if_owner = orig_clear_session_state_obj_if_owner
         redis_client.clear_cache = orig_clear_cache
         redis_client.publish = orig_publish
         redis_client.subscribe = orig_subscribe
+        gateway_mod.tts_service.synthesize_chunks = orig_synthesize_chunks
         
         registry_mod._registry = orig_registry
         
@@ -363,6 +410,44 @@ class TestMockInterviewOwnership:
             f"/ws/interview?token={token}&mock_session_id={session_id}&session_id={session_id}"
         ) as ws:
             assert _drain_until(ws, "avatar_sync")["type"] == "avatar_sync"
+
+    def test_replacement_socket_owns_session_after_old_handler_exits(self, client: TestClient):
+        from backend.modules.interview.sessions.interview_session import InterviewSession
+
+        owner_id = f"owner-{uuid.uuid4().hex}"
+        session_id = _create_mock_interview(owner_id)
+        token = _make_user_token(owner_id)
+        url = f"/ws/interview?token={token}&mock_session_id={session_id}&session_id={session_id}"
+        registry = client.app.state.interview_gateway._registry
+
+        with client.websocket_connect(url) as first_ws:
+            _drain_until(first_ws, "avatar_sync")
+            old_socket_id = asyncio.run(registry.get_metadata(session_id))["socket_id"]
+
+            with client.websocket_connect(url) as replacement_ws:
+                _drain_until(replacement_ws, "avatar_sync")
+                replacement_meta = asyncio.run(registry.get_metadata(session_id))
+                assert replacement_meta["socket_id"] != old_socket_id
+
+                # The first handler has been evicted. Its token cannot process
+                # a message, save state, or remove the replacement registry entry.
+                stale = InterviewSession(
+                    session_id=session_id,
+                    user_id=owner_id,
+                    session_policy={},
+                    mock_interview_session_id=session_id,
+                    socket_id=old_socket_id,
+                )
+                response = asyncio.run(
+                    stale.handle_message({"bytes": b"stale audio chunk"})
+                )
+                assert response["code"] == "SESSION_REPLACED"
+                assert stale.audio_buffer.is_empty
+                assert asyncio.run(
+                    registry.unregister(session_id, expected_socket_id=old_socket_id)
+                ) is False
+                assert asyncio.run(registry.get_metadata(session_id))["socket_id"] == replacement_meta["socket_id"]
+                assert asyncio.run(registry.count()) == 1
 
     @pytest.mark.parametrize("role", [Role.RECRUITER, "viewer", Role.ADMIN])
     def test_non_candidate_roles_cannot_connect_to_candidate_mock_interview(
@@ -674,7 +759,15 @@ class TestWebSocketStress:
                     assert msg["type"] == "avatar_sync"
         finally:
             interview_gateway.rate_limit_per_minute = original_rate_limit
-        after = asyncio.run(interview_gateway.get_active_sessions_count())
+        async def wait_for_cleanup():
+            for _ in range(60):
+                count = await interview_gateway.get_active_sessions_count()
+                if count == before:
+                    return count
+                await asyncio.sleep(0.05)
+            return await interview_gateway.get_active_sessions_count()
+
+        after = asyncio.run(wait_for_cleanup())
         assert after == before
 
     def test_malformed_json_flood_stays_recoverable(self, client: TestClient):
@@ -1035,6 +1128,184 @@ class TestInterviewPersistenceUnit:
         assert "Explain Python decorators" in updated.transcript
 
     @pytest.mark.asyncio
+    async def test_complete_mock_interview_is_idempotent_for_terminal_row(self, db_session: Session):
+        """A repeated completion cannot rewrite results or deduct another credit."""
+        from backend.models.candidate_portal import CandidateProfile, MockInterview
+        from backend.modules.interview.persistence import complete_mock_interview
+
+        profile = CandidateProfile(
+            user_id="test-idempotent-user",
+            name="Idempotent Test",
+            skills="[]",
+            mock_interviews_remaining=3,
+        )
+        db_session.add(profile)
+        await db_session.flush()
+        profile_id = profile.id
+        session_id = f"mock-{uuid.uuid4().hex}"
+        db_session.add(MockInterview(
+            candidate_id=profile.id,
+            session_id=session_id,
+            status="in_progress",
+            interview_number=1,
+        ))
+        await db_session.commit()
+
+        assert await complete_mock_interview(session_id, {"summary": "first"}, [], db=db_session) is True
+        assert await complete_mock_interview(session_id, {"summary": "second"}, [], db=db_session) is False
+
+        db_session.expire_all()
+        row = (await db_session.execute(
+            select(MockInterview).where(MockInterview.session_id == session_id)
+        )).scalar_one()
+        saved_profile = (await db_session.execute(
+            select(CandidateProfile).where(CandidateProfile.id == profile_id)
+        )).scalar_one()
+        assert row.status == "completed"
+        assert '"summary": "first"' in row.evaluation
+        assert saved_profile.mock_interviews_remaining == 2
+
+    @pytest.mark.asyncio
+    async def test_completion_commit_failure_rolls_back_all_database_changes(self):
+        from sqlalchemy import event
+        from backend.models.candidate_portal import CandidateProfile, MockInterview
+        from backend.modules.interview.persistence import complete_mock_interview
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db_session:
+            profile = CandidateProfile(
+                user_id=f"test-commit-failure-{uuid.uuid4().hex}",
+                name="Commit Failure Test",
+                skills="[]",
+                mock_interviews_remaining=3,
+            )
+            db_session.add(profile)
+            await db_session.flush()
+            profile_id = profile.id
+            session_id = f"mock-{uuid.uuid4().hex}"
+            db_session.add(MockInterview(
+                candidate_id=profile.id,
+                session_id=session_id,
+                status="in_progress",
+                interview_number=1,
+            ))
+            await db_session.commit()
+
+            def fail_commit(_session):
+                event.remove(db_session.sync_session, "before_commit", fail_commit)
+                raise RuntimeError("simulated commit failure")
+
+            event.listen(db_session.sync_session, "before_commit", fail_commit)
+            result = await complete_mock_interview(
+                session_id,
+                {"summary": "must roll back"},
+                [{"question": "Q", "answer": "A"}],
+                db=db_session,
+            )
+            assert result is False
+
+            db_session.expire_all()
+            row = (await db_session.execute(
+                select(MockInterview).where(MockInterview.session_id == session_id)
+            )).scalar_one()
+            saved_profile = (await db_session.execute(
+                select(CandidateProfile).where(CandidateProfile.id == profile_id)
+            )).scalar_one()
+            assert row.status == "in_progress"
+            assert row.transcript is None
+            assert saved_profile.mock_interviews_remaining == 3
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("fail_persistence", [False, True])
+    async def test_session_completion_response_tracks_persistence_result(
+        self, monkeypatch, fail_persistence
+    ):
+        from sqlalchemy import event
+        from backend.models.candidate_portal import CandidateProfile, MockInterview
+        from backend.modules.interview.sessions import interview_session as session_module
+        from backend.modules.interview.sessions.interview_session import InterviewSession
+        from backend.modules.interview.models import InterviewPhase
+        from backend.modules.interview.persistence import complete_mock_interview, fail_mock_interview
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db_session:
+            profile = CandidateProfile(
+                user_id=f"test-session-persist-failure-{uuid.uuid4().hex}",
+                name="Session Persist Failure Test",
+                skills="[]",
+                mock_interviews_remaining=3,
+            )
+            db_session.add(profile)
+            await db_session.flush()
+            session_id = f"mock-{uuid.uuid4().hex}"
+            db_session.add(MockInterview(
+                candidate_id=profile.id,
+                session_id=session_id,
+                status="in_progress",
+                interview_number=1,
+            ))
+            await db_session.commit()
+
+            async def persist_with_test_db(
+                mock_id, report, answers, expected_socket_id=None,
+                expected_generation=None, expected_claim_id=None,
+            ):
+                return await complete_mock_interview(mock_id, report, answers, db=db_session)
+
+            async def abandon_with_test_db(mock_id, reason, **kwargs):
+                return await fail_mock_interview(mock_id, reason, db=db_session, **kwargs)
+
+            monkeypatch.setattr(session_module, "complete_mock_interview", persist_with_test_db)
+            monkeypatch.setattr(session_module, "fail_mock_interview", abandon_with_test_db)
+
+            def fail_commit(_session):
+                event.remove(db_session.sync_session, "before_commit", fail_commit)
+                raise RuntimeError("simulated completion commit failure")
+
+            if fail_persistence:
+                event.listen(db_session.sync_session, "before_commit", fail_commit)
+
+            session = InterviewSession("ws-test-session", "test-user", {}, mock_interview_session_id=session_id)
+            session.state.questions = ["Test question"]
+            session.state.current_index = 0
+            session.state.transition_to(InterviewPhase.LISTENING)
+
+            async def evaluate_answer(**_kwargs):
+                return {"data": {"evaluation": {"scores": {"Overall": 8}}}}
+
+            async def complete_interview(state):
+                state.transition_to(InterviewPhase.COMPLETE)
+                return {"report": {"summary": "generated"}}
+
+            session.engine.evaluate_answer = evaluate_answer
+            session.engine._should_continue = lambda _state: False
+            session.engine.complete_interview = complete_interview
+
+            response = await session._handle_stream_end({})
+            if fail_persistence:
+                assert response["type"] == "error"
+                assert response["code"] == "PERSISTENCE_FAILED"
+                assert session._completed_normally is False
+            else:
+                assert response["type"] == "complete"
+                assert session._completed_normally is True
+
+            db_session.expire_all()
+            row = (await db_session.execute(
+                select(MockInterview).where(MockInterview.session_id == session_id)
+            )).scalar_one()
+            assert row.status == ("in_progress" if fail_persistence else "completed")
+            assert (row.transcript is None) is fail_persistence
+
+            await session.cleanup()
+            db_session.expire_all()
+            row = (await db_session.execute(
+                select(MockInterview).where(MockInterview.session_id == session_id)
+            )).scalar_one()
+            assert row.status == ("abandoned" if fail_persistence else "completed")
+            assert session.is_complete is False
+
+    @pytest.mark.asyncio
     async def test_fail_mock_interview_marks_abandoned(self, db_session: Session):
         from backend.models.candidate_portal import CandidateProfile, MockInterview
         from backend.modules.interview.persistence import fail_mock_interview
@@ -1106,3 +1377,370 @@ class TestInterviewPersistenceUnit:
         )
         unchanged = result.scalar_one_or_none()
         assert unchanged.status == "completed"
+
+
+async def _create_mock_interview_async(user_id: str) -> str:
+    from backend.infrastructure.database.database import AsyncSessionLocal
+    from backend.models.candidate_portal import CandidateProfile, MockInterview
+
+    session_id = f"mock-{uuid.uuid4().hex}"
+    async with AsyncSessionLocal() as db:
+        profile = CandidateProfile(user_id=user_id, name="Protocol Test", mock_interviews_remaining=3)
+        db.add(profile)
+        await db.flush()
+        db.add(MockInterview(candidate_id=profile.id, session_id=session_id, status="in_progress", interview_number=1))
+        await db.commit()
+    return session_id
+
+
+class TestSQLSocketOwnershipProtocol:
+    @pytest.mark.asyncio
+    async def test_old_generation_cannot_mutate_send_complete_or_unregister_after_fence(self, monkeypatch):
+        from unittest.mock import AsyncMock
+        from backend.infrastructure.database.database import AsyncSessionLocal
+        from backend.models.candidate_portal import MockInterview
+        from backend.modules.interview.persistence import (
+            acquire_mock_interview_claim,
+            activate_mock_interview_claim,
+            complete_mock_interview,
+        )
+        from backend.modules.interview.sessions.interview_session import InterviewSession
+        from backend.modules.interview.sessions import registry as registry_module
+        from backend.modules.interview.websocket.interview_gateway import InterviewGateway
+        from starlette.websockets import WebSocketState
+
+        user_id = f"claim-stale-effects-{uuid.uuid4().hex}"
+        session_id = await _create_mock_interview_async(user_id)
+        old = await acquire_mock_interview_claim(session_id, user_id, "socket-old")
+        assert old
+        assert await activate_mock_interview_claim(session_id, old["generation"], old["claim_id"])
+
+        class Registry:
+            metadata = {
+                "user_id": user_id,
+                "socket_id": "socket-old",
+                "generation": old["generation"],
+                "claim_id": old["claim_id"],
+                "lifecycle_state": "active",
+            }
+
+            async def owns_session(self, _sid, socket_id, _user=None, generation=None, claim_id=None):
+                return bool(
+                    self.metadata
+                    and self.metadata["socket_id"] == socket_id
+                    and self.metadata["generation"] == generation
+                    and self.metadata["claim_id"] == claim_id
+                    and self.metadata["lifecycle_state"] == "active"
+                )
+
+            async def unregister(self, _sid, socket_id, generation=None, claim_id=None):
+                if await self.owns_session(_sid, socket_id, generation=generation, claim_id=claim_id):
+                    self.metadata = None
+                    return True
+                return False
+
+        registry = Registry()
+        monkeypatch.setattr(registry_module, "_registry", registry)
+        old_session = InterviewSession(
+            session_id,
+            user_id,
+            {},
+            mock_interview_session_id=session_id,
+            socket_id="socket-old",
+            connection_generation=old["generation"],
+            claim_id=old["claim_id"],
+        )
+        old_session.ready = True
+        assert await old_session.owns_current_connection()
+
+        replacement = await acquire_mock_interview_claim(session_id, user_id, "socket-new")
+        assert replacement and replacement["generation"] == old["generation"] + 1
+        assert await old_session.handle_message({"text": json.dumps({"type": "ping"})}) == {
+            "type": "error",
+            "code": "SESSION_REPLACED",
+            "message": "This interview connection has been replaced.",
+            "recoverable": False,
+        }
+
+        from backend.services import redis_manager
+        save = AsyncMock(return_value=True)
+        monkeypatch.setattr(redis_manager.redis_client, "save_session_state_obj", save)
+        assert await old_session.persist_state_now() is False
+        save.assert_not_awaited()
+
+        class Socket:
+            application_state = WebSocketState.CONNECTED
+            client_state = WebSocketState.CONNECTED
+
+            def __init__(self):
+                self.sent = []
+
+            async def send_json(self, payload):
+                self.sent.append(payload)
+
+        socket = Socket()
+        gateway = InterviewGateway.__new__(InterviewGateway)
+        gateway.send_timeout_s = 1
+        await gateway._send_json(socket, {"type": "private_report"}, old_session)
+        assert socket.sent == []
+        assert await complete_mock_interview(
+            session_id,
+            {"summary": "stale"},
+            [],
+            expected_socket_id="socket-old",
+            expected_generation=old["generation"],
+            expected_claim_id=old["claim_id"],
+        ) is False
+        assert await old_session.owns_registered_socket() is False
+        assert await old_session.unregister_if_current() is False
+        async with AsyncSessionLocal() as db:
+            row = (await db.execute(
+                select(MockInterview).where(MockInterview.session_id == session_id)
+            )).scalar_one()
+            assert row.connection_generation == replacement["generation"]
+            assert row.status == "in_progress"
+        assert registry.metadata["socket_id"] == "socket-old"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("failure_boundary", ["redis_pending", "redis_active", "sql_active"])
+    async def test_partial_claim_failure_never_authorizes_socket(self, monkeypatch, failure_boundary):
+        from backend.infrastructure.database.database import AsyncSessionLocal
+        from backend.models.candidate_portal import MockInterview
+        from backend.modules.interview import persistence
+
+        user_id = f"claim-failure-{failure_boundary}-{uuid.uuid4().hex}"
+        session_id = await _create_mock_interview_async(user_id)
+
+        class InjectedRegistry:
+            def __init__(self):
+                self.metadata = None
+
+            async def begin_claim(self, _sid, payload):
+                self.metadata = {**payload, "lifecycle_state": "claiming"}
+                if failure_boundary == "redis_pending":
+                    return False
+                return True
+
+            async def activate_claim(self, _sid, _socket, generation, claim_id):
+                if failure_boundary == "redis_active":
+                    return False
+                if not self.metadata or self.metadata["generation"] != generation or self.metadata["claim_id"] != claim_id:
+                    return False
+                self.metadata["lifecycle_state"] = "active"
+                return True
+
+        registry = InjectedRegistry()
+        if failure_boundary == "sql_active":
+            original_activate = persistence.activate_mock_interview_claim
+
+            async def fail_sql_finalize(*_args, **_kwargs):
+                return False
+
+            monkeypatch.setattr(persistence, "activate_mock_interview_claim", fail_sql_finalize)
+
+        claim = await persistence.claim_mock_interview_connection(
+            session_id, user_id, "socket-1", registry=registry
+        )
+        assert claim is None
+        async with AsyncSessionLocal() as db:
+            row = (await db.execute(
+                select(MockInterview).where(MockInterview.session_id == session_id)
+            )).scalar_one()
+            # Redis pending/active without SQL finalization is never authorized.
+            assert row.connection_state == "claiming"
+            assert row.status == "in_progress"
+        if failure_boundary == "sql_active":
+            monkeypatch.setattr(persistence, "activate_mock_interview_claim", original_activate)
+
+    @pytest.mark.asyncio
+    async def test_claim_failure_before_sql_cas_leaves_row_unclaimed(self, monkeypatch):
+        from backend.infrastructure.database.database import AsyncSessionLocal
+        from backend.models.candidate_portal import MockInterview
+        from backend.modules.interview import persistence
+
+        user_id = f"claim-sql-failure-{uuid.uuid4().hex}"
+        session_id = await _create_mock_interview_async(user_id)
+
+        async def fail_sql_claim(*_args, **_kwargs):
+            return None
+
+        monkeypatch.setattr(persistence, "acquire_mock_interview_claim", fail_sql_claim)
+        class NoRedisCalls:
+            async def begin_claim(self, *_args):
+                pytest.fail("Redis must not be touched before SQL claim CAS")
+
+        assert await persistence.claim_mock_interview_connection(
+            session_id, user_id, "socket-1", registry=NoRedisCalls()
+        ) is None
+        async with AsyncSessionLocal() as db:
+            row = (await db.execute(
+                select(MockInterview).where(MockInterview.session_id == session_id)
+            )).scalar_one()
+            assert row.connection_state == "unclaimed"
+
+    @pytest.mark.asyncio
+    async def test_sql_activation_response_loss_leaves_claimed_socket_not_ready(self, monkeypatch):
+        from backend.infrastructure.database.database import AsyncSessionLocal
+        from backend.models.candidate_portal import MockInterview
+        from backend.modules.interview import persistence
+
+        user_id = f"claim-response-loss-{uuid.uuid4().hex}"
+        session_id = await _create_mock_interview_async(user_id)
+
+        class Registry:
+            metadata = None
+
+            async def begin_claim(self, _sid, payload):
+                self.metadata = {**payload, "lifecycle_state": "claiming"}
+                return True
+
+            async def activate_claim(self, _sid, _socket, _generation, _claim_id):
+                self.metadata["lifecycle_state"] = "active"
+                return True
+
+        original = persistence.activate_mock_interview_claim
+
+        async def commit_then_lose_response(*args, **kwargs):
+            assert await original(*args, **kwargs)
+            return False
+
+        monkeypatch.setattr(persistence, "activate_mock_interview_claim", commit_then_lose_response)
+        registry = Registry()
+        claim = await persistence.claim_mock_interview_connection(
+            session_id, user_id, "socket-unready", registry=registry
+        )
+        assert claim is None  # Gateway must close and create no session handler.
+        async with AsyncSessionLocal() as db:
+            row = (await db.execute(
+                select(MockInterview).where(MockInterview.session_id == session_id)
+            )).scalar_one()
+            assert row.connection_state == "active"
+            assert registry.metadata["lifecycle_state"] == "active"
+
+    @pytest.mark.asyncio
+    async def test_session_readiness_gate_rejects_processing_until_hydrated(self, monkeypatch):
+        from backend.modules.interview.sessions.interview_session import InterviewSession
+
+        session = InterviewSession("readiness-session", "user", {})
+        session.ready = False
+
+        async def owner_is_valid(**_kwargs):
+            return True
+
+        monkeypatch.setattr(session, "owns_current_connection", owner_is_valid)
+        response = await session.handle_message({"text": json.dumps({"type": "ping"})})
+        assert response["code"] == "SESSION_NOT_READY"
+
+    @pytest.mark.asyncio
+    async def test_sql_claim_cas_has_single_winner(self):
+        from backend.modules.interview.persistence import acquire_mock_interview_claim
+
+        user_id = f"claim-race-{uuid.uuid4().hex}"
+        session_id = await _create_mock_interview_async(user_id)
+        results = await asyncio.gather(
+            acquire_mock_interview_claim(session_id, user_id, "socket-a"),
+            acquire_mock_interview_claim(session_id, user_id, "socket-b"),
+        )
+        assert sum(bool(claim) for claim in results) == 1
+
+    @pytest.mark.asyncio
+    async def test_expired_claim_recovery_rejects_stale_claimant(self):
+        from sqlalchemy import update
+        from backend.infrastructure.database.database import AsyncSessionLocal
+        from backend.models.candidate_portal import MockInterview
+        from backend.modules.interview.persistence import (
+            acquire_mock_interview_claim,
+            activate_mock_interview_claim,
+            owns_mock_interview_claim,
+        )
+
+        user_id = f"claim-recovery-{uuid.uuid4().hex}"
+        session_id = await _create_mock_interview_async(user_id)
+        first = await acquire_mock_interview_claim(session_id, user_id, "socket-old", lease_seconds=1)
+        assert first is not None
+
+        async with AsyncSessionLocal() as db:
+            await db.execute(
+                update(MockInterview)
+                .where(MockInterview.session_id == session_id)
+                .values(claim_lease_until=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=1))
+            )
+            await db.commit()
+
+        recovered = await acquire_mock_interview_claim(session_id, user_id, "socket-new")
+        assert recovered is not None
+        assert recovered["generation"] == first["generation"] + 1
+        assert await activate_mock_interview_claim(
+            session_id, first["generation"], first["claim_id"]
+        ) is False
+        assert await activate_mock_interview_claim(
+            session_id, recovered["generation"], recovered["claim_id"]
+        ) is True
+        assert await owns_mock_interview_claim(
+            session_id, user_id, "socket-old", first["generation"], first["claim_id"]
+        ) is False
+        assert await owns_mock_interview_claim(
+            session_id, user_id, "socket-new", recovered["generation"], recovered["claim_id"]
+        ) is True
+
+    @pytest.mark.asyncio
+    async def test_completion_is_fenced_by_claim_generation_and_deducts_once(self, monkeypatch):
+        from unittest.mock import AsyncMock
+        from backend.infrastructure.database.database import AsyncSessionLocal
+        from backend.models.candidate_portal import CandidateProfile, MockInterview
+        from backend.modules.interview import persistence
+
+        user_id = f"claim-completion-{uuid.uuid4().hex}"
+        session_id = await _create_mock_interview_async(user_id)
+        old_claim = await persistence.acquire_mock_interview_claim(session_id, user_id, "socket-old")
+        assert old_claim
+        assert await persistence.activate_mock_interview_claim(
+            session_id, old_claim["generation"], old_claim["claim_id"]
+        )
+        replacement = await persistence.acquire_mock_interview_claim(session_id, user_id, "socket-new")
+        assert replacement
+        registry = AsyncMock()
+        registry.owns_session.return_value = True
+        monkeypatch.setattr(
+            "backend.modules.interview.sessions.registry.get_session_registry",
+            lambda: registry,
+        )
+
+        assert await persistence.complete_mock_interview(
+            session_id,
+            {"summary": "stale"},
+            [],
+            expected_socket_id="socket-old",
+            expected_generation=old_claim["generation"],
+            expected_claim_id=old_claim["claim_id"],
+        ) is False
+        assert await persistence.activate_mock_interview_claim(
+            session_id, replacement["generation"], replacement["claim_id"]
+        )
+        assert await persistence.complete_mock_interview(
+            session_id,
+            {"summary": "current"},
+            [],
+            expected_socket_id="socket-new",
+            expected_generation=replacement["generation"],
+            expected_claim_id=replacement["claim_id"],
+        ) is True
+        assert await persistence.complete_mock_interview(
+            session_id,
+            {"summary": "duplicate"},
+            [],
+            expected_socket_id="socket-new",
+            expected_generation=replacement["generation"],
+            expected_claim_id=replacement["claim_id"],
+        ) is False
+
+        async with AsyncSessionLocal() as db:
+            row = (await db.execute(
+                select(MockInterview).where(MockInterview.session_id == session_id)
+            )).scalar_one()
+            profile = (await db.execute(
+                select(CandidateProfile).where(CandidateProfile.id == row.candidate_id)
+            )).scalar_one()
+            assert row.status == "completed"
+            assert '"summary": "current"' in row.evaluation
+            assert profile.mock_interviews_remaining == 2

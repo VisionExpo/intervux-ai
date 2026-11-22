@@ -22,7 +22,12 @@ class AudioBuffer:
         buffer.clear()
     """
 
-    def __init__(self, session_id: str, max_size_bytes: int = 20000000):
+    def __init__(
+        self,
+        session_id: str,
+        max_size_bytes: int = 20000000,
+        owner_id: Optional[str] = None,
+    ):
         """
         Initialize audio buffer.
         
@@ -31,9 +36,13 @@ class AudioBuffer:
             max_size_bytes: Maximum buffer size in bytes (default 20MB)
         """
         self.session_id = session_id
+        self.owner_id = owner_id or "unowned"
         # In a real cluster this could be an S3 bucket or EFS mount.
         # For this refactor, tempfile directory is used as proxy.
-        self.filepath = os.path.join(tempfile.gettempdir(), f"intervux_audio_{session_id}.raw")
+        self.filepath = os.path.join(
+            tempfile.gettempdir(),
+            f"intervux_audio_{session_id}_{self.owner_id}.raw",
+        )
         self._total_bytes: int = 0
         self._max_size_bytes = max_size_bytes
         self._first_chunk_time: Optional[float] = None

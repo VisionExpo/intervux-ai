@@ -1,14 +1,9 @@
 """
 Interview Session Manager - Handles interview lifecycle and message routing.
 
-Changes vs previous version:
-- __init__ now accepts an optional mock_interview_session_id so the gateway
-  can pass the session_id that was stored in the MockInterview row.
-- _handle_stream_end calls interview_persistence.complete_mock_interview()
-  once the final report is ready.
-- cleanup() calls interview_persistence.fail_mock_interview() when the
-  session ends without having completed normally, so rows don't stay
-  stuck in 'in_progress'.
+The gateway binds each mock interview socket to a SQL generation and Redis
+claim. State writes, sends, task dispatch, completion, and release are fenced
+against that ownership epoch.
 """
 
 import asyncio
@@ -22,10 +17,7 @@ from sqlalchemy import select
 from backend.ai.engines.interview_engine import InterviewEngine
 from backend.modules.interview.models import InterviewPhase, InterviewState
 from backend.services.audio_buffer import AudioBuffer
-from backend.modules.interview.persistence import (
-    complete_mock_interview,
-    fail_mock_interview,
-)
+from backend.modules.interview.persistence import complete_mock_interview, fail_mock_interview
 from backend.core.telemetry import SessionTelemetry
 from backend.core.evaluation_engine import EvaluationFatalError
 from backend.core.logging.logger import get_logger
@@ -55,6 +47,9 @@ class InterviewSession:
         user_id: str,
         session_policy: Dict[str, Any],
         mock_interview_session_id: Optional[str] = None,
+        socket_id: Optional[str] = None,
+        connection_generation: Optional[int] = None,
+        claim_id: Optional[str] = None,
         broadcast_callback: Optional[callable] = None,
     ):
         """
@@ -71,6 +66,10 @@ class InterviewSession:
         self.user_id = user_id
         self.session_policy = session_policy
         self.mock_interview_session_id = mock_interview_session_id
+        self.socket_id = socket_id
+        self.connection_generation = connection_generation
+        self.claim_id = claim_id
+        self.ready = False
         self.broadcast_callback = broadcast_callback
 
         self.state = InterviewState(user_id=self.user_id, session_id=self.session_id)
@@ -78,7 +77,7 @@ class InterviewSession:
             self.state.subscribe_to_phase_changes(self.broadcast_callback)
 
         self.engine = InterviewEngine()
-        self.audio_buffer = AudioBuffer(session_id=self.session_id)
+        self.audio_buffer = AudioBuffer(session_id=self.session_id, owner_id=self.socket_id)
         self.eval_context_cache: Dict[int, dict] = {}
 
         # Set when the interview completes normally so cleanup() knows
@@ -115,7 +114,7 @@ class InterviewSession:
 
     # ------------------------------------------------------------------
 
-    async def hydrate(self) -> bool:
+    async def hydrate(self, strict: bool = False) -> bool:
         """
         Explicitly hydrate session state from Redis.
         Returns True if state was found and loaded.
@@ -140,7 +139,133 @@ class InterviewSession:
                 return True
         except Exception as e:
             logger.warning(f"Could not hydrate session {self.session_id}: {e}")
+            if strict:
+                raise
         return False
+
+    async def owns_current_connection(self, allow_completed: bool = False) -> bool:
+        """Return whether this object still owns the registered socket slot."""
+        if not self.socket_id:
+            return False
+        try:
+            from backend.modules.interview.sessions.registry import get_session_registry
+
+            registry = get_session_registry()
+            if not await registry.owns_session(
+                self.session_id,
+                self.socket_id,
+                self.user_id,
+                generation=self.connection_generation,
+                claim_id=self.claim_id,
+            ):
+                return False
+            if self.mock_interview_session_id:
+                if self.connection_generation is None or not self.claim_id:
+                    return False
+                from backend.modules.interview.persistence import owns_mock_interview_claim
+
+                return await owns_mock_interview_claim(
+                    self.mock_interview_session_id,
+                    self.user_id,
+                    self.socket_id,
+                    self.connection_generation,
+                    self.claim_id,
+                    allow_completed=allow_completed,
+                )
+            return True
+        except Exception:
+            logger.exception("Could not verify interview session ownership")
+            return False
+
+    async def owns_registered_socket(self) -> bool:
+        """Redis-only teardown predicate; never authorizes interview work."""
+        if not self.socket_id:
+            return False
+        try:
+            from backend.modules.interview.sessions.registry import get_session_registry
+
+            registered = await get_session_registry().owns_session(
+                self.session_id,
+                self.socket_id,
+                self.user_id,
+                generation=self.connection_generation,
+                claim_id=self.claim_id,
+            )
+            if not registered:
+                return False
+            if self.mock_interview_session_id:
+                if self.connection_generation is None or not self.claim_id:
+                    return False
+                from backend.modules.interview.persistence import owns_mock_interview_claim
+
+                return await owns_mock_interview_claim(
+                    self.mock_interview_session_id,
+                    self.user_id,
+                    self.socket_id,
+                    self.connection_generation,
+                    self.claim_id,
+                    allow_completed=True,
+                )
+            return True
+        except Exception:
+            return False
+
+    async def run_owned_effect(
+        self,
+        effect,
+        allow_completed: bool = False,
+        allow_abandoned: bool = False,
+    ) -> bool:
+        """Run a Redis/send/task side effect while SQL generation is locked."""
+        if self.mock_interview_session_id:
+            if self.connection_generation is None or not self.claim_id:
+                return False
+            from backend.modules.interview.persistence import run_if_mock_interview_owner
+            from backend.modules.interview.sessions.registry import get_session_registry
+
+            async def fenced_effect():
+                if not await get_session_registry().owns_session(
+                    self.session_id,
+                    self.socket_id,
+                    self.user_id,
+                    generation=self.connection_generation,
+                    claim_id=self.claim_id,
+                ):
+                    return False
+                return await effect()
+
+            return await run_if_mock_interview_owner(
+                self.mock_interview_session_id,
+                self.user_id,
+                self.connection_generation,
+                self.claim_id,
+                fenced_effect,
+                allow_completed=allow_completed,
+                allow_abandoned=allow_abandoned,
+            )
+
+        if not await self.owns_current_connection():
+            return False
+        result = await effect()
+        return result is not False
+
+    async def unregister_if_current(self) -> bool:
+        """Release this generation's slot under the same SQL owner fence."""
+        if not self.socket_id:
+            return False
+        from backend.modules.interview.sessions.registry import get_session_registry
+
+        async def _unregister():
+            return await get_session_registry().unregister(
+                self.session_id,
+                self.socket_id,
+                generation=self.connection_generation,
+                claim_id=self.claim_id,
+            )
+
+        return await self.run_owned_effect(
+            _unregister, allow_completed=True, allow_abandoned=True
+        )
 
     async def handle_message(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
@@ -150,6 +275,22 @@ class InterviewSession:
         """
         msg_type = self._get_message_type(message)
 
+        if not await self.owns_current_connection():
+            return {
+                "type": "error",
+                "code": "SESSION_REPLACED",
+                "message": "This interview connection has been replaced.",
+                "recoverable": False,
+            }
+
+        if not self.ready:
+            return {
+                "type": "error",
+                "code": "SESSION_NOT_READY",
+                "message": "Interview ownership and state hydration are not complete.",
+                "recoverable": True,
+            }
+
         if msg_type == "ping":
             return await self._handle_ping()
 
@@ -158,17 +299,26 @@ class InterviewSession:
             return {"type": "error", "message": "Please wait, the interviewer is thinking.", "recoverable": True}
 
         async with self._processing_lock:
+            if not await self.owns_current_connection():
+                return {
+                    "type": "error",
+                    "code": "SESSION_REPLACED",
+                    "message": "This interview connection has been replaced.",
+                    "recoverable": False,
+                }
             # --- STATELESS ARCHITECTURE ---
             # Hydrate session block dynamically from Redis if resuming.
             await self.hydrate()
 
-            # Risk 1: Validate session still exists in registry before any heavy logic
-            from backend.modules.interview.sessions.registry import get_session_registry
-            registry = get_session_registry()
-            if not await registry.get_metadata(self.session_id):
-                logger.warning(f"Aborting handle_message for {self.session_id}: session no longer in registry.")
-                return None
+            if not await self.owns_current_connection():
+                return {
+                    "type": "error",
+                    "code": "SESSION_REPLACED",
+                    "message": "This interview connection has been replaced.",
+                    "recoverable": False,
+                }
 
+            # Risk 1: Validate session still exists in registry before any heavy logic
             if not self.state.can_proceed(msg_type):
                 logger.warning(
                     f"Invalid message {msg_type} for phase {self.state.phase.value}",
@@ -199,20 +349,38 @@ class InterviewSession:
                 
             # --- LAZY PERSISTENCE ---
             # Only persist to Redis if the state was marked as dirty (changed)
-            if self._dirty:
-                # Check registry one last time to prevent ghost updates after disconnect/cleanup
-                if await registry.get_metadata(self.session_id):
-                    try:
-                        await redis_client.save_session_state_obj(self.session_id, (self.state, self.eval_context_cache))
-                        self._dirty = False # Reset flag after successful save
-                    except Exception as e:
-                        logger.error(f"Failed to persist state to redis: {e}")
-                else:
-                    logger.warning(f"Skipping Redis save for {self.session_id}: session already unregistered.")
-                
+            if self._dirty and not self._completed_normally:
+                try:
+                    saved = await self.persist_state_now()
+                    if not saved:
+                        logger.warning(f"Skipping Redis save for {self.session_id}: session ownership changed.")
+                        response = {
+                            "type": "error",
+                            "code": "SESSION_REPLACED",
+                            "message": "This interview connection has been replaced.",
+                            "recoverable": False,
+                        }
+                except Exception as e:
+                    logger.error(f"Failed to persist state to redis: {e}")
+                    response = {
+                        "type": "error",
+                        "code": "PERSISTENCE_FAILED",
+                        "message": "Interview state could not be saved.",
+                        "recoverable": False,
+                    }
+
+            if not await self.owns_current_connection(
+                allow_completed=bool(self._completed_normally and response.get("type") == "complete")
+            ):
+                return {
+                    "type": "error",
+                    "code": "SESSION_REPLACED",
+                    "message": "This interview connection has been replaced.",
+                    "recoverable": False,
+                }
             return response
 
-    async def persist_state_now(self) -> None:
+    async def persist_state_now(self) -> bool:
         """
         Persist the current state immediately.
 
@@ -220,23 +388,32 @@ class InterviewSession:
         hydrates the latest phase without race windows.
         """
         try:
-            await redis_client.save_session_state_obj(
-                self.session_id, (self.state, self.eval_context_cache)
+            saved = await self.run_owned_effect(
+                lambda: redis_client.save_session_state_obj(
+                    self.session_id,
+                    (self.state, self.eval_context_cache),
+                    expected_socket_id=self.socket_id,
+                    generation=self.connection_generation,
+                    claim_id=self.claim_id,
+                )
             )
-            self._dirty = False
+            if saved:
+                self._dirty = False
+                return True
+            else:
+                logger.info("Skipped immediate state save for replaced session %s", self.session_id)
+                return False
         except Exception as e:
             logger.warning(f"Immediate state persist failed for {self.session_id}: {e}")
+            return False
 
-    async def cleanup(self) -> None:
+    async def cleanup(self, is_owner: bool = True) -> None:
         """
         Clean up session resources.
 
-        If the interview did not complete normally and we have a
-        mock_interview_session_id, the DB row is marked as abandoned
-        so it doesn't stay stuck in 'in_progress'.
-
-        Also explicitly deletes all Redis keys scoped to this session
-        to prevent zombie state from lingering.
+        Until the reconnect grace lifecycle is implemented, an owner cleanup
+        retains the existing abandon-on-disconnect behavior. The transition is
+        fenced by the SQL generation so a stale socket cannot abandon a new one.
         """
         logger.info(
             "Cleaning up interview session",
@@ -258,26 +435,63 @@ class InterviewSession:
                 await asyncio.gather(*self.tasks, return_exceptions=True)
             self.tasks.clear()
 
-        # Mark abandoned if we have a DB row and didn't complete normally OR crash
-        if self.mock_interview_session_id and not self._completed_normally:
-            reason = "internal_error" if self._internal_error else "session_cleanup"
-            await fail_mock_interview(self.mock_interview_session_id, reason)
+        still_owner = is_owner and (
+            self.socket_id is None or await self.owns_registered_socket()
+        )
+
+        if still_owner and self.mock_interview_session_id and not self._completed_normally:
+            abandoned = await fail_mock_interview(
+                self.mock_interview_session_id,
+                "internal_error" if self._internal_error else "session_cleanup",
+                expected_generation=self.connection_generation,
+                expected_claim_id=self.claim_id,
+            )
+            if abandoned and self.socket_id:
+                try:
+                    await redis_client.clear_session_state_obj_if_owner(
+                        self.session_id,
+                        self.socket_id,
+                        generation=self.connection_generation,
+                        claim_id=self.claim_id,
+                    )
+                except Exception:
+                    logger.warning("Could not clear abandoned interview snapshot %s", self.session_id)
+        elif still_owner and self.mock_interview_session_id and self._completed_normally and self.socket_id:
+            try:
+                await redis_client.clear_session_state_obj_if_owner(
+                    self.session_id,
+                    self.socket_id,
+                    generation=self.connection_generation,
+                    claim_id=self.claim_id,
+                )
+            except Exception:
+                logger.warning("Could not clear completed interview snapshot %s", self.session_id)
 
         # ── Redis zombie state cleanup ──
         # Delete all session-scoped keys so they don't linger until TTL expiry.
-        try:
-            await redis_client.clear_session_state(self.session_id)
-            await redis_client.clear_cache(self.session_id)
-            # Clear the pickled state object (binary client)
-            await redis_client.redis_bin.delete(
-                f"interview:state_obj:{self.session_id}"
-            )
-            logger.debug(
-                "Redis keys cleaned for session",
-                extra={"extra_data": {"session_id": self.session_id}},
-            )
-        except Exception as e:
-            logger.warning(f"Redis cleanup error for {self.session_id}: {e}")
+        if still_owner and not self.mock_interview_session_id:
+            try:
+                if self.socket_id:
+                    cleared = await redis_client.clear_session_state_obj_if_owner(
+                        self.session_id,
+                        self.socket_id,
+                        generation=self.connection_generation,
+                        claim_id=self.claim_id,
+                    )
+                    if not cleared:
+                        logger.info("Skipped Redis cleanup for replaced session %s", self.session_id)
+                else:
+                    await redis_client.clear_session_state(self.session_id)
+                    await redis_client.clear_cache(self.session_id)
+                    await redis_client.redis_bin.delete(
+                        f"interview:state_obj:{self.session_id}"
+                    )
+                logger.debug(
+                    "Redis keys cleaned for session",
+                    extra={"extra_data": {"session_id": self.session_id}},
+                )
+            except Exception as e:
+                logger.warning(f"Redis cleanup error for {self.session_id}: {e}")
 
         self.state.reset()
         self.audio_buffer.clear()
@@ -311,7 +525,7 @@ class InterviewSession:
         self.state.transition_to(InterviewPhase.PROCESSING_RESUME)
         self._dirty = True
         await self.persist_state_now()
-        
+
         data = message.get("data", {})
         file_name = data.get("file_name", "")
         file_bytes = data.get("file_bytes", "")
@@ -454,8 +668,19 @@ class InterviewSession:
             filepath = self.audio_buffer.filepath
             suffix = self.engine._detect_audio_suffix(self.audio_buffer.bytes())
 
-            # Fire and forget asynchronous task
-            transcribe_audio_task.delay(filepath, suffix, self.session_id)
+            # Dispatch while the SQL generation is locked so a stale socket
+            # cannot enqueue work after a replacement claim has won.
+            async def _dispatch_transcription():
+                transcribe_audio_task.delay(filepath, suffix, self.session_id)
+                return True
+
+            if not await self.run_owned_effect(_dispatch_transcription):
+                return {
+                    "type": "error",
+                    "code": "SESSION_REPLACED",
+                    "message": "This interview connection has been replaced.",
+                    "recoverable": False,
+                }
 
         return None
 
@@ -528,6 +753,13 @@ class InterviewSession:
         finally:
             self._dirty = True
 
+        if self.socket_id and not await self.owns_current_connection():
+            return {
+                "type": "error",
+                "code": "SESSION_REPLACED",
+                "message": "This interview connection has been replaced.",
+                "recoverable": False,
+            }
 
         # Reset audio state
         self.audio_buffer.clear()
@@ -546,6 +778,13 @@ class InterviewSession:
             )
 
             if next_q:
+                if self.socket_id and not await self.owns_current_connection():
+                    return {
+                        "type": "error",
+                        "code": "SESSION_REPLACED",
+                        "message": "This interview connection has been replaced.",
+                        "recoverable": False,
+                    }
                 SessionTelemetry.record(self.session_id, "QUESTION_GENERATED", metadata={"question_index": self.state.current_index})
                 return {
                     "type": "next_question",
@@ -556,18 +795,47 @@ class InterviewSession:
         # ----------------------------------------------------------------
         # Interview complete - generate final report and persist to DB
         # ----------------------------------------------------------------
+        if self.socket_id and not await self.owns_current_connection():
+            return {
+                "type": "error",
+                "code": "SESSION_REPLACED",
+                "message": "This interview connection has been replaced.",
+                "recoverable": False,
+            }
         final_result = await self.engine.complete_interview(self.state)
-        SessionTelemetry.record(self.session_id, "SESSION_COMPLETED")
 
         # Persist to MockInterview table if we have a session_id
         if self.mock_interview_session_id:
-            await complete_mock_interview(
+            if self.socket_id and not await self.owns_current_connection():
+                return {
+                    "type": "error",
+                    "code": "SESSION_REPLACED",
+                    "message": "This interview connection has been replaced.",
+                    "recoverable": False,
+                }
+            persisted = await complete_mock_interview(
                 self.mock_interview_session_id,
                 final_result.get("report", {}),
                 self.state.answers,
+                expected_socket_id=self.socket_id,
+                expected_generation=self.connection_generation,
+                expected_claim_id=self.claim_id,
             )
+            if not persisted:
+                self._internal_error = True
+                logger.error(
+                    "Interview completion was not persisted; cleanup will attempt abandonment",
+                    extra={"extra_data": {"session_id": self.session_id}},
+                )
+                return {
+                    "type": "error",
+                    "code": "PERSISTENCE_FAILED",
+                    "message": "Interview results could not be saved. Please contact support.",
+                    "recoverable": False,
+                }
             self._completed_normally = True
 
+        SessionTelemetry.record(self.session_id, "SESSION_COMPLETED")
         return {
             "type": "complete",
             "evaluation": eval_result,

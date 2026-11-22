@@ -49,6 +49,12 @@ class MockInterview(Base):
     evaluation = Column(Text, nullable=True)  # JSON string of evaluation
     transcript = Column(Text, nullable=True)
     status = Column(String, nullable=False, default="in_progress")  # in_progress, completed
+    # WebSocket ownership protocol. Business status remains separate from the
+    # transient connection lifecycle so a claim can be fenced transactionally.
+    connection_state = Column(String(24), nullable=False, default="unclaimed", server_default="unclaimed")
+    connection_generation = Column(Integer, nullable=False, default=0, server_default="0")
+    claim_id = Column(String(36), nullable=True)
+    claim_lease_until = Column(DateTime(timezone=True), nullable=True)
     interview_number = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     completed_at = Column(DateTime, nullable=True)

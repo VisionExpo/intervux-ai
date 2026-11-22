@@ -74,13 +74,26 @@ class InterviewGateway:
         task.add_done_callback(handle_done)
         return task
 
-    async def _ping_loop(self, ws: WebSocket, session_id: str):
+    async def _ping_loop(self, ws: WebSocket, session_id: str, session: InterviewSession):
         """Keep LoadBalancers happy with 20s pings."""
         try:
             while True:
                 await asyncio.sleep(20)
                 if ws.application_state == WebSocketState.CONNECTED:
-                    await self._send_json(ws, {"type": "ping", "message": "heartbeat"})
+                    if session.mock_interview_session_id:
+                        async def _renew_claim():
+                            return await self._registry.renew_claim(
+                                session.session_id,
+                                session.socket_id,
+                                session.connection_generation,
+                                session.claim_id,
+                            )
+
+                        if not await session.run_owned_effect(_renew_claim):
+                            break
+                    await self._send_json(
+                        ws, {"type": "ping", "message": "heartbeat"}, session=session
+                    )
                 else:
                     break
         except Exception:
@@ -92,6 +105,8 @@ class InterviewGateway:
         try:
             async for message in redis_client.subscribe(f"interview:results:{session_id}"):
                 if message.get("type") == "partial_transcript":
+                    if not await session.owns_current_connection():
+                        continue
                     text = message.get("text", "")
                     if text:
                         session._partial_transcript = text
@@ -184,19 +199,51 @@ class InterviewGateway:
 
         await ws.accept()
         
-        active_sessions = await self._registry.count()
-        if active_sessions >= self.max_concurrent_sessions:
+        # Support resumption/replacement using the supplied identifier. A
+        # replacement reuses an existing registry slot and must not consume
+        # an additional capacity slot.
+        session_id = provided_session_id or mock_interview_session_id or str(uuid.uuid4())
+        existing_metadata = await self._registry.get_metadata(session_id)
+        try:
+            active_sessions = await self._registry.count()
+        except Exception:
+            logger.exception("Could not determine active interview session count")
+            await self._send_error(ws, "SESSION_UNAVAILABLE", "Interview service is temporarily unavailable.", recoverable=True)
+            await self._close_ws(ws, code=1013)
+            return
+        if active_sessions >= self.max_concurrent_sessions and not existing_metadata:
             await self._send_error(ws, "SERVER_OVERLOADED", "Server is at capacity. Try again shortly.", recoverable=False)
             await self._close_ws(ws, code=1013)
             return
 
-        # Support resumption if session_id is provided in query params
-        session_id = provided_session_id or mock_interview_session_id or str(uuid.uuid4())
         ws.session_id = session_id
         
         # Identify this specific socket connection
         socket_id = str(uuid.uuid4())
         ws.socket_id = socket_id
+
+        claim = None
+        if mock_interview_requested:
+            # SQL is the linearization point: advancing the generation here
+            # fences the previous socket before Redis is touched.
+            from backend.modules.interview.persistence import claim_mock_interview_connection
+
+            claim = await claim_mock_interview_connection(
+                mock_interview_session_id,
+                user_data.user_id,
+                socket_id,
+                registry=self._registry,
+            )
+            if not claim:
+                await self._send_error(
+                    ws,
+                    "SESSION_UNAVAILABLE",
+                    "Interview ownership could not be claimed.",
+                    recoverable=True,
+                )
+                await self._close_ws(ws, code=1013)
+                return
+
 
         # Demo-safety guard: allow only one active session per user.
         existing_session_id: Optional[str] = None
@@ -223,25 +270,25 @@ class InterviewGateway:
             user_id=user_data.user_id,
             session_policy=session_policy,
             mock_interview_session_id=mock_interview_session_id,
+            socket_id=socket_id,
+            connection_generation=claim["generation"] if claim else None,
+            claim_id=claim["claim_id"] if claim else None,
         )
 
         # Centralized broadcast handler: whenever state.transition_to is called, 
         # this callback fires and sends the PHASE_CHANGE event over WebSocket.
         def broadcast_phase_change(new_phase):
+            # The COMPLETE phase is surfaced only after the guarded SQL commit.
+            if new_phase == InterviewPhase.COMPLETE:
+                return
             # Capture sequence ID synchronously to guarantee order
             seq = session.state.get_next_seq()
             
             async def _send_phase():
-                target_ws = ws
-                current_meta = await self._registry.get_metadata(session_id)
-                if current_meta:
-                    active_socket_id = current_meta.get("socket_id")
-                    for conn in self._connections:
-                        if getattr(conn, "socket_id", None) == active_socket_id:
-                            target_ws = conn
-                            break
+                if not await session.owns_current_connection():
+                    return
                             
-                await self._send_json(target_ws, {
+                await self._send_json(ws, {
                     "type": "PHASE_CHANGE", 
                     "phase": new_phase.value, 
                     "seq": seq,
@@ -251,7 +298,7 @@ class InterviewGateway:
                 SessionTelemetry.record(
                     session_id=session_id,
                     event_type="PHASE_CHANGE",
-                    socket_id=active_socket_id if current_meta else None,
+                    socket_id=socket_id,
                     seq=seq,
                     metadata={"new_phase": new_phase.value}
                 )
@@ -273,7 +320,16 @@ class InterviewGateway:
         ]
 
         print(f"DEBUG: Handle called for {session_id}", flush=True)
-        await self._registry.register(session_id, metadata)
+        registered = True if claim else await self._registry.register(session_id, metadata)
+        if not registered:
+            await self._send_error(
+                ws,
+                "SESSION_UNAVAILABLE",
+                "Interview service is temporarily unavailable.",
+                recoverable=True,
+            )
+            await self._close_ws(ws, code=1013)
+            return
 
         for conn in stale_connections:
             logger.info(
@@ -297,7 +353,7 @@ class InterviewGateway:
         )
         
         print(f"DEBUG: Registry registered for {session_id}", flush=True)
-        ping_task = self.safe_create_task(self._ping_loop(ws, session_id), session=session)
+        ping_task = self.safe_create_task(self._ping_loop(ws, session_id, session), session=session)
         pubsub_task = self.safe_create_task(self._pubsub_listener(ws, session_id, session), session=session)
         print(f"DEBUG: Background tasks created for {session_id}", flush=True)
 
@@ -307,56 +363,57 @@ class InterviewGateway:
                 if not response:
                     return
 
-                # LOOKUP ACTIVE SOCKET
+                # Responses from a replaced session object must never be
+                # delivered through the replacement socket.
+                if not await session.owns_current_connection(
+                    allow_completed=bool(session._completed_normally and response.get("type") == "complete")
+                ):
+                    return
+
                 current_meta = await self._registry.get_metadata(session_id)
                 if not current_meta:
                     return # Session destroyed
-                    
-                active_socket_id = current_meta.get("socket_id")
-                
-                # Find the actual WebSocket object matching active_socket_id
-                active_ws = None
-                for conn in self._connections:
-                    if getattr(conn, "socket_id", None) == active_socket_id:
-                        active_ws = conn
-                        break
-                        
-                if not active_ws:
-                    logger.warning(f"No active socket found for session {session_id} to route response.")
-                    SessionTelemetry.record(
-                        session_id=session_id,
-                        event_type="STALE_SEND_ABORTED",
-                        socket_id=socket_id,
-                        metadata={"attempted_socket": socket_id, "active_socket": active_socket_id}
-                    )
+                if current_meta.get("socket_id") != socket_id:
                     return
 
-                # ROUTE TO ACTIVE SOCKET
                 if response.get("type") == "question":
-                    await self._send_evaluation_response(active_ws, response, session=session)
-                    await self._send_question_with_audio(active_ws, session, response)
+                    await self._send_evaluation_response(ws, response, session=session)
+                    await self._send_question_with_audio(ws, session, response)
                 elif response.get("type") == "next_question":
                     eval_data = response.get("question", {}).get("data", {})
                     next_q = response.get("next_question", {})
-                    await self._send_json(active_ws, {"type": "evaluation", "data": eval_data}, session=session)
-                    await self._send_question_with_audio(active_ws, session, next_q)
+                    await self._send_json(ws, {"type": "evaluation", "data": eval_data}, session=session)
+                    await self._send_question_with_audio(ws, session, next_q)
                 elif response.get("type") == "complete":
                     eval_data = response.get("evaluation", {}).get("data", {})
                     final = response.get("final", {})
-                    await self._send_json(active_ws, {"type": "evaluation", "data": eval_data}, session=session)
-                    await self._send_json(active_ws, final, session=session)
+                    await self._send_json(ws, {"type": "evaluation", "data": eval_data}, session=session)
+                    await self._send_json(ws, final, session=session)
                 else:
                     if response.get("type") == "error":
                         response["type"] = "ERROR"
-                    await self._send_json(active_ws, response, session=session)
+                    await self._send_json(ws, response, session=session)
                     if response.get("type") == "ERROR" and not response.get("recoverable", True):
-                        await self._close_ws(active_ws, code=1011)
+                        await self._close_ws(ws, code=1011)
 
             except Exception as e:
                 logger.error(f"Background processing failed: {e}")
 
         # Attempt to hydrate state immediately for resumption logic
-        is_resumed = await session.hydrate()
+        try:
+            is_resumed = await session.hydrate(strict=bool(mock_interview_requested))
+            if not await session.owns_current_connection():
+                raise RuntimeError("ownership changed during session hydration")
+            if not is_resumed and mock_interview_requested:
+                if not await session.persist_state_now():
+                    raise RuntimeError("initial interview snapshot could not be persisted")
+            session.ready = True
+        except Exception:
+            logger.exception("Session readiness check failed closed")
+            await self._close_ws(ws, code=1013)
+            await session.cleanup(is_owner=False)
+            await session.unregister_if_current()
+            return
         if is_resumed:
             logger.info(f"Resuming interview for session {session_id}")
 
@@ -415,7 +472,7 @@ class InterviewGateway:
                 logger.error(f"WS RAW: type={m_type}, text_len={m_text_len}, bytes_len={m_bytes_len}", extra={"extra_data": {"session_id": session_id}})
 
                 # CRITICAL: Validate session still exists in registry before processing
-                if not await self._registry.get_metadata(session_id):
+                if not await session.owns_current_connection():
                     logger.warning(f"Session {session_id} not found in registry during message handling.")
                     await self._send_error(ws, "SESSION_EXPIRED", "Session has timed out or been closed.", recoverable=False, session=session)
                     break
@@ -473,13 +530,10 @@ class InterviewGateway:
             self._connections.discard(ws)
             
             # SOCKET EVICTION GUARD
+            is_owner = await session.owns_registered_socket()
             current_meta = await self._registry.get_metadata(session_id)
-            if current_meta and current_meta.get("socket_id") == socket_id:
+            if is_owner:
                 # We are the active socket, safe to cleanup
-                for task in list(session.tasks):
-                    if not task.done():
-                        task.cancel()
-                
                 # Revoke any lingering Celery TTS tasks for this session
                 pending_tts = self._active_celery_tasks.pop(session_id, set())
                 for tts_task in pending_tts:
@@ -489,8 +543,8 @@ class InterviewGateway:
                     except Exception:
                         pass
                         
-                await session.cleanup()
-                await self._registry.unregister(session_id)
+                await session.cleanup(is_owner=True)
+                await session.unregister_if_current()
             else:
                 logger.info(f"Skipping cleanup for superseded socket {socket_id} in session {session_id}.")
                 SessionTelemetry.record(
@@ -499,12 +553,7 @@ class InterviewGateway:
                     socket_id=socket_id,
                     metadata={"new_socket": current_meta.get("socket_id") if current_meta else None}
                 )
-
-            # Clean up the PubSub results channel key from Redis
-            try:
-                await self.redis.delete(f"interview:results:{session_id}")
-            except Exception:
-                pass
+                await session.cleanup(is_owner=False)
 
     # Audio Helpers
     async def _send_question_with_audio(self, ws: WebSocket, session: InterviewSession, question_data: Dict[str, Any]) -> None:
@@ -534,7 +583,7 @@ class InterviewGateway:
             if not audio_bytes:
                 continue
             await self._send_json(ws, {"type": "avatar_visemes", "visemes": visemes}, session=session)
-            await self._send_bytes(ws, bytes(audio_bytes))
+            await self._send_bytes(ws, bytes(audio_bytes), session=session)
 
     async def _send_evaluation_response(self, ws: WebSocket, response: Dict[str, Any], session: InterviewSession) -> None:
         eval_payload = response.get("data")
@@ -557,41 +606,64 @@ class InterviewGateway:
         if ws.application_state != WebSocketState.CONNECTED or ws.client_state != WebSocketState.CONNECTED:
             return
 
-        if session and "seq" not in payload:
-            payload["seq"] = session.state.get_next_seq()
-        
+        if session and not session.ready:
+            return
+
         # Inject protocol version for backward compatibility tracking
         if "version" not in payload:
             payload["version"] = "v1"
         
-        try:
-            await asyncio.wait_for(ws.send_json(payload), timeout=self.send_timeout_s)
-        except (RuntimeError, WebSocketDisconnect, anyio.BrokenResourceError, anyio.ClosedResourceError):
-            # WebSocket already closed or closing → ignore silently
-            return
-        except asyncio.TimeoutError:
-            # We log but don't crash the loop
-            logger.warning("WebSocket send_json timed out", extra={"extra_data": {"timeout": self.send_timeout_s}})
-        except Exception:
-            logger.exception("Unexpected send failure")
+        async def _send():
+            if session and "seq" not in payload:
+                payload["seq"] = session.state.get_next_seq()
+            try:
+                await asyncio.wait_for(ws.send_json(payload), timeout=self.send_timeout_s)
+                return True
+            except (RuntimeError, WebSocketDisconnect, anyio.BrokenResourceError, anyio.ClosedResourceError):
+                return False
+            except asyncio.TimeoutError:
+                logger.warning("WebSocket send_json timed out", extra={"extra_data": {"timeout": self.send_timeout_s}})
+                return False
+            except Exception:
+                logger.exception("Unexpected send failure")
+                return False
+
+        if session:
+            await session.run_owned_effect(_send, allow_completed=session._completed_normally)
+        else:
+            await _send()
 
     async def _broadcast_phase(self, ws: WebSocket, session: InterviewSession, phase: InterviewPhase) -> None:
         """Helper to broadcast phase change to frontend."""
         await self._send_json(ws, {"type": "PHASE_CHANGE", "phase": phase.value}, session=session)
 
-    async def _send_bytes(self, ws: WebSocket, data: bytes) -> None:
+    async def _send_bytes(
+        self, ws: WebSocket, data: bytes, session: Optional[InterviewSession] = None
+    ) -> None:
         """Send raw bytes with Starlette-safe state check."""
         if ws.application_state != WebSocketState.CONNECTED or ws.client_state != WebSocketState.CONNECTED:
             return
 
-        try:
-            await asyncio.wait_for(ws.send_bytes(data), timeout=self.send_timeout_s)
-        except (RuntimeError, WebSocketDisconnect, anyio.BrokenResourceError, anyio.ClosedResourceError):
-            pass
-        except asyncio.TimeoutError:
-            logger.warning("WebSocket send_bytes timed out")
-        except Exception:
-            logger.exception("Failed to send bytes via WebSocket")
+        if session and not session.ready:
+            return
+
+        async def _send():
+            try:
+                await asyncio.wait_for(ws.send_bytes(data), timeout=self.send_timeout_s)
+                return True
+            except (RuntimeError, WebSocketDisconnect, anyio.BrokenResourceError, anyio.ClosedResourceError):
+                return False
+            except asyncio.TimeoutError:
+                logger.warning("WebSocket send_bytes timed out")
+                return False
+            except Exception:
+                logger.exception("Failed to send bytes via WebSocket")
+                return False
+
+        if session:
+            await session.run_owned_effect(_send, allow_completed=session._completed_normally)
+        else:
+            await _send()
 
     async def _send_error(self, ws: WebSocket, code: str, message: str, recoverable: bool, session: Optional[InterviewSession] = None) -> None:
         """Send an error message to the client with Starlette-safe state check."""

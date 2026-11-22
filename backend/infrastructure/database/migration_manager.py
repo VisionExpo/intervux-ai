@@ -18,7 +18,10 @@ SCHEMA_SIGNATURE = {
     "candidates": ["id", "name", "email", "role", "status", "job_post_id"],
     "job_posts": ["id", "title", "experience_level", "status", "ai_interview_enabled"],
     "candidate_profiles": ["id", "user_id", "name", "skills", "experience_years"],
-    "mock_interviews": ["id", "candidate_id", "session_id", "status"]
+    "mock_interviews": [
+        "id", "candidate_id", "session_id", "status", "connection_state",
+        "connection_generation", "claim_id", "claim_lease_until",
+    ]
 }
 
 # Exit Codes for Automation
